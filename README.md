@@ -1,2 +1,1 @@
-# anaformer
-Anatomy of Transformer Representation in Foundation Models under Distribution Shifts
+# Finding Waldo in Foundation Models
