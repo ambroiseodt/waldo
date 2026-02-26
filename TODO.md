@@ -7,12 +7,13 @@
     - Multimodal 
         - Clip
         - SigLip
-        - Justification: (natural choices, following UNDERSTANDING TRANSFERABLE REPRESENTATION LEARNING AND ZERO-SHOT TRANSFER IN CLIP in ICLR 2024)
+        - Justification: natural choices, following Transferable Representation at ICLR 2024 (https://arxiv.org/pdf/2310.00927)
     - Text 
         - Llama 3 (1B, 3B, 7B)
         - Gemma 3 (2B, 4B, 9B)
         - Qwen 3 (3 sizes)
         - Justification: following Layer by layer (https://arxiv.org/pdf/2502.02013): generic models to study their representation and avoid potential cofounder of instruct models or models finetuned for the task of embedding
+        - Although not embedding specific models, our aim is not performance-oriented but to understand the impact of layer and module on the hidden representation quality so make sense to use the general pretrained model since creating an embedding model implies extensive finetuning (see https://arxiv.org/pdf/2503.07891) and might destort the generic hidden representation. Also easier to access all the internal representations with open-source general models than API ones and embedding specific (again our aim is to understand the transformer architecture, not reach the highest performance on probing tasks). Again pretrained models encompass the general knowledge of the model while instruct-ones are laigned to prioritize helpfulness and safety. We want to probe the general knowledge so focus on non-instruct models. Same argument for general model and not embedding ones, noting that most embedding models are based on general pretrained ones after finetuning (e.g. Gemini embedding (https://arxiv.org/pdf/2503.07891) and Mistral embedding (https://arxiv.org/pdf/2401.00368))
 
 - Add datasets
     - Vision
@@ -22,28 +23,36 @@
         - Pet
         - Flowers102
         - DomainNet (5 domains)
+        - Justification: natural choice following Dinov2, AIM (https://arxiv.org/pdf/2401.08541), CLIP (https://arxiv.org/pdf/2103.00020), SigLip (https://arxiv.org/pdf/2303.15343) and ViT Finetuning (https://arxiv.org/pdf/2602.06883)
+
     - Text
         - MMTEB benchmarks
-            - Classification tasks (multilingual)
-            - Justification: following Layer by Layer (https://arxiv.org/pdf/2502.02013)
+            - Justification: natural choice following Layer by Layer (https://arxiv.org/pdf/2502.02013) + natural choice to investigate quality of sentence embeddings (see MTEB paper https://arxiv.org/pdf/2502.13595 and https://arxiv.org/pdf/2210.07316)
+            - Focus on classification tasks 
+                - Justification: allows us to maintain a consistent evaluation protocol since linear probing is done with logistic regression for classification tasks in the original MTEB and MMTEB papers
+            - Focus on english subset (eng v2) vs multilingual subset (following notations of Gemini embedding (https://arxiv.org/pdf/2503.07891)) 
+                - Study the impact of domains and languages as distribution shifts
+                - Justification: natural choice of distribution shifts, allow for diverse downstream datasets and used in prior works to study transfer of knowledge
+                - Impact of domain shift has been studied in robustness of NLP models in EMNLP (https://arxiv.org/pdf/2306.00168)
+                - Impact of language shift has been studied in Cross-lingual represetnation learning in ACL (https://arxiv.org/pdf/1911.02116)
 
-- Experimental setup
-    - Goal: consistency and simplicity for the sake of efficiency and to avoid cofounders
-    - Following 
-
+- Add experimental setup
+    - Goal: consistency across modality, pretraining type, types of models; we aim for simplicity and efficiency and want to avoid confounders
+    - Study the impact of distribution shifts defined between pretraiing and downstream tasks as done in my paper on ViT finetuning (https://arxiv.org/pdf/2602.06883)
+    - Linear probing 
+        - Choice: Logistic regression with LBFGS solver 
+        - Custom implementation for vision and done via MTEB implementation for text (standard setup in classification task)
+        - Justification: following DinoV2 (https://arxiv.org/pdf/2304.07193, page 14, section 7.2), Clip (https://arxiv.org/pdf/2103.00020, page 6, section 3), Transferable Representation at ICLR 2024 (https://arxiv.org/pdf/2310.00927, page 9, table 2) and MMTEB protocal for classification (https://arxiv.org/pdf/2502.13595, page 37, section B.1) and my paper on linear probing; it allows us to avoid the impact of learning rate and batch size choice 
+        - Related work: mention that attentive probing also exists (better performance in AIM) but for simplicity and avoid influence of hyperparameter, so we consider linear probing with logistic regression as done in DinoV2 and MTEB classification tasks
+    - Probing strategy
+        - Global Average pooling over a given sequence of tokens (for a choice of layer and module)
+        - Justification: It allows to get global information and compare similarly all the models (encoder-only, multimodal, decoder-only, models with CLS tokens, autoregressive models, self-supervised models, supervised models)
+        - Importantly: since we compare different layers and different modules, it is important to aggregate all the information in the sequence of tokens to avoid loosing some crucial information that might be captured for instance after the attention module but not after the feedforward network, or similarly that are captured in early layers but not in the final ones. For that reason, we consider average global pooling over sequences of tokens as a simple and efficient way to aggregate the global information incorporated in the hidden representations before logistic regression.
+        - Using other probing strategy like CLS token or EOS (end-of-sentence) tokens might bias the results by the architectural objective (next-token prediction vs supervised and supervised vs discriminative self-supervised). Average pooling is neutral and avoid this bias. 
+        - Also, the literature shows that token position heavily impacts the hidden representation like the impact of location in the context (Lost in the middle in ACL (https://arxiv.org/pdf/2307.03172)) or the importance of initial tokens (attention sink in ICLR 2024 (https://arxiv.org/pdf/2309.17453)), of CLS tokens (used in ViT and Dinov2 models) and EOS tokens 
+        - For consistency and avoid loosing information, we consider the global average pooling.
+        - It is akin to how embedding are obtained in transformer-based BERT models (https://arxiv.org/pdf/1810.04805) according to the MTEB paper (https://arxiv.org/pdf/2210.07316)
+        - It is akin to the sentence-level representation used in multilingual with Cross Lingual representation in ACL (https://arxiv.org/pdf/2505.13628v1, page 2, section 3)
+        - From an implementation perspective, this is akin to attentive probing with uniform attention weights.
+        - Again, our goal is not performance-oriented but rather a sound and consistent experimental framework to compare hidden representations across models, modality, layers and modules
     
-- Add linear classifier
-    - Choice: Logistic regression with LBFGS solver 
-    - Justification: following DinoV2 (https://arxiv.org/pdf/2304.07193, page 14, section 7.2) and MMTEB (https://arxiv.org/pdf/2502.13595, page 37, section B.1)
-    
-    to avoid the impact of learning rate and batch size choice and for simplicity (following the MTEB evaluation protocol + my paper on linear probing + Clip paper)
-
-- Add probing strategy (unified?)
-    - We want the same strategy for different types of models and some of them don't have CLS token so we propose to simply average over the sequence of tokens. Since the CLS contains valuable information (following vit original paper and Dinov2), we still consider it in the sequence of tokens for ViT and Dino models. For decoder-only models, we use the same strategy to maintain a unified setup except we don't consider the padding tokens.
-    - Why is it needed: we want to compare supervised, autoregressive, self-supervised models for classification, multimodel and text so we need a unified hidden representation. Since not all models have CLS token, CLS option is not viable. But it still contains valuable information for supervised models so it makes sense to use it as part of the model representation. To capture the global representation, we propose to take the average over the sequence of tokens. It leads to a unifided strategy for ViT with CLS token (ViT, Dino) but also for autoregressive models like AIM that don't have a CLS token
-    - Vision: for unified evaluation among supervised, autoregressive and self-supervised, take the global average over the sequence
-        - Average the sequence of embeddings 
-        - Justification: following Dinov2, patch tokens contain critical information 
-    - Multimodel
-        - Average the sequence of embeddings
-    - Text
