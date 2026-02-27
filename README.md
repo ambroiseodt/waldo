@@ -30,6 +30,9 @@ The accelerate package can be used to download and distribute models from the Hu
 accelerate config
 ```
 
+### Using HuggingFace pretrained models
+Some models are gated, e.g., the Llama and Gemma ones. Users should request the access and login to the huggingface hub to use them in the scripts. See https://huggingface.co/docs/hub/en/models-gated for more information.
+
 ## Acknowledgements
 
 ## Contact
