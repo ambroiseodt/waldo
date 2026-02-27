@@ -1,31 +1,46 @@
+## **Main focus**: mutimodality and varied model sizes using main transformer components (encoder and decoder); our choices are motivated by models staying close to the original Transformer architecture (https://arxiv.org/pdf/1706.03762)
+
+### **TODO**:
+
+- Required packages
+    - torch
+    - torchvision
+    - numpy, matplotlib, sklearn
+    - huggingface transformers
+    - mteb benchmark https://github.com/embeddings-benchmark/mteb
+    - openclip https://github.com/mlfoundations/open_clip 
+    - cuml https://github.com/rapidsai/cuml (see https://docs.rapids.ai/install/#selector for installation)
+
 - Add models
     - Vision 
-        - ViT (base, large, huge)
-        - Dinov2, Dinov3
-        - AIM (3 or 4 sizes)
+        - ViT (base, large, huge) https://huggingface.co/google/vit-base-patch16-224 (included HF transformers)
+        - Dinov2 (small, base, large, giant) https://huggingface.co/facebook/dinov2-base (included HF transformers)
+        - Dinov3 (small, base, large, 7B) https://huggingface.co/facebook/dinov3-vit7b16-pretrain-lvd1689m (included HF transformers)
+        - AIM (0.6B, 1.2B, 2.7B, 6.5B) https://huggingface.co/apple/AIM-600M
         - Justification: natural to do probing on those models, cite the original Dinov2/v3 and AIM papers
     - Multimodal 
-        - Clip
-        - SigLip
+        - OpenClip (base, large, huge) https://github.com/mlfoundations/open_clip 
+        - SigLip (base, large) https://huggingface.co/google/siglip-base-patch16-224 (included HF transformers)
+        - sigLip2 (base, large, giant) https://huggingface.co/google/siglip2-base-patch16-224 (included HF transformers)
         - Justification: natural choices, following Transferable Representation at ICLR 2024 (https://arxiv.org/pdf/2310.00927)
-    - Text 
-        - Llama 3 (1B, 3B, 7B)
-        - Gemma 3 (2B, 4B, 9B)
-        - Qwen 3 (3 sizes)
+    - Language 
+        - Llama3.1 8B https://huggingface.co/meta-llama/Llama-3.1-8B
+        - Llama3.2 (1B, 3B) https://huggingface.co/meta-llama/Llama-3.2-1B  
+        - Gemma3 (1B, 4B, 12B)  https://huggingface.co/google/gemma-3-4b-pt (included HF transformers)
+        - Qwen3 (0.6B, 1.7B, 4B) https://huggingface.co/Qwen/Qwen3-0.6B (included HF transformers)
         - Justification: following Layer by layer (https://arxiv.org/pdf/2502.02013): generic models to study their representation and avoid potential cofounder of instruct models or models finetuned for the task of embedding
         - Although not embedding specific models, our aim is not performance-oriented but to understand the impact of layer and module on the hidden representation quality so make sense to use the general pretrained model since creating an embedding model implies extensive finetuning (see https://arxiv.org/pdf/2503.07891) and might destort the generic hidden representation. Also easier to access all the internal representations with open-source general models than API ones and embedding specific (again our aim is to understand the transformer architecture, not reach the highest performance on probing tasks). Again pretrained models encompass the general knowledge of the model while instruct-ones are laigned to prioritize helpfulness and safety. We want to probe the general knowledge so focus on non-instruct models. Same argument for general model and not embedding ones, noting that most embedding models are based on general pretrained ones after finetuning (e.g. Gemini embedding (https://arxiv.org/pdf/2503.07891) and Mistral embedding (https://arxiv.org/pdf/2401.00368))
 
 - Add datasets
     - Vision
         - Cifar10/100
-        - ImageNet
-        - ImageNet-C
+        - VisionNet
+        - VisionNet-C
         - Pet
         - Flowers102
         - DomainNet (5 domains)
-        - Justification: natural choice following Dinov2, AIM (https://arxiv.org/pdf/2401.08541), CLIP (https://arxiv.org/pdf/2103.00020), SigLip (https://arxiv.org/pdf/2303.15343) and ViT Finetuning (https://arxiv.org/pdf/2602.06883)
-
-    - Text
+        - Justification: natural choice following Dinov2, Dinov3, AIM (https://arxiv.org/pdf/2401.08541), CLIP (https://arxiv.org/pdf/2103.00020), SigLip (https://arxiv.org/pdf/2303.15343) and ViT Finetuning (https://arxiv.org/pdf/2602.06883)
+    - Language
         - MMTEB benchmarks
             - Justification: natural choice following Layer by Layer (https://arxiv.org/pdf/2502.02013) + natural choice to investigate quality of sentence embeddings (see MTEB paper https://arxiv.org/pdf/2502.13595 and https://arxiv.org/pdf/2210.07316)
             - Focus on classification tasks 
@@ -36,23 +51,54 @@
                 - Impact of domain shift has been studied in robustness of NLP models in EMNLP (https://arxiv.org/pdf/2306.00168)
                 - Impact of language shift has been studied in Cross-lingual represetnation learning in ACL (https://arxiv.org/pdf/1911.02116)
 
+- (**TEMP**) Add data preprocessing
+    - Vision
+        - patch_size: 14 or 16 
+        - resolution: 224 or 256?
+        - training data croping and so on? 
+    - Language
+        - Handled by the MTEB benchmark https://github.com/embeddings-benchmark/mteb
+
 - Add experimental setup
     - Goal: consistency across modality, pretraining type, types of models; we aim for simplicity and efficiency and want to avoid confounders
     - Study the impact of distribution shifts defined between pretraiing and downstream tasks as done in my paper on ViT finetuning (https://arxiv.org/pdf/2602.06883)
+    - Model decomposition
+        - Layers:
+            - Loop over each block
+        - Transformer block (8 outputs per block)
+            - Main transformer components: ln1, mha, res1, ln2, fc1, act, fc2, res2
+            - Architectural changes
+                - Normalization layers
+                    - LayerNorm
+                    - RMSNorm
+                - Attention module
+                    - GQA
+                - FFN
+                    - SwiGlu activation (DiNov2,DiNov3, Llama3)
     - Linear probing 
-        - Choice: Logistic regression with LBFGS solver 
-        - Custom implementation for vision and done via MTEB implementation for text (standard setup in classification task)
-        - Justification: following DinoV2 (https://arxiv.org/pdf/2304.07193, page 14, section 7.2), Clip (https://arxiv.org/pdf/2103.00020, page 6, section 3), Transferable Representation at ICLR 2024 (https://arxiv.org/pdf/2310.00927, page 9, table 2) and MMTEB protocal for classification (https://arxiv.org/pdf/2502.13595, page 37, section B.1) and my paper on linear probing; it allows us to avoid the impact of learning rate and batch size choice 
-        - Related work: mention that attentive probing also exists (better performance in AIM) but for simplicity and avoid influence of hyperparameter, so we consider linear probing with logistic regression as done in DinoV2 and MTEB classification tasks
-    - Probing strategy
-        - Global Average pooling over a given sequence of tokens (for a choice of layer and module)
-        - Justification: It allows to get global information and compare similarly all the models (encoder-only, multimodal, decoder-only, models with CLS tokens, autoregressive models, self-supervised models, supervised models)
-        - Importantly: since we compare different layers and different modules, it is important to aggregate all the information in the sequence of tokens to avoid loosing some crucial information that might be captured for instance after the attention module but not after the feedforward network, or similarly that are captured in early layers but not in the final ones. For that reason, we consider average global pooling over sequences of tokens as a simple and efficient way to aggregate the global information incorporated in the hidden representations before logistic regression.
+        - Vision
+            - Choice: Logistic regression with LBFGS solver 
+            - Custom implementation for vision and done via MTEB implementation for text (standard setup in classification task)
+            - Justification: following DinoV2 (https://arxiv.org/pdf/2304.07193, page 14, section 7.2), Clip (https://arxiv.org/pdf/2103.00020, page 6, section 3), Transferable Representation at ICLR 2024 (https://arxiv.org/pdf/2310.00927, page 9, table 2) and MMTEB protocal for classification (https://arxiv.org/pdf/2502.13595, page 37, section B.1) and my paper on linear probing; it allows us to avoid the impact of learning rate and batch size choice 
+            - Related work: mention that attentive probing also exists (better performance in AIM) but for simplicity and avoid influence of hyperparameter, so we consider linear probing with logistic regression as done in DinoV2 and MTEB classification tasks
+        - Language
+            - Handled by the MTEB benchmark 
+        - Efficiency to deal with large input tensors:
+            - cuml.LogisticRegression is a drop-in replacement of sklearn.LogisticRegression but faster and gpu-friendly
+
+    - Creation of embeddings
+        - Choice: global average pooling over sequences of tokens without special tokens
+        - Justification: consistent experimental framework to compare hidden representations across models, modality, layers and modules
+        - Our goal is not performance-oriented but consistency and it allows comparing models that have CLS and those without it, and focus on global information on the content (image or text)
         - Using other probing strategy like CLS token or EOS (end-of-sentence) tokens might bias the results by the architectural objective (next-token prediction vs supervised and supervised vs discriminative self-supervised). Average pooling is neutral and avoid this bias. 
-        - Also, the literature shows that token position heavily impacts the hidden representation like the impact of location in the context (Lost in the middle in ACL (https://arxiv.org/pdf/2307.03172)) or the importance of initial tokens (attention sink in ICLR 2024 (https://arxiv.org/pdf/2309.17453)), of CLS tokens (used in ViT and Dinov2 models) and EOS tokens 
-        - For consistency and avoid loosing information, we consider the global average pooling.
-        - It is akin to how embedding are obtained in transformer-based BERT models (https://arxiv.org/pdf/1810.04805) according to the MTEB paper (https://arxiv.org/pdf/2210.07316)
-        - It is akin to the sentence-level representation used in multilingual with Cross Lingual representation in ACL (https://arxiv.org/pdf/2505.13628v1, page 2, section 3)
-        - From an implementation perspective, this is akin to attentive probing with uniform attention weights.
-        - Again, our goal is not performance-oriented but rather a sound and consistent experimental framework to compare hidden representations across models, modality, layers and modules
+        - Also, since we compare different layers and different modules, it is important to aggregate all the information in the sequence of tokens to avoid loosing some crucial information that might be captured for instance after the attention module but not after the feedforward network, or similarly that are captured in early layers but not in the final ones. Notably, the CLS or EOS information in early layers or in some specific modules might not be valuable. Taking the average content embedding is a safer choice.
+        - Vision
+            - Remove CLS tokens, only consider patch tokens to remain consistent with models that don't have them
+            - Justification: standard practice named GAP (global average pooling) used in Dinov2, Dinov3
+        - Language
+            - Remove special tokens (BOS, EOS, pad tokens), only consider the sentence embedding
+            - Justification: akin to consider only patch tokens in vision
+
+
+
     
