@@ -18,13 +18,18 @@ classifiers = [
 ]
 
 dependencies = [
+    "cuml-cu12==26.2.*",    
     "einops",
-    "fire",      
+    "fire",   
+    "mteb",   
     "numpy",
     "omegaconf", 
+    "open_clip_torch", 
+    "scikit-learn",
     "scipy",
     "torch",
     "torchvision",
+    "transformers",
 ]
 
 [project.optional-dependencies]
@@ -32,13 +37,12 @@ dev = [
     "ruff",            
 ]
 
-fm = [
+pretrained = [
     "accelerate",               
-    "huggingface_hub[hf_xet]",                   
-    "transformers",           
+    "huggingface_hub[hf_xet]",                         
 ]
 
-visu = [
+visual = [
     "ipykernel",    
     "ipywidgets",  
     "matplotlib", 
@@ -71,3 +75,6 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+
+[tool.pip-tools]
+extra-index-url = ["https://pypi.nvidia.com"]
