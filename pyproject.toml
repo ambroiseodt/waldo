@@ -10,7 +10,7 @@ authors = [
 ]
 description = "Optimal Transformer Representations in Foundation Models"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -19,34 +19,34 @@ classifiers = [
 
 dependencies = [
     "cuml-cu12==26.2.*",    
-    "einops",
-    "fire",   
-    "mteb",   
-    "numpy",
-    "omegaconf", 
+    "einops==0.8.2",
+    "fire==0.7.1",   
+    "mteb[xet]==2.10.4",   
+    "numpy==2.2.6",
+    "omegaconf==2.3.0", 
     "open_clip_torch", 
-    "scikit-learn",
-    "scipy",
-    "torch",
-    "torchvision",
-    "transformers",
+    "scikit-learn==1.8.0",
+    "scipy==1.17.1",
+    "torch==2.9.1",
+    "torchvision==0.24.1",
+    "transformers==5.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff",            
+    "ruff==0.15.4",            
 ]
 
 pretrained = [
-    "accelerate",               
-    "huggingface_hub[hf_xet]",                         
+    "accelerate==1.12.0",               
+    "huggingface_hub[hf_xet]==1.5.0",                         
 ]
 
 visual = [
-    "ipykernel",    
-    "ipywidgets",  
-    "matplotlib", 
-    "seaborn",      
+    "ipykernel==7.2.0",    
+    "ipywidgets==8.1.8",  
+    "matplotlib==3.10.8", 
+    "seaborn==0.13.2",      
 ]
 
 [tool.setuptools.packages.find]
