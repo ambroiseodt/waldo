@@ -32,14 +32,21 @@
         - Although not embedding specific models, our aim is not performance-oriented but to understand the impact of layer and module on the hidden representation quality so make sense to use the general pretrained model since creating an embedding model implies extensive finetuning (see https://arxiv.org/pdf/2503.07891) and might destort the generic hidden representation. Also easier to access all the internal representations with open-source general models than API ones and embedding specific (again our aim is to understand the transformer architecture, not reach the highest performance on probing tasks). Again pretrained models encompass the general knowledge of the model while instruct-ones are laigned to prioritize helpfulness and safety. We want to probe the general knowledge so focus on non-instruct models. Same argument for general model and not embedding ones, noting that most embedding models are based on general pretrained ones after finetuning (e.g. Gemini embedding (https://arxiv.org/pdf/2503.07891) and Mistral embedding (https://arxiv.org/pdf/2401.00368))
 
 - Add datasets
-    - Vision
-        - Cifar10/100
-        - VisionNet
-        - VisionNet-C
+    - Vision (fine-grained classification)
+        - DomainNet (5 domains)
+        - ImageNet-C (5 corruptions, Contrast, Gaussian Noise, Motion Blur, Snow, Speckle Noise)
+        - Cifar10
+        - Cifar100
+        - ImageNet
         - Pet
         - Flowers102
-        - DomainNet (5 domains)
-        - Justification: natural choice following Dinov2, Dinov3, AIM (https://arxiv.org/pdf/2401.08541), CLIP (https://arxiv.org/pdf/2103.00020), SigLip (https://arxiv.org/pdf/2303.15343) and ViT Finetuning (https://arxiv.org/pdf/2602.06883)
+        - Food101 (https://docs.pytorch.org/vision/main/generated/torchvision.datasets.Food101.html)
+        - ~~StandfordCars (https://docs.pytorch.org/vision/main/generated/torchvision.datasets.StanfordCars.html)~~
+        - ~~Sun397 (https://docs.pytorch.org/vision/main/generated/torchvision.datasets.SUN397.html)~~
+        - Aircraft (https://docs.pytorch.org/vision/main/generated/torchvision.datasets.FGVCAircraft.html)
+        - ~~Caltech101 (https://docs.pytorch.org/vision/main/generated/torchvision.datasets.Caltech101.html#torchvision.datasets.Caltech101)~~
+        - ~~DTD (https://docs.pytorch.org/vision/main/generated/torchvision.datasets.DTD.html#torchvision.datasets.DTD)~~
+        - Justification: natural choice following Dinov2, Dinov3, AIM (https://arxiv.org/pdf/2401.08541) and originaly in SimCLR (https://arxiv.org/pdf/2002.05709)
     - Language
         - MMTEB benchmarks
             - Justification: natural choice following Layer by Layer (https://arxiv.org/pdf/2502.02013) + natural choice to investigate quality of sentence embeddings (see MTEB paper https://arxiv.org/pdf/2502.13595 and https://arxiv.org/pdf/2210.07316)
@@ -61,7 +68,7 @@
 
 - Add experimental setup
     - Goal: consistency across modality, pretraining type, types of models; we aim for simplicity and efficiency and want to avoid confounders
-    - Study the impact of distribution shifts defined between pretraiing and downstream tasks as done in my paper on ViT finetuning (https://arxiv.org/pdf/2602.06883)
+    - Study transfer learning from pretraiing to downstream tasks as done in my paper on ViT finetuning (https://arxiv.org/pdf/2602.06883)
     - Model decomposition
         - Layers:
             - Loop over each block
@@ -75,9 +82,15 @@
                     - GQA
                 - FFN
                     - SwiGlu activation (DiNov2,DiNov3, Llama3)
+                    - Corresponding decomposition:
+                        - $FC1 = self.W_in1(x)$
+                        - $Act = F.silu(self.W_in1(x)) * self.W_in2(x)$
+                        - $FC2 = self.W_out(Act)$
     - Linear probing 
         - Vision
-            - Choice: Logistic regression with LBFGS solver 
+            - Choice: Logistic regression with LBFGS solver with L2 regularization
+            - Main motivation: DinoV2 and DinoV3 which inspire in the first place from SimCLR, ICML 2019 (https://arxiv.org/pdf/2002.05709)
+            - Our implementation follows: 
             - Custom implementation for vision and done via MTEB implementation for text (standard setup in classification task)
             - Justification: following DinoV2 (https://arxiv.org/pdf/2304.07193, page 14, section 7.2), Clip (https://arxiv.org/pdf/2103.00020, page 6, section 3), Transferable Representation at ICLR 2024 (https://arxiv.org/pdf/2310.00927, page 9, table 2) and MMTEB protocal for classification (https://arxiv.org/pdf/2502.13595, page 37, section B.1) and my paper on linear probing; it allows us to avoid the impact of learning rate and batch size choice 
             - Related work: mention that attentive probing also exists (better performance in AIM) but for simplicity and avoid influence of hyperparameter, so we consider linear probing with logistic regression as done in DinoV2 and MTEB classification tasks
@@ -101,4 +114,5 @@
 
 
 
-    
+    - Related work
+        - iGPT paper in ICML 2020 (https://proceedings.mlr.press/v119/chen20s.html): the authors show that for pretrained generative models, middle layers give the best representation (in terms of linear probing accuracy), see Figure 2
