@@ -1,5 +1,5 @@
 r"""
-Codebase to preprocess images.
+Codebase to preprocess vision and languages benchmarks.
 
 License
 -------
@@ -9,7 +9,9 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
-from .images import (
+from .vision import (
+    AircraftDataset,
+    AircraftDatasetConfig,
     Cifar10CDataset,
     Cifar10CDatasetConfig,
     Cifar10Dataset,
@@ -22,6 +24,8 @@ from .images import (
     DomainNetDatasetConfig,
     Flowers102Dataset,
     Flowers102DatasetConfig,
+    Food101Dataset,
+    Food101DatasetConfig,
     ImageNetCDataset,
     ImageNetCDatasetConfig,
     ImageNetDataset,
@@ -29,11 +33,11 @@ from .images import (
     OxfordIIITPetDataset,
     OxfordIIITPetDatasetConfig,
     build_loader,
-    build_train_val_loader,
-    make_iterable,
 )
 
 __all__ = [
+    "AircraftDataset",
+    "AircraftDatasetConfig",
     "Cifar10DatasetConfig",
     "Cifar10Dataset",
     "Cifar10CDatasetConfig",
@@ -50,9 +54,9 @@ __all__ = [
     "ImageNetCDatasetConfig",
     "Flowers102DatasetConfig",
     "Flowers102Dataset",
+    "Food101Dataset",
+    "Food101DatasetConfig",
     "OxfordIIITPetDatasetConfig",
     "OxfordIIITPetDataset",
     "build_loader",
-    "build_train_val_loader",
-    "make_iterable",
 ]
