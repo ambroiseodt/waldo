@@ -1,5 +1,5 @@
 r"""
-ImageNet-C Dataset.
+Cifar100-C Dataset.
 
 License
 -------
@@ -10,21 +10,21 @@ in the root directory of this source tree.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
 
 import numpy as np
-import torchvision
-from PIL import Image
+import torchvision.transforms.functional as F
 from torch.utils.data import Dataset
+from torchvision.transforms import Compose
 
 from ...config import DATASET_DIR
-from ...utils import deterministic_split
+from .utils import deterministic_split
 
 
 @dataclass
-class ImageNetCDatasetConfig:
+class Cifar100CDatasetConfig:
     r"""
-    ImageNet-C configuration file.
+    Cifar100-C configuration file.
 
     Parameters
     ----------
@@ -55,16 +55,16 @@ class ImageNetCDatasetConfig:
         Severity of the corruption applied on the data.
         Allowed values are 1, 2, 3, 4 and 5.
     mode: str
-        Mode. Options are "train", "val" and "test".
+        Mode. Options are "train" and "test".
     transform: Any
         Transformation to apply to the images.
     """
 
-    save_dir: str | None = None
+    save_dir: Path = DATASET_DIR / "cifar100_c"
     corruption_type: str = "brightness"
     corruption_severity: int = 1
     mode: str = "train"
-    transform: Any | None = None
+    transform: Compose | None = None
 
     def __init__(self, **kwargs):
         self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
@@ -104,20 +104,14 @@ class ImageNetCDatasetConfig:
         ], f"Invalid severity {self.corruption_severity}. Options are from 1 to 5."
 
         # Valid mode
-        assert self.mode in ["train", "val", "test"], (
-            f"Invalid mode {self.mode}. Options are 'train', 'val' and 'test'."
-        )
-
-        # Set default values
-        if self.save_dir is None:
-            self.save_dir = DATASET_DIR / "imagenet_c"
+        assert self.mode in ["train", "test"], f"Invalid mode {self.mode}. Options are 'train' and 'test."
 
 
-class ImageNetCDataset(Dataset):
+class Cifar100CDataset(Dataset):
     r"""
-    ImageNet-C dataset from [1]_.
+    Cifar100-C dataset from [1]_.
 
-    It consits of 15 corruptions with 5 level of severity of the ImageNet validation set.
+    It consits of 15 corruptions with 5 level of severity of the CIFAR-10 test set.
     To use it for finetuning, we split it into deterministic training and test sets.
 
     Parameters
@@ -130,73 +124,66 @@ class ImageNetCDataset(Dataset):
         corruption_severity: int
             Severity of the corruption applied on the data.
         mode: str
-            Mode. Options are "train", "val", and "test".
-        transform: nn.Module
+            Mode. Options are "train" and "test".
+        transform: Compose
             Transformation to apply to the images.
 
     Notes
     ----------
-    ImageNet-C was created by Dan Hendrycks and Thomas Dietterich.
+    Cifar100-C was created by Dan Hendrycks and Thomas Dietterich.
     Official website: https://github.com/hendrycks/robustness.
 
     Download
     --------
-    To download the data, run the following command (replacing corruption by blur, digital, extra, noise, or weather):
+    To download the data, run the following command from the root of the repository:
     ```bash
-    $ wget https://zenodo.org/record/2235448/files/corruption.tar
+    $ wget https://zenodo.org/record/3555552/files/CIFAR-100-C.tar
     ```
-    Move the downloaded files to the desired location, e.g, datasets/imagenet_c, and extract them with
+    Move the downloaded file to the desired location, e.g, datasets/cifar100_c, and extract it with
     ```bash
-    $ tar -xvzf corruption.tar
+    $ tar xvf CIFAR-100-C.tar -C . --strip-components 1
     ```
-
     References
     ----------
-    .. [1] D. Hendrycks and T. Dietterich. Benchmarking Neural Network Robustness to Common
+    .. [1] D. Hendrycks and t. Dietterich. Benchmarking Neural Network Robustness to Common
            Corruptions and Surface Variations. In ICLR 2019
     """
 
-    def __init__(self, config: ImageNetCDatasetConfig):
+    def __init__(self, config: Cifar100CDatasetConfig):
         super().__init__()
         train = True if config.mode == "train" else False
 
-        # Recover dataset
-        dataset = torchvision.datasets.ImageFolder(
-            root=config.save_dir / config.corruption_type / str(config.corruption_severity)
-        )
-        samples = np.asarray(dataset.imgs)
+        # Recover path to data corresponding to corruption and severity
+        path_images = config.save_dir / f"{config.corruption_type}.npy"
+        path_labels = config.save_dir / "labels.npy"
 
-        if config.mode == "val":
-            # ImageNet-C corresponds to the ImageNet validation set corrupted
-            self.samples = samples
-        else:
-            # Create deterministic train and test sets (80/20)
-            indices, n_train = deterministic_split(data=samples, train_size=0.8)
-            if train:
-                indices = indices[:n_train]
-            else:
-                indices = indices[n_train:]
+        # Recover index of the images
+        start = (config.corruption_severity - 1) * 10_000
+        end = start + 10_000
 
-            # Recover images and corresponding labels
-            indices = np.sort(indices)
-            self.samples = samples[indices]
+        # Recover images and corresponding labels
+        data = np.load(path_images)[start:end]
+        targets = np.array([int(label) for label in np.load(path_labels)[start:end]])
 
-        self.n_classes = 1000
+        # Recover the (deterministic) train or test set
+        indices = deterministic_split(data=data, train_size=0.8, train=train)
+        self.data = data[indices]
+        self.targets = targets[indices]
+        self.n_classes = 100
 
         # Recover transform
         self.transform = config.transform
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.data)
 
     def __getitem__(self, idx: int):
-        path, label = self.samples[idx]
-        sample = Image.open(path).convert("RGB")
-        label = int(label)
+        sample = F.to_pil_image(self.data[idx])
+        label = self.targets[idx]
         if self.transform is not None:
             sample = self.transform(sample)
 
         return sample, label
 
     def __repr__(self):
-        return f"Dataset with {len(self.samples)} images."
+        return f"Dataset with {len(self.data)} images."

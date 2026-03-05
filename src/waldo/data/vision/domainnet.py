@@ -10,15 +10,16 @@ in the root directory of this source tree.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
 
 import numpy as np
 import torchvision
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.transforms import Compose
 
 from ...config import DATASET_DIR
-from ...utils import deterministic_split
+from .utils import deterministic_split
 
 
 @dataclass
@@ -44,10 +45,10 @@ class DomainNetDatasetConfig:
         Transformation to apply to the images.
     """
 
-    save_dir: str | None = None
+    save_dir: Path = DATASET_DIR / "domainnet"
     domain: str = "clipart"
     mode: str = "train"
-    transform: Any | None = None
+    transform: Compose | None = None
 
     def __init__(self, **kwargs):
         self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
@@ -61,10 +62,6 @@ class DomainNetDatasetConfig:
 
         # Valid mode
         assert self.mode in ["train", "test"], f"Invalid mode {self.mode}. Options are 'train' and 'test."
-
-        # Set default values
-        if self.save_dir is None:
-            self.save_dir = DATASET_DIR / "domainnet"
 
 
 class DomainNetDataset(Dataset):
@@ -82,7 +79,7 @@ class DomainNetDataset(Dataset):
             Type of images.
         mode: str
             Mode. Options are "train" and "test".
-        transform: nn.Module
+        transform: Compose
             Transformation to apply to the images.
 
     Notes
@@ -114,18 +111,11 @@ class DomainNetDataset(Dataset):
         train = True if config.mode == "train" else False
 
         # Recover dataset
-        dataset = torchvision.datasets.ImageFolder(root=config.save_dir / config.domain)
+        dataset = torchvision.datasets.ImageFolder(root=str(config.save_dir / config.domain))
         samples = np.asarray(dataset.imgs)
 
-        # Create deterministic train and test sets (80/20)
-        indices, n_train = deterministic_split(data=samples, train_size=0.8)
-        if train:
-            indices = indices[:n_train]
-        else:
-            indices = indices[n_train:]
-
-        # Recover images and corresponding labels
-        indices = np.sort(indices)
+        # Recover the (deterministic) train or test set
+        indices = deterministic_split(data=samples, train_size=0.8, train=train)
         self.samples = samples[indices]
         self.n_classes = 345
 

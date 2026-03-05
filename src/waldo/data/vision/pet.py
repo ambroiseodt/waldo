@@ -1,10 +1,5 @@
 r"""
-Oxford Flowers-102 Dataset.
-
-Notes
------
-To load the Flowers102 dataset, scipy is needed.
-
+Oxford-IIIT Pet Dataset.
 
 License
 -------
@@ -15,50 +10,46 @@ in the root directory of this source tree.
 """
 
 from dataclasses import dataclass
-from typing import Any
 
 import torchvision
 from PIL import Image
 from torch.utils.data import Dataset
-
-from ...config import DATASET_DIR
+from torchvision.transforms import Compose
 
 
 @dataclass
-class Flowers102DatasetConfig:
+class OxfordIIITPetDatasetConfig:
     r"""
-    Oxford Flowers-102 configuration file.
+    Oxford-IIIT Pet configuration file.
 
     Parameters
     ----------
     save_dir: str
         Path from where to load the data or save them if it does not exit.
     mode: str
-        Mode. Options are "train", "val", and "test".
+        Mode. Options are "train" and "test".
     transform: Any
         Transformation to apply to the images.
     """
 
     save_dir: str | None = None
     mode: str = "train"
-    transform: Any | None = None
+    transform: Compose | None = None
 
     def __init__(self, **kwargs):
         self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
         self.__post_init__()
 
     def __post_init__(self):
-        assert self.mode in ["train", "val", "test"], f"Invalid mode {self.mode}. Options are 'train', 'val' and 'test."
-        if self.save_dir is None:
-            self.save_dir = DATASET_DIR / "flowers102"
+        assert self.mode in ["train", "test"], f"Invalid mode {self.mode}. Options are 'train' and 'test."
 
 
-class Flowers102Dataset(Dataset):
+class OxfordIIITPetDataset(Dataset):
     r"""
-    Oxford 102 Flower dataset from [1]_.
+    Oxford-IIIT Pet dataset from [1]_.
 
-    It consits of images of 102 flower categories with each class containing of between 40 and 258 images.
-    The flowers were chosen to be flowers commonly occurring in the United Kingdom.
+    It consists of 37 category of pets with around 200 images for each class.
+    The images have a large variations in scale, pose and lighting.
 
     Parameters
     ----------
@@ -66,34 +57,33 @@ class Flowers102Dataset(Dataset):
         save_dir: str
             Path from where to load the data or save them if it does not exit.
         mode: str
-            Mode. Options are "train", "val", and "test".
-        transform: nn.Module
+            Mode. Options are "train" and "test".
+        transform: Compose
             Transformation to apply to the images.
 
     Notes
     ----------
-    Oxford 102 Flower was created by Maria-Elena Nilsback and Andrew Zisserman.
-    Official website: https://www.robots.ox.ac.uk/~vgg/data/flowers/102/.
+    Oxford-IIIT Pet was created by Omkar M Parkhi, Andrea Vedaldi, Andrew Zisserman, C. V. Jawahar
+    Official website: https://www.robots.ox.ac.uk/~vgg/data/pets/.
 
     References
     ----------
-    .. [1] M-E. Nilsback and A. Zisserman. Automated Flower Classification
-           over a Large Number of Classes. In ICVGIP 2008
+    .. [1] O. M. Parkhi et al. Cats and Dogs. In CVPR 2012
     """
 
-    def __init__(self, config: Flowers102DatasetConfig):
+    def __init__(self, config: OxfordIIITPetDatasetConfig):
         super().__init__()
-        split = config.mode
-        dataset = torchvision.datasets.Flowers102(
-            root=config.save_dir,
+        split = "trainval" if config.mode == "train" else "test"
+        dataset = torchvision.datasets.OxfordIIITPet(
+            root=str(config.save_dir),
             split=split,
             download=True,
         )
 
         # Recover dataset
-        self.samples = dataset._image_files
+        self.samples = dataset._images
         self.targets = dataset._labels
-        self.n_classes = 102
+        self.n_classes = 37
 
         # Recover transform
         self.transform = config.transform

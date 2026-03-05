@@ -1,5 +1,5 @@
 r"""
-Cifar100-C Dataset.
+Cifar10-C Dataset.
 
 License
 -------
@@ -11,20 +11,20 @@ in the root directory of this source tree.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import torchvision.transforms.functional as F
 from torch.utils.data import Dataset
+from torchvision.transforms import Compose
 
-from ..config import DATASET_DIR
+from ...config import DATASET_DIR
 from .utils import deterministic_split
 
 
 @dataclass
-class Cifar100CDatasetConfig:
+class Cifar10CDatasetConfig:
     r"""
-    Cifar100-C configuration file.
+    Cifar10-C configuration file.
 
     Parameters
     ----------
@@ -60,11 +60,11 @@ class Cifar100CDatasetConfig:
         Transformation to apply to the images.
     """
 
-    save_dir: Path = DATASET_DIR / "cifar100_c"
+    save_dir: Path = DATASET_DIR / "cifar10_c"
     corruption_type: str = "brightness"
     corruption_severity: int = 1
     mode: str = "train"
-    transform: Any | None = None
+    transform: Compose | None = None
 
     def __init__(self, **kwargs):
         self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
@@ -107,9 +107,9 @@ class Cifar100CDatasetConfig:
         assert self.mode in ["train", "test"], f"Invalid mode {self.mode}. Options are 'train' and 'test."
 
 
-class Cifar100CDataset(Dataset):
+class Cifar10CDataset(Dataset):
     r"""
-    Cifar100-C dataset from [1]_.
+    Cifar10-C dataset from [1]_.
 
     It consits of 15 corruptions with 5 level of severity of the CIFAR-10 test set.
     To use it for finetuning, we split it into deterministic training and test sets.
@@ -125,31 +125,32 @@ class Cifar100CDataset(Dataset):
             Severity of the corruption applied on the data.
         mode: str
             Mode. Options are "train" and "test".
-        transform: nn.Module
+        transform: Compose
             Transformation to apply to the images.
 
     Notes
     ----------
-    Cifar100-C was created by Dan Hendrycks and Thomas Dietterich.
+    CIFAR10-C was created by Dan Hendrycks and Thomas Dietterich.
     Official website: https://github.com/hendrycks/robustness.
 
     Download
     --------
     To download the data, run the following command from the root of the repository:
     ```bash
-    $ wget https://zenodo.org/record/3555552/files/CIFAR-100-C.tar
+    $ wget https://zenodo.org/record/2535967/files/CIFAR-10-C.tar
     ```
-    Move the downloaded file to the desired location, e.g, datasets/cifar100_c, and extract it with
+    Move the downloaded file to the desired location, e.g, datasets/cifar10_c, and extract it with
     ```bash
-    $ tar xvf CIFAR-100-C.tar -C . --strip-components 1
+    $ tar xvf CIFAR-10-C.tar -C . --strip-components 1
     ```
+
     References
     ----------
     .. [1] D. Hendrycks and t. Dietterich. Benchmarking Neural Network Robustness to Common
            Corruptions and Surface Variations. In ICLR 2019
     """
 
-    def __init__(self, config: Cifar100CDatasetConfig):
+    def __init__(self, config: Cifar10CDatasetConfig):
         super().__init__()
         train = True if config.mode == "train" else False
 
@@ -166,7 +167,7 @@ class Cifar100CDataset(Dataset):
         targets = np.array([int(label) for label in np.load(path_labels)[start:end]])
 
         # Recover the (deterministic) train or test set
-        indices = deterministic_split(data=data, train_size=0.8, train_flag=train)
+        indices = deterministic_split(data=data, train_size=0.8, train=train)
         self.data = data[indices]
         self.targets = targets[indices]
         self.n_classes = 10

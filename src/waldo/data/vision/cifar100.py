@@ -11,13 +11,13 @@ in the root directory of this source tree.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import torchvision
 import torchvision.transforms.functional as F
 from torch.utils.data import Dataset
+from torchvision.transforms import Compose
 
-from ..config import DATASET_DIR
+from ...config import DATASET_DIR
 
 
 @dataclass
@@ -37,7 +37,7 @@ class Cifar100DatasetConfig:
 
     save_dir: Path = DATASET_DIR / "cifar100"
     mode: str = "train"
-    transform: Any | None = None
+    transform: Compose | None = None
 
     def __init__(self, **kwargs):
         self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
@@ -61,7 +61,7 @@ class Cifar100Dataset(Dataset):
             Path from where to load the data or save them if it does not exit.
         mode: str
             Mode. Options are "train" and "test".
-        transform: nn.Module
+        transform: Compose
             Transformation to apply to the images.
 
     Notes

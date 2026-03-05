@@ -1,5 +1,10 @@
 r"""
-ImageNet Dataset.
+Oxford Flowers-102 Dataset.
+
+Notes
+-----
+To load the Flowers102 dataset, scipy is needed.
+
 
 License
 -------
@@ -10,49 +15,49 @@ in the root directory of this source tree.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
 
 import torchvision
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.transforms import Compose
 
 from ...config import DATASET_DIR
 
 
 @dataclass
-class ImageNetDatasetConfig:
+class Flowers102DatasetConfig:
     r"""
-    ImageNet configuration file.
+    Oxford Flowers-102 configuration file.
 
     Parameters
     ----------
     save_dir: str
         Path from where to load the data or save them if it does not exit.
     mode: str
-        Mode. Options are "train" and "val".
+        Mode. Options are "train", "val", and "test".
     transform: Any
         Transformation to apply to the images.
     """
 
-    save_dir: str | None = None
+    save_dir: Path = DATASET_DIR / "flowers102"
     mode: str = "train"
-    transform: Any | None = None
+    transform: Compose | None = None
 
     def __init__(self, **kwargs):
         self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
         self.__post_init__()
 
     def __post_init__(self):
-        assert self.mode in ["train", "val"], f"Invalid mode {self.mode}. Options are 'train' and 'val'."
-        if self.save_dir is None:
-            self.save_dir = DATASET_DIR / "imagenet"
+        assert self.mode in ["train", "val", "test"], f"Invalid mode {self.mode}. Options are 'train', 'val' and 'test."
 
 
-class ImageNetDataset(Dataset):
+class Flowers102Dataset(Dataset):
     r"""
-    ImageNet dataset from [1]_.
+    Oxford 102 Flower dataset from [1]_.
 
-    It consits of a subset of 10 easily classified classes from ImageNet.
+    It consits of images of 102 flower categories with each class containing of between 40 and 258 images.
+    The flowers were chosen to be flowers commonly occurring in the United Kingdom.
 
     Parameters
     ----------
@@ -60,39 +65,34 @@ class ImageNetDataset(Dataset):
         save_dir: str
             Path from where to load the data or save them if it does not exit.
         mode: str
-            Mode. Options are "train" and "val".
-        transform: nn.Module
+            Mode. Options are "train", "val", and "test".
+        transform: Compose
             Transformation to apply to the images.
 
     Notes
     ----------
-    Official website: https://www.image-net.org.
-
-    Download
-    --------
-    To download the training or validation data, run the following command from the root of the repository
-    (replacing subset by train or val):
-    ```bash
-    $ wget https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_subset.tar --no-check-certificate
-    ```
-    To extract the images, run the following command from the root of the repository:
-    ```bash
-    $ bash apps/vit/scripts/extract_imagenet.sh
-    ```
+    Oxford 102 Flower was created by Maria-Elena Nilsback and Andrew Zisserman.
+    Official website: https://www.robots.ox.ac.uk/~vgg/data/flowers/102/.
 
     References
     ----------
-    .. [1] J. Deng et al. Imagenet: A large-scale hierarchical image database. In CVPR 2009
+    .. [1] M-E. Nilsback and A. Zisserman. Automated Flower Classification
+           over a Large Number of Classes. In ICVGIP 2008
     """
 
-    def __init__(self, config: ImageNetDatasetConfig):
+    def __init__(self, config: Flowers102DatasetConfig):
         super().__init__()
-        split = "train" if config.mode == "train" else "val"
-        dataset = torchvision.datasets.ImageFolder(root=config.save_dir / split)
+        split = config.mode
+        dataset = torchvision.datasets.Flowers102(
+            root=str(config.save_dir),
+            split=split,
+            download=True,
+        )
 
         # Recover dataset
-        self.samples = dataset.imgs
-        self.n_classes = 1000
+        self.samples = dataset._image_files
+        self.targets = dataset._labels
+        self.n_classes = 102
 
         # Recover transform
         self.transform = config.transform
@@ -101,9 +101,9 @@ class ImageNetDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx: int):
-        path, label = self.samples[idx]
+        path = self.samples[idx]
         sample = Image.open(path).convert("RGB")
-        label = int(label)
+        label = self.targets[idx]
         if self.transform is not None:
             sample = self.transform(sample)
 

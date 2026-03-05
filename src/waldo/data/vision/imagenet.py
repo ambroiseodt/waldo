@@ -1,10 +1,5 @@
 r"""
-Oxford-IIIT Pet Dataset.
-
-Notes
------
-To load the Flowers102 dataset, scipy is needed.
-
+ImageNet Dataset.
 
 License
 -------
@@ -15,50 +10,50 @@ in the root directory of this source tree.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
 
 import torchvision
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.transforms import Compose
 
 from ...config import DATASET_DIR
 
 
 @dataclass
-class OxfordIIITPetDatasetConfig:
+class ImageNetDatasetConfig:
     r"""
-    Oxford-IIIT Pet configuration file.
+    ImageNet configuration file.
 
     Parameters
     ----------
     save_dir: str
         Path from where to load the data or save them if it does not exit.
     mode: str
-        Mode. Options are "train" and "test".
+        Mode. Options are "train" and "val".
     transform: Any
         Transformation to apply to the images.
     """
 
-    save_dir: str | None = None
+    save_dir: Path = DATASET_DIR / "imagenet"
     mode: str = "train"
-    transform: Any | None = None
+    transform: Compose | None = None
 
     def __init__(self, **kwargs):
         self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
         self.__post_init__()
 
     def __post_init__(self):
-        assert self.mode in ["train", "test"], f"Invalid mode {self.mode}. Options are 'train' and 'test."
+        assert self.mode in ["train", "val"], f"Invalid mode {self.mode}. Options are 'train' and 'val'."
         if self.save_dir is None:
-            self.save_dir = DATASET_DIR / "pet"
+            self.save_dir = DATASET_DIR / "imagenet"
 
 
-class OxfordIIITPetDataset(Dataset):
+class ImageNetDataset(Dataset):
     r"""
-    Oxford-IIIT Pet dataset from [1]_.
+    ImageNet dataset from [1]_.
 
-    It consists of 37 category of pets with around 200 images for each class.
-    The images have a large variations in scale, pose and lighting.
+    It consits of a subset of 10 easily classified classes from ImageNet.
 
     Parameters
     ----------
@@ -66,34 +61,39 @@ class OxfordIIITPetDataset(Dataset):
         save_dir: str
             Path from where to load the data or save them if it does not exit.
         mode: str
-            Mode. Options are "train" and "test".
-        transform: nn.Module
+            Mode. Options are "train" and "val".
+        transform: Compose
             Transformation to apply to the images.
 
     Notes
     ----------
-    Oxford-IIIT Pet was created by Omkar M Parkhi, Andrea Vedaldi, Andrew Zisserman, C. V. Jawahar
-    Official website: https://www.robots.ox.ac.uk/~vgg/data/pets/.
+    Official website: https://www.image-net.org.
+
+    Download
+    --------
+    To download the training or validation data, run the following command from the root of the repository
+    (replacing subset by train or val):
+    ```bash
+    $ wget https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_subset.tar --no-check-certificate
+    ```
+    To extract the images, run the following command from the root of the repository:
+    ```bash
+    $ bash apps/vit/scripts/extract_imagenet.sh
+    ```
 
     References
     ----------
-    .. [1] O. M. Parkhi et al. Cats and Dogs. In CVPR 2012
+    .. [1] J. Deng et al. Imagenet: A large-scale hierarchical image database. In CVPR 2009
     """
 
-    def __init__(self, config: OxfordIIITPetDatasetConfig):
+    def __init__(self, config: ImageNetDatasetConfig):
         super().__init__()
-        split = "trainval" if config.mode == "train" else "test"
-        dataset = torchvision.datasets.OxfordIIITPet(
-            root=config.save_dir,
-            split=split,
-            download=True,
-        )
+        split = "train" if config.mode == "train" else "val"
+        dataset = torchvision.datasets.ImageFolder(root=str(config.save_dir / split))
 
         # Recover dataset
-        self.samples = dataset._images
-        print(Image.open(self.samples[0]).convert("RGB"))
-        self.targets = dataset._labels
-        self.n_classes = 37
+        self.samples = dataset.imgs
+        self.n_classes = 1000
 
         # Recover transform
         self.transform = config.transform
@@ -102,9 +102,9 @@ class OxfordIIITPetDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx: int):
-        path = self.samples[idx]
+        path, label = self.samples[idx]
         sample = Image.open(path).convert("RGB")
-        label = self.targets[idx]
+        label = int(label)
         if self.transform is not None:
             sample = self.transform(sample)
 
