@@ -9,6 +9,7 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+from .language import MTEB, MTEBConfig, build_mteb
 from .vision import (
     AircraftDataset,
     AircraftDatasetConfig,
@@ -56,7 +57,10 @@ __all__ = [
     "Flowers102Dataset",
     "Food101Dataset",
     "Food101DatasetConfig",
+    "MTEB",
+    "MTEBConfig",
     "OxfordIIITPetDatasetConfig",
     "OxfordIIITPetDataset",
+    "build_mteb",
     "build_loader",
 ]

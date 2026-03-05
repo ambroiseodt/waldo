@@ -8,3 +8,11 @@ in the root directory of this source tree.
 
 @ 2026, Ambroise Odonnat
 """
+
+from .mteb import MTEB, MTEBConfig, build_mteb
+
+__all__ = [
+    "MTEB",
+    "MTEBConfig",
+    "build_mteb",
+]
