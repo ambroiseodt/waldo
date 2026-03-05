@@ -1,7 +1,7 @@
 # Finding Waldo in Foundation Models
 
 ## Getting started
-The code runs Python 3.10+. Here are some installation instructions:
+The code runs Python 3.12+. Here are some installation instructions:
 Install [miniforge](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html). Follow the instruction online, most likely you will execute the following commands:
 ```bash
 curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh"
@@ -10,7 +10,7 @@ source ~/.bashrc
 ```
 Install Python in a new conda environment (be mindful to install a Python version compatible with Pytorch):
 ```bash
-conda create -n myenv python==3.10
+conda create -n myenv python==3.12
 conda activate myenv
 ```
 Install the repository (the ``pretrained" dependencies are optional but allow for a faster download of weights):
@@ -29,6 +29,9 @@ The accelerate package can be used to download and distribute models from the Hu
 ```bash
 accelerate config
 ```
+
+> [!NOTE]
+> Libraries such as [transformers](https://github.com/huggingface/transformers), [OpenClip](https://github.com/mlfoundations/open_clip) or [MTEB](https://github.com/embeddings-benchmark/mteb) are subject to frequent changes which might impact the behavior of the codebase. We invite users to refer to the official documentation of those libraries if they encounter installation or dependency issues.
 
 ### Using HuggingFace pretrained models
 Some models are gated, e.g., the Llama and Gemma ones. Users should request the access and login to the huggingface hub to use them in the scripts. See https://huggingface.co/docs/hub/en/models-gated for more information.
