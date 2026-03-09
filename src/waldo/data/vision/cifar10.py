@@ -44,7 +44,8 @@ class Cifar10DatasetConfig:
         self.__post_init__()
 
     def __post_init__(self):
-        assert self.mode in ["train", "test"], f"Invalid mode {self.mode}. Options are 'train' and 'test."
+        if self.mode not in ["train", "test"]:
+            raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
 class Cifar10Dataset(Dataset):

@@ -55,13 +55,13 @@ class DomainNetDatasetConfig:
         self.__post_init__()
 
     def __post_init__(self):
-        # Check if domain is valid
-        assert self.domain in ["clipart", "infograph", "painting", "quickdraw", "real", "sketch"], (
-            f"Invalid corruption type {self.domain}. See documentation for options."
-        )
+        # Valid domain
+        if self.domain not in ["clipart", "infograph", "painting", "quickdraw", "real", "sketch"]:
+            raise ValueError(f"Invalid corruption type {self.domain}. See documentation for options.")
 
         # Valid mode
-        assert self.mode in ["train", "test"], f"Invalid mode {self.mode}. Options are 'train' and 'test."
+        if self.mode not in ["train", "test"]:
+            raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
 class DomainNetDataset(Dataset):

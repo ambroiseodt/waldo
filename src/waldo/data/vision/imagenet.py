@@ -44,9 +44,8 @@ class ImageNetDatasetConfig:
         self.__post_init__()
 
     def __post_init__(self):
-        assert self.mode in ["train", "val"], f"Invalid mode {self.mode}. Options are 'train' and 'val'."
-        if self.save_dir is None:
-            self.save_dir = DATASET_DIR / "imagenet"
+        if self.mode not in ["train", "val"]:
+            raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'val'.")
 
 
 class ImageNetDataset(Dataset):

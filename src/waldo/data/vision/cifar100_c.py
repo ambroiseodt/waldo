@@ -71,8 +71,8 @@ class Cifar100CDatasetConfig:
         self.__post_init__()
 
     def __post_init__(self):
-        # Check if corruption type is valid
-        assert self.corruption_type in [
+        # Valid corruption type
+        if self.corruption_type not in [
             "brightness",
             "contrast",
             "defocus_blur",
@@ -92,19 +92,16 @@ class Cifar100CDatasetConfig:
             "spatter",
             "speckle_noise",
             "zoom_blur",
-        ], f"Invalid corruption type {self.corruption_type}. See documentation for options."
+        ]:
+            raise ValueError(f"Invalid corruption type {self.corruption_type}. See documentation for options.")
 
-        # Check if corruption severity is valid
-        assert self.corruption_severity in [
-            1,
-            2,
-            3,
-            4,
-            5,
-        ], f"Invalid severity {self.corruption_severity}. Options are from 1 to 5."
+        # Valid corruption severity
+        if self.corruption_severity not in [1, 2, 3, 4, 5]:
+            raise ValueError(f"Invalid severity {self.corruption_severity}. Options are from 1 to 5.")
 
         # Valid mode
-        assert self.mode in ["train", "test"], f"Invalid mode {self.mode}. Options are 'train' and 'test."
+        if self.mode not in ["train", "test"]:
+            raise ValueError(f"Invalid mode {self.mode}. Options are 'train' and 'test.")
 
 
 class Cifar100CDataset(Dataset):

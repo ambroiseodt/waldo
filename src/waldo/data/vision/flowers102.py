@@ -49,7 +49,8 @@ class Flowers102DatasetConfig:
         self.__post_init__()
 
     def __post_init__(self):
-        assert self.mode in ["train", "val", "test"], f"Invalid mode {self.mode}. Options are 'train', 'val' and 'test."
+        if self.mode not in ["train", "val", "test"]:
+            raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train', 'val' and 'test'.")
 
 
 class Flowers102Dataset(Dataset):
