@@ -303,3 +303,46 @@ class ViT(nn.Module):
     @property
     def n_layers(self) -> int:
         return self.model.config.num_hidden_layers
+
+
+# class ViT(BaseViT):
+#     r"""
+#     Vision Transformer (ViT) pretrained on ImageNet-21k following [1]_.
+
+#     Parameters
+#     ----------
+#     config: ViTConfig
+#         Configuration for the model.
+
+#     References
+#     ----------
+#     .. [1] A. Dosovitskiy et al. An Image is Worth 16x16 Words. ICLR 2021.
+#     """
+
+#     def __init__(self, config: ViTConfig):
+#         super().__init__(config.device)
+#         self.model_name = f"vit-{config.model_size.lower()}-patch{config.patch_size}-{config.resolution}-in21k"
+#         self.model = self._load_from_huggingface(self.model_name, self.device)
+
+#     def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:
+#         available_models = [
+#             "vit-base-patch16-224-in21k",
+#             "vit-base-patch32-224-in21k",
+#             "vit-large-patch16-224-in21k",
+#             "vit-large-patch32-224-in21k",
+#             "vit-huge-patch14-224-in21k",
+#         ]
+#         if model_name not in available_models:
+#             raise ValueError(f"Model '{model_name}' is not valid. Available models: {available_models}")
+#         model = ViTModel.from_pretrained(f"google/{model_name}", device_map=device)
+#         model.eval()
+#         return model
+
+#     @property
+#     def block_adapter(self) -> type[TransformerBlockAdapter]:
+#         return ViTBlockAdapter
+
+#     @property
+#     def blocks(self) -> ModuleList:
+#         encoder = cast(ViTEncoder, self.model.encoder)
+#         return cast(ModuleList, encoder.layer)
