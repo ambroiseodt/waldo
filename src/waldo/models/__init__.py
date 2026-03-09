@@ -1,5 +1,5 @@
 r"""
-Codebase to use pretrained LVMs, VLMs and LLMs.
+Codebase to load pretrained LVMs, VLMs and LLMs from HuggingFace.
 
 License
 -------
@@ -8,3 +8,7 @@ in the root directory of this source tree.
 
 @ 2026, Ambroise Odonnat
 """
+
+from .vision import ViT, ViTConfig
+
+__all__ = ["ViT", "ViTConfig"]
