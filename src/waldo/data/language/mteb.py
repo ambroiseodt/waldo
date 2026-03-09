@@ -3,8 +3,7 @@ Multilingual Text Embedding Benchmark.
 
 Notes
 -----
-The sentence_transformer package is not a dependency of our package since it is alerady
-a dependency of mteb and need not be installed separately.
+The sentence_transformer package is already a dependency of mteb and need not be installed separately.
 
 License
 -------
@@ -123,6 +122,10 @@ class MTEB:
         self.task_type = config.task_type
         self.max_n_docs = config.max_n_docs
 
+    def evaluate(self, model: SentenceTransformer, cache_path: str) -> ModelResult:
+        cache = mteb.ResultCache(cache_path=cache_path)
+        return mteb.evaluate(model, tasks=self.tasks, cache=cache)
+
     @cached_property
     def tasks(self) -> list:
         r"""
@@ -163,9 +166,6 @@ class MTEB:
     @property
     def languages(self) -> set[str]:
         return {lang for task in self.tasks for lang in (task.metadata.languages or [])}
-
-    def evaluate(self, model: SentenceTransformer) -> ModelResult:
-        return mteb.evaluate(model, self.tasks)
 
 
 # ------------------------------------------------------------------------------
