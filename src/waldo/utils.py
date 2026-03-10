@@ -1,5 +1,5 @@
 r"""
-Utils functions.
+Utils functions for typing and creating configuration files.
 
 License
 -------
