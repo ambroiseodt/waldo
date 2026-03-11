@@ -53,7 +53,7 @@ class MTEBConfig:
         Maximul number of documents to use. This allows us to filter out large tasks that are too
         costly to evaluate on. If None, all the tasks are used.
 
-    Reference
+    References
     ---------
     .. [1] K. Enevoldsen et al. MMTEB: : Massive Multilingual Text Embedding Benchmark. In ICLR 2025
     """
