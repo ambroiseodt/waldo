@@ -1,7 +1,11 @@
 r"""
 Vision Transformer model pretrained on ImageNet-21k following [1]_.
 
-Comments abbreviations:
+The model inherits from BaseVisionModel and its methods to recover
+embeddings across layers and transformer models. See base.py for details.
+
+Comments abbreviations
+----------------------
     N: batch size
     L: sequence length
     E: embedding dimension
@@ -9,7 +13,7 @@ Comments abbreviations:
 References
 ----------
 .. [1] A. Dosovitskiy, L. Beyer et al. An Image is Worth 16x16 Words: Transformers
-       for Image Recognition at Scale. ICLR 2021.
+       for Image Recognition at Scale. In ICLR 2021
 
 License
 -------
@@ -27,14 +31,12 @@ import torch
 import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import PreTrainedModel, ViTModel
-from transformers.models.vit.modeling_vit import ViTEncoder, ViTIntermediate
+from transformers.models.vit.modeling_vit import ViTEncoder, ViTIntermediate, ViTOutput
 
 from ..utils import mean_pooling
 from .base import BaseVisionModel, TransformerBlockAdapter
 
 logger = logging.getLogger(__name__)
-
-ALL_MODULES = ["ln1", "attn", "res1", "ln2", "fc1", "act", "fc2", "res2"]
 
 
 # -------------------------------------------------------------------
@@ -87,38 +89,61 @@ class ViTConfig:
 
 class ViTBlockAdapter(TransformerBlockAdapter):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules:
+    Adapter that maps standard module names to a transformer block's submodules.
+    Subclasses need to implement the 8 methods that outputs the following modules:
         ln1: first layer norm
-        attn:  multi-head attention
+        mha: multi-head attention
+        rc1: first residual connection
         ln2: second layer norm
-        ffn_fc1: first feedforward linear layer
-        ffn_act: feedforward activation function
-        ffn_fc2: second feedforward linear layer
+        fc1: first feedforward linear layer
+        act: feedforward activation function
+        fc2: second feedforward linear layer
+        rc2: second residual connection
 
     Parameters
     ----------
     layer: nn.Module
         A single transformer block.
+
+    See also
+    --------
+    TransformerBlockAdapter
     """
 
     def _get_ln1(self, layer: nn.Module) -> nn.Module:
         return cast(nn.Module, layer.layernorm_before)
 
-    def _get_attn(self, layer: nn.Module) -> nn.Module:
+    def _get_mha(self, layer: nn.Module) -> nn.Module:
         return cast(nn.Module, layer.attention)
+
+    def _get_rc1(self, layer: nn.Module) -> nn.Module:
+        # Use pre_hook to capture rc1
+        return cast(nn.Module, layer.layernorm_after)
 
     def _get_ln2(self, layer: nn.Module) -> nn.Module:
         return cast(nn.Module, layer.layernorm_after)
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
-        return cast(nn.Module, layer.intermediate)
+        intermediate = cast(ViTIntermediate, layer.intermediate)
+        return cast(nn.Module, intermediate.dense)
 
     def _get_act(self, layer: nn.Module) -> nn.Module:
         intermediate = cast(ViTIntermediate, layer.intermediate)
         return cast(nn.Module, intermediate.intermediate_act_fn)
 
     def _get_fc2(self, layer: nn.Module) -> nn.Module:
+        output = cast(ViTOutput, layer.output)
+        return cast(nn.Module, output.dense)
+
+    def _get_rc2(self, layer: nn.Module) -> nn.Module:
         return cast(nn.Module, layer.output)
+
+    def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
+        r"""
+        Returns the names of the module for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of the outputs.
+        """
+        return {"rc1"}
 
 
 # -------------------------------------------------------------------
@@ -138,7 +163,8 @@ class ViT(BaseVisionModel):
             Size of the patches to be extracted from the image.
         resolution: int
             Image resolution.
-
+        device: str
+            Device to use.
     Notes
     -----
     The model is loaded in evaluation mode by default (dropout disabled,
@@ -154,7 +180,7 @@ class ViT(BaseVisionModel):
     def __init__(self, config: ViTConfig):
         super().__init__()
         self.device = config.device
-        self.model_name = f"vit-{config.model_size.lower()}-patch{config.patch_size}-{config.resolution}-in21k"
+        self.model_name = f"google/vit-{config.model_size.lower()}-patch{config.patch_size}-{config.resolution}-in21k"
         self.model = self._load_from_huggingface(model_name=self.model_name, device=self.device)
 
     def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:
@@ -165,11 +191,11 @@ class ViT(BaseVisionModel):
         ----------
         model_name: str
             Name of the model. Options are:
-                "vit-base-patch16-224-in21k",
-                "vit-base-patch32-224-in21k",
-                "vit-large-patch16-224-in21k",
-                "vit-large-patch32-224-in21k",
-                "vit-huge-patch14-224-in21k".
+                "google/vit-base-patch16-224-in21k",
+                "google/vit-base-patch32-224-in21k",
+                "google/vit-large-patch16-224-in21k",
+                "google/vit-large-patch32-224-in21k",
+                "google/vit-huge-patch14-224-in21k".
         device: str
             Device to use.
 
@@ -179,15 +205,15 @@ class ViT(BaseVisionModel):
         Call model.train() explicitly to re-enable training mode.
         """
         available_models = [
-            "vit-base-patch16-224-in21k",
-            "vit-base-patch32-224-in21k",
-            "vit-large-patch16-224-in21k",
-            "vit-large-patch32-224-in21k",
-            "vit-huge-patch14-224-in21k",
+            "google/vit-base-patch16-224-in21k",
+            "google/vit-base-patch32-224-in21k",
+            "google/vit-large-patch16-224-in21k",
+            "google/vit-large-patch32-224-in21k",
+            "google/vit-huge-patch14-224-in21k",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
-        model = ViTModel.from_pretrained(f"google/{model_name}", device_map=device)
+        model = ViTModel.from_pretrained(f"{model_name}", device_map=device)
         model.eval()
         return model
 

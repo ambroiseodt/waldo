@@ -1,6 +1,13 @@
 r"""
 Abstract model for large vision models (LVMs). It allows to study specific layer and modules following [1, 2]_.
 
+Comments abbreviations
+----------------------
+    N: batch size
+    L: sequence length
+    E: embedding dimension
+
+
 Reference
 ---------
 .. [1] A. Odonnat et al. Vision Transformer Finetuning Benefits from Smooth Components. arXiv 2026
@@ -17,13 +24,14 @@ in the root directory of this source tree.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import torch
 import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import PreTrainedModel
 
-TRANSFORMER_MODULES = ["ln1", "attn", "res1", "ln2", "fc1", "act", "fc2", "res2"]
+TRANSFORMER_MODULES = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 
 # -------------------------------------------------------------------
 # Block adapter
@@ -32,44 +40,78 @@ TRANSFORMER_MODULES = ["ln1", "attn", "res1", "ln2", "fc1", "act", "fc2", "res2"
 
 class TransformerBlockAdapter(ABC):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules:
+    Adapter that maps standard module names to a transformer block's submodules.
+    Subclasses need to implement the 8 methods that outputs the following modules:
         ln1: first layer norm
-        attn:  multi-head attention
+        mha: multi-head attention
+        rc1: first residual connection
         ln2: second layer norm
-        ffn_fc1: first feedforward linear layer
-        ffn_act: feedforward activation function
-        ffn_fc2: second feedforward linear layer
+        fc1: first feedforward linear layer
+        act: feedforward activation function
+        fc2: second feedforward linear layer
+        rc2: second residual connection
 
     Parameters
     ----------
     layer: nn.Module
         A single transformer block.
 
+
+    Notes
+    -----
+    For models with gated activations like SwiGLU, the feedforward layers are not necessarily linear anymore. For
+    consistency, we define fc1 as the dense projection before the activation, act as the gated activation, and fc2 as
+    the dense projection after the gate. Moreover, our implementation assumes that pre-normalization is used, that is,
+    normalization layers are applied before the attention and feedforward blocks (and residual connections after). It is
+    the standard implementation in modern transformers such as ViT, DINO or Llama models (see [1, 2]_ for details).
+    It allows us to recover all modules (except rc1) using register_forward_hook, including the second residual
+    connection, which is simply the output of the entire transformer block. For the first residual connection, it
+    cannot be accessed as a forward, however it is the input to the second normalization layer and it can be accessed
+    using register_forward_pre_hook instead of register_forward_hook to capture the input rather than the output of
+    that submodule. Hence, our implementation is not tailored for models using post-norm and we advice users to rethink
+    the design of the get_embedding method for their application as it might require changes.
+
+    References
+    ----------
+    .. [1] R. Child et al. Generating Long Sequences with Sparse Transformers. arXiv 2019
+
+    .. [2] R. Xiong et al. On Layer Normalization in the Transformer Architecture. In ICML 2020
+
     Usage
     -----
-    Create a subclass that implement the six abstract methods for a specific architecture:
     >>> class ViTBlockAdapter(TransformerBlockAdapter):
-    ...     def _get_ln1(self, layer):     return layer.layernorm_before
-    ...     def _get_attn(self, layer):    return layer.attention
-    ...     def _get_ln2(self, layer):     return layer.layernorm_after
-    ...     def _get_fc1(self, layer): return layer.intermediate
-    ...     def _get_act(self, layer): return layer.intermediate.intermediate_act_fn
-    ...     def _get_fc2(self, layer): return layer.output
+    ...     def _get_ln1(self, layer):  return layer.layernorm_before
+    ...     def _get_mha(self, layer):  return layer.attention
+    ...     def _get_rc1(self, layer):  return layer.layer_norm_after  # pre_hook captures rc1
+    ...     def _get_ln2(self, layer):  return layer.layernorm_after
+    ...     def _get_fc1(self, layer):  return layer.intermediate.dense
+    ...     def _get_act(self, layer):  return layer.intermediate.intermediate_act_fn
+    ...     def _get_fc2(self, layer):  return layer.output.dense
+    ...     def _get_rc2(self, layer):  return layer.output
     """
+
+    # Modules that use register_forward_pre_hook (capture the input, not output of the submodule)
+    PRE_HOOK_MODULES = {"rc1"}
 
     def __init__(self, layer: nn.Module):
         self.ln1 = self._get_ln1(layer)
-        self.attn = self._get_attn(layer)
+        self.mha = self._get_mha(layer)
+        self.rc1 = self._get_rc1(layer)
         self.ln2 = self._get_ln2(layer)
         self.fc1 = self._get_fc1(layer)
         self.act = self._get_act(layer)
         self.fc2 = self._get_fc2(layer)
+        self.rc2 = self._get_rc2(layer)
+        self.pre_hooks = self._get_pre_hooks_modules(layer)
 
     @abstractmethod
     def _get_ln1(self, layer: nn.Module) -> nn.Module: ...
 
     @abstractmethod
-    def _get_attn(self, layer: nn.Module) -> nn.Module: ...
+    def _get_mha(self, layer: nn.Module) -> nn.Module: ...
+
+    @abstractmethod
+    def _get_rc1(self, layer: nn.Module) -> nn.Module: ...
 
     @abstractmethod
     def _get_ln2(self, layer: nn.Module) -> nn.Module: ...
@@ -83,14 +125,27 @@ class TransformerBlockAdapter(ABC):
     @abstractmethod
     def _get_fc2(self, layer: nn.Module) -> nn.Module: ...
 
+    @abstractmethod
+    def _get_rc2(self, layer: nn.Module) -> nn.Module: ...
+
+    @abstractmethod
+    def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
+        r"""
+        Returns the names of the module for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of the outputs.
+        """
+        ...
+
     def module_map(self) -> dict[str, nn.Module]:
         return {
             "ln1": self.ln1,
-            "attn": self.attn,
+            "mha": self.mha,
+            "rc1": self.rc1,
             "ln2": self.ln2,
             "fc1": self.fc1,
             "act": self.act,
             "fc2": self.fc2,
+            "rc2": self.rc2,
         }
 
 
@@ -99,33 +154,41 @@ class TransformerBlockAdapter(ABC):
 # -------------------------------------------------------------------
 class BaseVisionModel(nn.Module, ABC):
     r"""
-    Abstract base class for transformer-based vision foundation models.
-
-    Handles the full encoding pipeline in a single forward pass using hooks.
-    Subclasses only need to implement three things:
-
+    Abstract base class for transformer-based vision foundation models. It handles the full encoding pipeline
+    in a single forward pass using hooks and pre-hooks. Subclasses only need to implement three things:
         - _load_from_huggingface: load and return the HuggingFace model
-        - block_adapter: return the adapter class for this model's blocks
-        - blocks: return the ModuleList of transformer blocks
+        - pooling: returns the pooling method over sequences of tokens
+        - block_adapter: returns the adapter class for this model's blocks
+        - blocks: returns the ModuleList of transformer blocks
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled).
-    Call model.train() explicitly if you intend to fine-tune.
+    The model is loaded in evaluation mode by default (dropout disabled). Call model.train() explicitly if you intend
+    to fine-tune. To add a new method, we advise users to follow this order for clarity and consistency:
+        1. __init__
+        2. abstract private methods
+        3. abstract public methods
+        4. abstract properties
+        5. private methods
+        6. public methods
+        7. dunder methods
+        8. properties
 
     Usage
     --------
     >>> class ViT(BaseVisionModel):
     ...     def __init__(self, config: ViTConfig):
     ...         super().__init__()
-    ...         self.device = device
-    ...         self.model_name = f"vit-{config.model_size}-patch{config.patch_size}-{config.resolution}-in21k"
-    ...         self.model = self._load_from_huggingface(self.model_name, self.device)
+    ...         self.device = config.device
+    ...         self.model_name = f"google/vit-{config.model_size}-patch{config.patch_size}-{config.resolution}-in21k"
+    ...         self.model = self._load_from_huggingface(model_name=self.model_name, device=self.device)
     ...
-    ...     def _load_from_huggingface(self, model_name, device):
-    ...         model = ViTModel.from_pretrained(f"google/{model_name}", device_map=device)
+    ...     def _load_from_huggingface(self, model_name: str, device: str):
+    ...         model = ViTModel.from_pretrained(f"{model_name}", device_map=device)
     ...         model.eval()
     ...         return model
+    ...
+    ...     def pooling(self, x: torch.Tensor): return mean_pooling(x=x, exclude_cls=True).cpu()
     ...
     ...     @property
     ...     def block_adapter(self): return ViTBlockAdapter
@@ -175,6 +238,70 @@ class BaseVisionModel(nn.Module, ABC):
         r"""Return the list of transformer blocks."""
         ...
 
+    def _make_pre_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
+        r"""
+        Create a forward pre-hook that captures the INPUT of a module.
+
+        Used for modules where the quantity of interest is the tensor received
+        by the module rather than its output. Specifically used for res1,
+        the first residual, captured as the input to ln2.
+
+        Parameters
+        ----------
+        embeddings: dict[str, torch.Tensor]
+            Shared dict where the captured embedding will be stored.
+        key: str
+            Key under which the embedding is stored, e.g. "block_3_res1".
+
+        Returns
+        -------
+        pre_hook_fn: Callable
+            A function compatible with register_forward_pre_hook.
+        """
+
+        def pre_hook_fn(
+            module: nn.Module,
+            input: tuple[torch.Tensor, ...],
+        ) -> None:
+
+            # Recover embedding after global average pooling over the sequence of tokens
+            embeddings[key] = self.pooling(input[0])
+
+        return pre_hook_fn
+
+    def _make_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
+        r"""
+        Create a forward hook that captures the OUTPUT of a module.
+
+        Used for all standard modules where the quantity of interest is the
+        tensor produced by the module, e.g. ln1, attn, fc1, act, fc2, res2.
+
+        Parameters
+        ----------
+        embeddings: dict[str, torch.Tensor]
+            Shared dict where the captured embedding will be stored.
+        key: str
+            Key under which the embedding is stored, e.g. "block_3_mha".
+
+        Returns
+        -------
+        hook_fn: Callable
+            A function compatible with register_forward_hook.
+        """
+
+        def hook_fn(
+            module: nn.Module,
+            input: tuple[torch.Tensor, ...],
+            output: torch.Tensor | tuple[torch.Tensor, ...],
+        ) -> None:
+            # Some modules output a tuple in HuggingFace, e.g. the attention module
+            out = output[0] if isinstance(output, tuple) else output
+
+            # Recover embedding after global average pooling over the sequence of tokens
+            embeddings[key] = self.pooling(out)
+
+        return hook_fn
+
     @torch.inference_mode()
     def get_embeddings(
         self,
@@ -208,20 +335,6 @@ class BaseVisionModel(nn.Module, ABC):
         embeddings: dict[str, torch.Tensor] = {}
         handles: list[torch.utils.hooks.RemovableHandle] = []
 
-        def make_hook(key: str):
-            def hook_fn(
-                module: nn.Module,
-                input: tuple[torch.Tensor, ...],
-                output: torch.Tensor | tuple[torch.Tensor, ...],
-            ) -> None:
-                # Some module might output a tuple in HuggingFace, e.g., the attention module
-                out = output[0] if isinstance(output, tuple) else output
-
-                # Recover embedding after global average pooling over the sequence of tokens
-                embeddings[key] = self.pooling(out)
-
-            return hook_fn
-
         # Loop over transformer blocks to register hooks across specified layers and modules
         layer_set = set(layers)
         for layer_idx, layer in enumerate(self.blocks):
@@ -232,25 +345,26 @@ class BaseVisionModel(nn.Module, ABC):
                 if module_name not in modules:
                     continue
                 key = f"block_{layer_idx}_{module_name}"
-                handles.append(module.register_forward_hook(make_hook(key)))
+
+                # Modules for which we hook the inputs
+                if module_name in adapter.pre_hooks:
+                    handles.append(
+                        module.register_forward_pre_hook(self._make_pre_hook(embeddings=embeddings, key=key))
+                    )
+                # Modules for which we hook the output
+                else:
+                    handles.append(module.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
 
         # Forward pass
         try:
-            need_residual = "res1" in modules or "res2" in modules
-            outputs = self.model(x, output_hidden_states=need_residual)
+            self.model(x)
+
+        # Always remove hooks after the forward pass, even if an exception
+        # is raised. Otherwise hooks accumulate on the model and corrupt
+        # future embeddings.
         finally:
-            # Always remove hooks after the forward pass, even if an exception
-            # is raised. Otherwise hooks accumulate on the model and corrupt
-            # future embeddings.
             for handle in handles:
                 handle.remove()
-
-        if need_residual:
-            for layer_idx in layers:
-                if "res1" in modules:
-                    embeddings[f"block_{layer_idx}_res1"] = self.pooling(outputs.hidden_states[layer_idx])
-                if "res2" in modules:
-                    embeddings[f"block_{layer_idx}_res2"] = self.pooling(outputs.hidden_states[layer_idx + 1])
 
         return embeddings
 
