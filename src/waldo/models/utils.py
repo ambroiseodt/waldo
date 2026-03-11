@@ -10,6 +10,11 @@ in the root directory of this source tree.
 """
 
 import torch
+import torch.nn as nn
+
+# -------------------------------------------------------------------
+# Pooling
+# -------------------------------------------------------------------
 
 
 def mean_pooling(
@@ -22,7 +27,7 @@ def mean_pooling(
     r"""
     Mean pooling over context tokens with flexible exclusion of non-content tokens. For vision models
     where a CLS token is defined, we exclude it from the pooling. For language models, special tokens
-    such as eos, bes and padding tokens are also excluded and the same follows for multimodal models.
+    such as eos, bos and padding tokens are also excluded and the same follows for multimodal models.
 
     Parameters
     ----------
@@ -51,6 +56,13 @@ def mean_pooling(
     x_pooled: torch.Tensor of shape (N, E)
         Global sequence representation after pooling.
 
+    Raises
+    ------
+    ValueError
+        If special_token_ids is provided but input_ids is None.
+    ValueError
+        If all tokens are masked out for at least one sequence in the batch.
+
     Notes
     -----
     In computer vision, it is a common practice to probe patch tokens that contain valuable information
@@ -59,7 +71,8 @@ def mean_pooling(
     done over the patch tokens. In our setting, it allows us to have a consistent experimental setup for models
     that do not have CLS tokens. Given that we probe across transformer blocks and modules, mean pooling over
     patch tokens ensure a fair comparison. We follow the same logic for multimodal and language models by applying
-    mean pooling over context tokens, exclusing separations and padding tokens.
+    mean pooling over context tokens, exclusing separations and padding tokens. Note that for language models, the
+    attention_mask, input_ids and special_token_ids should be recovered via the tokenizer.
 
     References
     ----------
@@ -84,7 +97,6 @@ def mean_pooling(
     ...     input_ids=input_ids,
     ...     special_token_ids=[tokenizer.bos_token_id, tokenizer.eos_token_id, tokenizer.pad_token_id],
     ... )
-    For language models, the attention_mask, input_ids and special_token_ids should be recovered via the tokenizer.
     """
     if special_token_ids is not None and input_ids is None:
         raise ValueError("special_token_ids requires input_ids to be provided.")
@@ -116,3 +128,25 @@ def mean_pooling(
     x_pooled = (x * mask).sum(dim=1) / mask.sum(dim=1).float()
 
     return x_pooled
+
+
+# -------------------------------------------------------------------
+# Module wrapper
+# -------------------------------------------------------------------
+
+
+class SwiGLUGateProjection(nn.Module):
+    r"""
+    Wraps a linear layer and returns only the first half of its output.
+    It can be used to recover the gate projection of a feedforward network using SwiGLU like
+    in Dinov2, Dinov3 or Llama model.
+    """
+
+    def __init__(self, linear: nn.Linear):
+        super().__init__()
+        self.linear = linear
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.linear(x)
+        x1, _ = out.chunk(2, dim=-1)
+        return x1
