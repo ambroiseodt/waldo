@@ -1,8 +1,6 @@
 r"""
-Vision Transformer model pretrained on ImageNet-21k following [1]_.
+Vision Transformer model pretrained on ImageNet-21k following [1]_. It allows to study specific layer and modules.
 
-The model inherits from BaseVisionModel and its methods to recover
-embeddings across layers and transformer models. See base.py for details.
 
 Comments abbreviations
 ----------------------
@@ -14,6 +12,10 @@ References
 ----------
 .. [1] A. Dosovitskiy, L. Beyer et al. An Image is Worth 16x16 Words: Transformers
        for Image Recognition at Scale. In ICLR 2021
+
+See also
+--------
+TransformerBlockAdapter and BaseVisionModel in base.py
 
 License
 -------
@@ -105,6 +107,7 @@ class ViTBlockAdapter(TransformerBlockAdapter):
     layer: nn.Module
         A single transformer block.
 
+
     See also
     --------
     TransformerBlockAdapter
@@ -136,7 +139,7 @@ class ViTBlockAdapter(TransformerBlockAdapter):
         return cast(nn.Module, output.dense)
 
     def _get_rc2(self, layer: nn.Module) -> nn.Module:
-        return cast(nn.Module, layer.output)
+        return layer
 
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
