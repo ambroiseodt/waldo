@@ -1,8 +1,5 @@
 r"""
-DINOv2 model following [1]_.
-
-The model inherits from BaseVisionModel and its methods to recover
-embeddings across layers and transformer models. See base.py for details.
+DINOv2 model following [1]_. It allows to study specific layer and modules.
 
 Comments abbreviations
 ----------------------
@@ -13,6 +10,10 @@ Comments abbreviations
 References
 ----------
 .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+
+See also
+--------
+TransformerBlockAdapter and BaseVisionModel in base.py
 
 License
 -------
@@ -49,18 +50,12 @@ class Dinov2Config:
     Parameters
     ----------
     model_size: str
-        Type of model to use. Options are "base", "large", and "huge".
-    patch_size: int
-        Size of the patches to be extracted from the image.
-    resolution: int
-        Image resolution.
+        Type of model to use. Options are "small", "base", "large", and "giant".
     device: str
         Device to use.
     """
 
     model_size: str = "base"
-    patch_size: int = 16
-    resolution: int = 224
     device: str = "cpu"
 
     def __init__(self, **kwargs):
@@ -69,16 +64,8 @@ class Dinov2Config:
 
     def __post_init__(self):
         # Valid model size
-        if self.model_size not in ["base", "large", "huge"]:
-            raise ValueError(f"Invalid model size {self.model_size}. Options are 'base', 'large' and 'huge'.")
-
-        # Valid patch size
-        if self.patch_size not in [14, 16, 32]:
-            raise ValueError(f"Invalid patch size {self.patch_size}. Options are 14, 16 and 32.")
-
-        # Valid model size
-        if self.resolution not in [224, 384]:
-            raise ValueError(f"Invalid resolution {self.resolution}. Options are 224 and 384.")
+        if self.model_size not in ["small", "base", "large", "giant"]:
+            raise ValueError(f"Invalid model size {self.model_size}. Options are 'small', 'base', 'large' and 'giant'.")
 
 
 # -------------------------------------------------------------------
@@ -106,19 +93,25 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
     Notes
     -----
-    The standard implementation of DINOv2 uses
-    For models with gated activations like SwiGLU, the feedforward layers are not necessarily linear anymore. For
-    consistency, we define fc1 as the dense projection before the activation, act as the gated activation, and fc2 as
-    the dense projection after the gate. Moreover, our implementation assumes that pre-normalization is used, that is,
-    normalization layers are applied before the attention and feedforward blocks (and residual connections after). It is
-    the standard implementation in modern transformers such as ViT, DINO or Llama models (see [1, 2]_ for details).
-    It allows us to recover all modules (except rc1) using register_forward_hook, including the second residual
-    connection, which is simply the output of the entire transformer block. For the first residual connection, it
-    cannot be accessed as a forward, however it is the input to the second normalization layer and it can be accessed
-    using register_forward_pre_hook instead of register_forward_hook to capture the input rather than the output of
-    that submodule. Hence, our implementation is not tailored for models using post-norm and we advice users to rethink
-    the design of the get_embedding method for their application as it might require changes.
+    DINOv2-g model relies on a gated SwiGLU activation in the FFN (see [3, 4]_ for details). For consistency
+    with ViT, we decompose the FFN block as follows:
 
+        fc1  = gate_proj(x)                      -> linear layer which feeds the activation
+        act  = silu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
+        fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
+
+    This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
+    up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
+    the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
+    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
+    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that Dinov2
+    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [1]_) that do not
+    fundamentally change the transformer architecture and merely improve memory-efficiency and training
+    stability. For the consistency of our analysis, we do not probe them.
+
+    References
+    ----------
+    .. [1] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
 
     See also
     --------
@@ -126,19 +119,30 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
     """
 
     def _get_ln1(self, layer: nn.Module) -> nn.Module:
-        return cast(nn.Module, layer.layer_scale1)
+        return cast(nn.Module, layer.norm1)
 
     def _get_mha(self, layer: nn.Module) -> nn.Module:
         return cast(nn.Module, layer.attention)
 
     def _get_rc1(self, layer: nn.Module) -> nn.Module:
         # Use pre_hook to capture rc1
-        return cast(nn.Module, layer.layer_scale2)
+        return cast(nn.Module, layer.norm1)
 
     def _get_ln2(self, layer: nn.Module) -> nn.Module:
-        return cast(nn.Module, layer.layer_scale2)
+        return cast(nn.Module, layer.norm1)
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
+        r"""
+        When SwiGLUFFN is used, the DINOv2 implementation concatenates the gated_proj and up_proj
+        using a matrix weight_in of dimension emb_dim x 2 * hidden_dim and then recover gated_proj
+        and up_proj by chunk. The SwiGLUGateProjection allows us to recover only the gated_proj to
+        obtain fc1.
+
+        See also
+        --------
+        https://github.com/huggingface/transformers/blob/main/src/transformers/models/dinov2/modeling_dinov2.py
+        and SwiGLUGateProjection in models/utils.py
+        """
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
             return cast(nn.Module, SwiGLUGateProjection(layer.mlp.weights_in))
         if isinstance(layer.mlp, Dinov2MLP):
@@ -148,20 +152,20 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
     def _get_act(self, layer: nn.Module) -> nn.Module:
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
             # Use pre_hook to capture act
-            return cast(nn.Module, layer.mlp.fc2)
+            return cast(nn.Module, layer.mlp.weights_out)
         if isinstance(layer.mlp, Dinov2MLP):
             return cast(nn.Module, layer.mlp.activation)
         raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
 
     def _get_fc2(self, layer: nn.Module) -> nn.Module:
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
-            return cast(nn.Module, SwiGLUGateProjection(layer.mlp.weights_out))
+            return cast(nn.Module, layer.mlp.weights_out)
         if isinstance(layer.mlp, Dinov2MLP):
             return cast(nn.Module, layer.mlp.fc2)
         raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
 
     def _get_rc2(self, layer: nn.Module) -> nn.Module:
-        return cast(nn.Module, layer.output)
+        return layer
 
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
@@ -171,7 +175,7 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
             return {"rc1", "act"}
         if isinstance(layer.mlp, Dinov2MLP):
-            return {"rc1", "act"}
+            return {"rc1"}
         raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
 
 
@@ -187,13 +191,8 @@ class Dinov2(BaseVisionModel):
     ----------
     config: configuration class with
         model_size: str
-            Type of model to use. Options are "base", "large", and "huge".
-        patch_size: int
-            Size of the patches to be extracted from the image.
-        resolution: int
-            Image resolution.
-        device: str
-            Device to use.
+            Type of model to use. Options are "small", "base", "large", and "giant".
+
     Notes
     -----
     The model is loaded in evaluation mode by default (dropout disabled,
@@ -202,8 +201,7 @@ class Dinov2(BaseVisionModel):
 
     References
     ----------
-    .. [1] A. Dosovitskiy, L. Beyer et al. An Image is Worth 16x16 Words: Transformers
-           for Image Recognition at Scale. ICLR 2021.
+    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
     """
 
     def __init__(self, config: Dinov2Config):
