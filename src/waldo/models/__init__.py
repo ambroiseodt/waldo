@@ -9,6 +9,13 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
-from .vision import ViT, ViTConfig
+from .vision import Dinov2, Dinov2Config, Dinov3, Dinov3Config, ViT, ViTConfig
 
-__all__ = ["ViT", "ViTConfig"]
+__all__ = [
+    "Dinov2",
+    "Dinov2Config",
+    "Dinov3",
+    "Dinov3Config",
+    "ViT",
+    "ViTConfig",
+]
