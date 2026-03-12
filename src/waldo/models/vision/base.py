@@ -41,6 +41,7 @@ TRANSFORMER_MODULES = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 class TransformerBlockAdapter(ABC):
     r"""
     Adapter that maps standard module names to a transformer block's submodules.
+
     Subclasses need to implement the 8 methods that outputs the following modules:
         ln1: first layer norm
         mha: multi-head attention
@@ -59,23 +60,36 @@ class TransformerBlockAdapter(ABC):
 
     Notes
     -----
-    For models with gated activations like SwiGLU, the feedforward layers are not necessarily linear anymore. For
-    consistency, we define fc1 as the dense projection before the activation, act as the gated activation, and fc2 as
-    the dense projection after the gate. Moreover, our implementation assumes that pre-normalization is used, that is,
-    normalization layers are applied before the attention and feedforward blocks (and residual connections after). It is
-    the standard implementation in modern transformers such as ViT, DINO or Llama models (see [1, 2]_ for details).
-    It allows us to recover all modules (except rc1) using register_forward_hook, including the second residual
-    connection, which is simply the output of the entire transformer block. For the first residual connection, it
-    cannot be accessed as a forward, however it is the input to the second normalization layer and it can be accessed
-    using register_forward_pre_hook instead of register_forward_hook to capture the input rather than the output of
-    that submodule. Hence, our implementation is not tailored for models using post-norm and we advice users to rethink
-    the design of the get_embedding method for their application as it might require changes.
+    Our implementation assumes that pre-norm is used, as is the case in modern transformer models like ViT, DINO,
+    or Llama, i.e., normalization layers are applied before the attention and feedforward blocks (see [1, 2]). It
+    allows us to recover all modules using a single forward pass by using register_forward_hook, except for rc1,
+    which can be seen as the input to ln2 and is recovered using register_forward_pre_hook.  We advice users that
+    would like to use a post-norm standard to make sure their implementation matches our design. For generality, the
+    modules that require a pre_hook can be specified in the _pre_hook_modules method. This is notably needed for
+    modern models that rely on a gated activation like SwiGLU in the FFN (see [3, 4]_ for details). For consistency,
+    we decompose the FFN block as follows:
+
+        fc1  = gate_proj(x)                      -> linear layer which feeds the activation
+        act  = silu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
+        fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
+
+    This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
+    up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
+    the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
+    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
+    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj.
+
 
     References
     ----------
     .. [1] R. Child et al. Generating Long Sequences with Sparse Transformers. arXiv 2019
 
     .. [2] R. Xiong et al. On Layer Normalization in the Transformer Architecture. In ICML 2020
+
+    .. [3] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
+
+    .. [4] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
+
 
     Usage
     -----
@@ -89,9 +103,6 @@ class TransformerBlockAdapter(ABC):
     ...     def _get_fc2(self, layer):  return layer.output.dense
     ...     def _get_rc2(self, layer):  return layer.output
     """
-
-    # Modules that use register_forward_pre_hook (capture the input, not output of the submodule)
-    PRE_HOOK_MODULES = {"rc1"}
 
     def __init__(self, layer: nn.Module):
         self.ln1 = self._get_ln1(layer)
@@ -133,6 +144,7 @@ class TransformerBlockAdapter(ABC):
         r"""
         Returns the names of the module for which register_forward_pre_hook should be used
         in place of register_forward_hook to access their inputs instead of the outputs.
+
         """
         ...
 
@@ -154,8 +166,10 @@ class TransformerBlockAdapter(ABC):
 # -------------------------------------------------------------------
 class BaseVisionModel(nn.Module, ABC):
     r"""
-    Abstract base class for transformer-based vision foundation models. It handles the full encoding pipeline
-    in a single forward pass using hooks and pre-hooks. Subclasses only need to implement three things:
+    Abstract base class for transformer-based vision foundation models.
+
+    It handles the full encoding pipeline in a single forward pass using hooks and pre-hooks.
+    Subclasses only need to implement three things:
         - _load_from_huggingface: load and return the HuggingFace model
         - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
@@ -242,10 +256,6 @@ class BaseVisionModel(nn.Module, ABC):
         r"""
         Create a forward pre-hook that captures the INPUT of a module.
 
-        Used for modules where the quantity of interest is the tensor received
-        by the module rather than its output. Specifically used for res1,
-        the first residual, captured as the input to ln2.
-
         Parameters
         ----------
         embeddings: dict[str, torch.Tensor]
@@ -272,9 +282,6 @@ class BaseVisionModel(nn.Module, ABC):
     def _make_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
         r"""
         Create a forward hook that captures the OUTPUT of a module.
-
-        Used for all standard modules where the quantity of interest is the
-        tensor produced by the module, e.g. ln1, attn, fc1, act, fc2, res2.
 
         Parameters
         ----------
