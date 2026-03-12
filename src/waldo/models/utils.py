@@ -27,7 +27,7 @@ def mean_pooling(
     r"""
     Mean pooling over context tokens with flexible exclusion of non-content tokens. For vision models
     where a CLS token is defined, we exclude it from the pooling. For language models, special tokens
-    such as eos, bos and padding tokens are also excluded and the same follows for multimodal models.
+    such as eos, bos and padding tokens are also excluded and the same follows for vision-language models.
 
     Parameters
     ----------
@@ -70,7 +70,7 @@ def mean_pooling(
     CLS token for image classification. In [2, 3]_, probing for semantic segmentation or depth estimation is
     done over the patch tokens. In our setting, it allows us to have a consistent experimental setup for models
     that do not have CLS tokens. Given that we probe across transformer blocks and modules, mean pooling over
-    patch tokens ensure a fair comparison. We follow the same logic for multimodal and language models by applying
+    patch tokens ensure a fair comparison. We follow the same logic for vision-language and language models by applying
     mean pooling over context tokens, exclusing separations and padding tokens. Note that for language models, the
     attention_mask, input_ids and special_token_ids should be recovered via the tokenizer.
 
