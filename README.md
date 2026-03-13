@@ -1,5 +1,7 @@
 # Finding Waldo in Foundation Models
 
+![Tests](https://github.com/ambroiseodt/waldo/actions/workflows/tests.yml/badge.svg)
+
 ## Getting started
 The code runs Python 3.12+. Here are some installation instructions:
 Install [miniforge](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html). Follow the instruction online, most likely you will execute the following commands:
@@ -35,6 +37,28 @@ accelerate config
 
 ### Using HuggingFace pretrained models
 Some models are gated, e.g., the Llama and Gemma ones. Users should request the access and login to the huggingface hub to use them in the scripts. See https://huggingface.co/docs/hub/en/models-gated for more information.
+
+## Unit testing
+
+Install the development dependencies:
+```bash
+pip install -e ".[dev]"
+```
+
+Run the test suite:
+```bash
+pytest
+```
+
+Run with coverage:
+```bash
+pytest --cov=src --cov-report=term-missing
+```
+
+To run the tests of a specific folder (or a file) located in tests/my_path, run
+```bash
+pytest tests/my_path
+```
 
 ## Acknowledgements
 
