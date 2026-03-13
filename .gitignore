@@ -4,7 +4,6 @@
 *.vscode
 *.log
 *.cache
-# *.ipynb
 __pycache__
 
 # Saving directories
@@ -13,5 +12,9 @@ checkpoints/
 datasets/
 figures/
 logs/
-# results/
 savings/
+
+# Coverage
+coverage.xml
+.coverage
+htmlcov/
