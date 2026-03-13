@@ -1,5 +1,5 @@
 r"""
-Unit tests for data loading logic.
+Unit tests for image preprocessing with PyTorch transform functions.
 
 License
 -------

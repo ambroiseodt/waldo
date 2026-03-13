@@ -1,5 +1,5 @@
 r"""
-Unit tests.
+Unit tests for deterministic split betwen training and test data.
 
 License
 -------
