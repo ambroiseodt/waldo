@@ -7,6 +7,11 @@ Comments abbreviations
     L: sequence length
     E: embedding dimension
 
+Notes
+-----
+We focus on the pretrained models available on HuggingFace for image feature extraction.
+See https://huggingface.co/collections/facebook/dinov2 for other model variants.
+
 References
 ----------
 .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
@@ -93,7 +98,7 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
     Notes
     -----
-    DINOv2-g model relies on a gated SwiGLU activation in the FFN (see [3, 4]_ for details). For consistency
+    DINOv2-g model relies on a gated SwiGLU activation in the FFN (see [1, 2]_ for details). For consistency
     with ViT, we decompose the FFN block as follows:
 
         fc1  = gate_proj(x)                      -> linear layer which feeds the activation
@@ -104,14 +109,18 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
     up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
     the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
     their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that Dinov2
-    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [1]_) that do not
+    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that DINOv2
+    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [3]_) that do not
     fundamentally change the transformer architecture and merely improve memory-efficiency and training
     stability. For the consistency of our analysis, we do not probe them.
 
     References
     ----------
-    .. [1] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
+    .. [1] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
+
+    .. [2] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
+
+    .. [3] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
 
     See also
     --------
@@ -133,9 +142,9 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
         r"""
-        When SwiGLUFFN is used, the DINOv2 implementation concatenates the gated_proj and up_proj
-        using a matrix weight_in of dimension emb_dim x 2 * hidden_dim and then recover gated_proj
-        and up_proj by chunk. The SwiGLUGateProjection allows us to recover only the gated_proj to
+        When SwiGLUFFN is used, the DINOv2 implementation concatenates the gate_proj and up_proj
+        using a matrix weight_in of dimension emb_dim x 2 * hidden_dim and then recover gate_proj
+        and up_proj by chunk. The SwiGLUGateProjection allows us to recover only the gate_proj to
         obtain fc1.
 
         See also
@@ -184,7 +193,7 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 # -------------------------------------------------------------------
 class Dinov2(BaseVisionModel):
     r"""
-    Vision Transformer implementation following [1]_.
+    DINOv2 implementation following [1]_.
 
 
     Parameters
@@ -246,6 +255,8 @@ class Dinov2(BaseVisionModel):
         r"""
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
+
+        In DINOv2, there is a CLS token, so we need to exclude it before the global pooling.
 
         Parameters
         ----------

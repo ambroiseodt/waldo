@@ -33,11 +33,10 @@ from transformers import PreTrainedModel
 
 TRANSFORMER_MODULES = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 
+
 # -------------------------------------------------------------------
 # Block adapter
 # -------------------------------------------------------------------
-
-
 class TransformerBlockAdapter(ABC):
     r"""
     Adapter that maps standard module names to a transformer block's submodules.
@@ -56,7 +55,6 @@ class TransformerBlockAdapter(ABC):
     ----------
     layer: nn.Module
         A single transformer block.
-
 
     Notes
     -----
@@ -79,7 +77,6 @@ class TransformerBlockAdapter(ABC):
     their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
     when SwiGLU is used, since the gated activation output is recovered as the input to down_proj.
 
-
     References
     ----------
     .. [1] R. Child et al. Generating Long Sequences with Sparse Transformers. arXiv 2019
@@ -89,7 +86,6 @@ class TransformerBlockAdapter(ABC):
     .. [3] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
 
     .. [4] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
-
 
     Usage
     -----

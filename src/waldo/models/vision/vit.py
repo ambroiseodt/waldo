@@ -8,6 +8,11 @@ Comments abbreviations
     L: sequence length
     E: embedding dimension
 
+Notes
+-----
+We focus on the pretrained models available on HuggingFace for image feature extraction.
+See https://huggingface.co/google/models for other model variants.
+
 References
 ----------
 .. [1] A. Dosovitskiy, L. Beyer et al. An Image is Worth 16x16 Words: Transformers
@@ -54,16 +59,13 @@ class ViTConfig:
     model_size: str
         Type of model to use. Options are "base", "large", and "huge".
     patch_size: int
-        Size of the patches to be extracted from the image.
-    resolution: int
-        Image resolution.
+        Size of the patches to be extracted from the image. Options are 14, 16 and 32.
     device: str
         Device to use.
     """
 
     model_size: str = "base"
     patch_size: int = 16
-    resolution: int = 224
     device: str = "cpu"
 
     def __init__(self, **kwargs):
@@ -78,10 +80,6 @@ class ViTConfig:
         # Valid patch size
         if self.patch_size not in [14, 16, 32]:
             raise ValueError(f"Invalid patch size {self.patch_size}. Options are 14, 16 and 32.")
-
-        # Valid model size
-        if self.resolution not in [224, 384]:
-            raise ValueError(f"Invalid resolution {self.resolution}. Options are 224 and 384.")
 
 
 # -------------------------------------------------------------------
@@ -183,7 +181,7 @@ class ViT(BaseVisionModel):
     def __init__(self, config: ViTConfig):
         super().__init__()
         self.device = config.device
-        self.model_name = f"google/vit-{config.model_size.lower()}-patch{config.patch_size}-{config.resolution}-in21k"
+        self.model_name = f"google/vit-{config.model_size.lower()}-patch{config.patch_size}-224-in21k"
         self.model = self._load_from_huggingface(model_name=self.model_name, device=self.device)
 
     def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:
@@ -195,10 +193,10 @@ class ViT(BaseVisionModel):
         model_name: str
             Name of the model. Options are:
                 "google/vit-base-patch16-224-in21k",
-                "google/vit-base-patch32-224-in21k",
                 "google/vit-large-patch16-224-in21k",
-                "google/vit-large-patch32-224-in21k",
-                "google/vit-huge-patch14-224-in21k".
+                "google/vit-huge-patch14-224-in21k",
+                "google/vit-base-patch32-224-in21k",
+                "google/vit-large-patch32-224-in21k".
         device: str
             Device to use.
 
@@ -209,10 +207,10 @@ class ViT(BaseVisionModel):
         """
         available_models = [
             "google/vit-base-patch16-224-in21k",
-            "google/vit-base-patch32-224-in21k",
             "google/vit-large-patch16-224-in21k",
-            "google/vit-large-patch32-224-in21k",
             "google/vit-huge-patch14-224-in21k",
+            "google/vit-base-patch32-224-in21k",
+            "google/vit-large-patch32-224-in21k",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
@@ -224,6 +222,8 @@ class ViT(BaseVisionModel):
         r"""
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
+
+        In ViT, there is a CLS token, so we need to exclude it before the global pooling.
 
         Parameters
         ----------

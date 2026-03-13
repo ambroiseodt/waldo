@@ -7,6 +7,11 @@ Comments abbreviations
     L: sequence length
     E: embedding dimension
 
+Notes
+-----
+We focus on the pretrained models available on HuggingFace for image feature extraction.
+See https://huggingface.co/collections/facebook/dinov3 for other model variants.
+
 References
 ----------
 .. [1] O. Simeoni et al. DINOv3. arXiv 2025
@@ -45,7 +50,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Dinov3Config:
     r"""
-    Dinov2 configuration file.
+    Dinov3 configuration file.
 
     Parameters
     ----------
@@ -55,7 +60,7 @@ class Dinov3Config:
         Device to use.
     """
 
-    model_size: str = "base"
+    model_size: str = "vitb16"
     device: str = "cpu"
 
     def __init__(self, **kwargs):
@@ -96,7 +101,7 @@ class Dinov3BlockAdapter(TransformerBlockAdapter):
 
     Notes
     -----
-    DINOv3-7B model relies on a gated SwiGLU activation in the FFN (see [3, 4]_ for details). For consistency
+    DINOv3-7B model relies on a gated SwiGLU activation in the FFN (see [1, 2]_ for details). For consistency
     with ViT, we decompose the FFN block as follows:
 
         fc1  = gate_proj(x)                      -> linear layer which feeds the activation
@@ -107,14 +112,18 @@ class Dinov3BlockAdapter(TransformerBlockAdapter):
     up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
     the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
     their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that Dinov2
-    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [1]_) that do not
+    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that DINOv3
+    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [3]_) that do not
     fundamentally change the transformer architecture and merely improve memory-efficiency and training
     stability. For the consistency of our analysis, we do not probe them.
 
     References
     ----------
-    .. [1] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
+    .. [1] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
+
+    .. [2] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
+
+    .. [3] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
 
     See also
     --------
@@ -136,7 +145,7 @@ class Dinov3BlockAdapter(TransformerBlockAdapter):
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
         if isinstance(layer.mlp, DINOv3ViTGatedMLP):
-            return cast(nn.Module, layer.mlp.gated_proj)
+            return cast(nn.Module, layer.mlp.gate_proj)
         if isinstance(layer.mlp, DINOv3ViTMLP):
             return cast(nn.Module, layer.mlp.up_proj)
         raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
@@ -174,7 +183,7 @@ class Dinov3BlockAdapter(TransformerBlockAdapter):
 # -------------------------------------------------------------------
 class Dinov3(BaseVisionModel):
     r"""
-    Vision Transformer implementation following [1]_.
+    DINOv3 implementation following [1]_.
 
 
     Parameters
@@ -191,7 +200,7 @@ class Dinov3(BaseVisionModel):
 
     References
     ----------
-    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+    .. [1] O. Simeoni et al. DINOv3. arXiv 2025
     """
 
     def __init__(self, config: Dinov3Config):
@@ -240,6 +249,8 @@ class Dinov3(BaseVisionModel):
         r"""
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
+
+        In DINOv3, there is a CLS token, so we need to exclude it before the global pooling.
 
         Parameters
         ----------
