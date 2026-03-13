@@ -43,7 +43,7 @@ def mean_pooling(
         Required when special_token_ids is set. For instance, the sentence "Hello world"
         writes with a Llama tokenizer as:
             input_ids = tensor([[1, 15043, 3186, 2]])
-                                ↑               ↑
+                                 ↑               ↑
                                 BOS             EOS
         The BOS (1) and EOS (2) ids would be passed in special_token_ids to exclude them from pooling.
     special_token_ids: list[int | None] | None, default=None
