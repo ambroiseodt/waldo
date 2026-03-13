@@ -34,6 +34,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "pytest==9.0.2",
+    "pytest-cov==7.0.0",
     "ruff==0.15.4",            
 ]
 
@@ -78,3 +80,18 @@ select = [
 
 [tool.pip-tools]
 extra-index-url = ["https://pypi.nvidia.com"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=src --cov-report=xml --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
