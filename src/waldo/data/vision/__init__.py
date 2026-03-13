@@ -20,7 +20,7 @@ from .food101 import Food101Dataset, Food101DatasetConfig
 from .imagenet import ImageNetDataset, ImageNetDatasetConfig
 from .imagenet_c import ImageNetCDataset, ImageNetCDatasetConfig
 from .pet import OxfordIIITPetDataset, OxfordIIITPetDatasetConfig
-from .utils import build_loader
+from .utils import build_loader, build_transform
 
 __all__ = [
     "AircraftDataset",
@@ -46,4 +46,5 @@ __all__ = [
     "OxfordIIITPetDatasetConfig",
     "OxfordIIITPetDataset",
     "build_loader",
+    "build_transform",
 ]

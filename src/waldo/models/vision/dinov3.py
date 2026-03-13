@@ -206,7 +206,7 @@ class Dinov3(BaseVisionModel):
     def __init__(self, config: Dinov3Config):
         super().__init__()
         self.device = config.device
-        self.model_name = f"facebook/dinov3-{config.model_size.lower()}-pretrain-lvd1689m"
+        self.model_name = f"facebook/dinov3-{config.model_size}-pretrain-lvd1689m"
         self.model = self._load_from_huggingface(model_name=self.model_name, device=self.device)
 
     def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:

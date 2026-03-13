@@ -181,7 +181,7 @@ class ViT(BaseVisionModel):
     def __init__(self, config: ViTConfig):
         super().__init__()
         self.device = config.device
-        self.model_name = f"google/vit-{config.model_size.lower()}-patch{config.patch_size}-224-in21k"
+        self.model_name = f"google/vit-{config.model_size}-patch{config.patch_size}-224-in21k"
         self.model = self._load_from_huggingface(model_name=self.model_name, device=self.device)
 
     def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:

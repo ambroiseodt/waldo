@@ -34,6 +34,7 @@ from .vision import (
     OxfordIIITPetDataset,
     OxfordIIITPetDatasetConfig,
     build_loader,
+    build_transform,
 )
 
 __all__ = [
@@ -63,4 +64,5 @@ __all__ = [
     "OxfordIIITPetDataset",
     "build_mteb",
     "build_loader",
+    "build_transform",
 ]
