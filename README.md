@@ -1,6 +1,6 @@
 # Finding Waldo in Foundation Models
 
-[![Build Status](https://github.com/ambroiseodt/waldo/actions/workflows/testing.yml/badge.svg)](https://github.com/ambroiseodt/waldo/actions)
+[![Tests](https://github.com/ambroiseodt/waldo/actions/workflows/testing.yaml/badge.svg)](https://github.com/ambroiseodt/waldo/actions)
 
 ## Getting started
 The code runs Python 3.12+. Here are some installation instructions:
@@ -105,5 +105,3 @@ pytest tests/my_path
 If you have any questions, feel free to reach out at [```ambroiseodonnattechnologie@gmail.com```](mailto:ambroiseodonnattechnologie@gmail.com).
 
 ## Citation
-
-```
