@@ -26,10 +26,16 @@ from waldo.data import (
     Cifar10CDatasetConfig,
     Cifar10Dataset,
     Cifar10DatasetConfig,
-    DomainNetDataset,
-    DomainNetDatasetConfig,
-    ImageNetDataset,
-    ImageNetDatasetConfig,
+    Cifar100CDataset,
+    Cifar100CDatasetConfig,
+    Cifar100Dataset,
+    Cifar100DatasetConfig,
+    Flowers102Dataset,
+    Flowers102DatasetConfig,
+    Food101Dataset,
+    Food101DatasetConfig,
+    OxfordIIITPetDataset,
+    OxfordIIITPetDatasetConfig,
 )
 
 # -----------------------------------------------------------------------------
@@ -129,11 +135,11 @@ def mock_aircraft_dataset(mock_dataset_torchvision_factory: Callable[..., Datase
 
 
 @pytest.fixture
-def mock_cifar10c_dataset() -> Dataset:
-    r"""Here 10_000 samples are needed to slice by severity."""
+def mock_cifar10c_dataset(mock_dataset_numpy_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    r"""A mock Cifar10CDataset. Here 10_000 samples are needed to slice by severity."""
     return mock_dataset_numpy_factory(
-        Cifar10CDataset,
-        Cifar10CDatasetConfig,
+        config_class=Cifar10CDatasetConfig,
+        dataset_class=Cifar10CDataset,
         n_samples=10_000,
         n_classes=10,
         corruption_type="brightness",
@@ -143,34 +149,103 @@ def mock_cifar10c_dataset() -> Dataset:
 
 
 @pytest.fixture
-def mock_cifar10_dataset() -> Dataset:
-    return mock_dataset_image_folder_factory(
-        Cifar10Dataset,
-        Cifar10DatasetConfig,
-        patch_target="waldo.data.vision.cifar10.torchvision.datasets.CIFAR10",
+def mock_cifar10_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    """A mock Cifar10Dataset with 10 samples, no disk I/O."""
+    return mock_dataset_torchvision_factory(
+        config_class=Cifar10DatasetConfig,
+        dataset_class=Cifar10Dataset,
+        patch_target="waldo.data.vision.aircraft.torchvision.datasets.CIFAR10",
         mode="train",
     )
 
 
 @pytest.fixture
-def mock_domainnet_dataset(sample_image: Image.Image) -> Dataset:
-    with patch("waldo.data.vision.domainnet.Image.open", return_value=sample_image):
-        return mock_dataset_image_folder_factory(
-            DomainNetDataset,
-            DomainNetDatasetConfig,
-            patch_target="waldo.data.vision.domainnet.torchvision.datasets.ImageFolder",
-            n_samples=10,
-            domain="clipart",
-            mode="train",
-        )
+def mock_cifar100c_dataset(mock_dataset_numpy_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    r"""A mock Cifar100CDataset. Here 10_000 samples are needed to slice by severity."""
+    return mock_dataset_numpy_factory(
+        config_class=Cifar100CDatasetConfig,
+        dataset_class=Cifar100CDataset,
+        n_samples=10_000,
+        n_classes=10,
+        corruption_type="brightness",
+        corruption_severity=1,
+        mode="train",
+    )
 
 
 @pytest.fixture
-def mock_imagenet_dataset(sample_image: Image.Image) -> Dataset:
-    with patch("waldo.data.vision.imagenet.Image.open", return_value=sample_image):
-        return mock_dataset_image_folder_factory(
-            ImageNetDataset,
-            ImageNetDatasetConfig,
-            patch_target="waldo.data.vision.imagenet.torchvision.datasets.ImageFolder",
-            mode="train",
-        )
+def mock_cifar100_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    """A mock Cifar100Dataset with 10 samples, no disk I/O."""
+    return mock_dataset_torchvision_factory(
+        config_class=Cifar100DatasetConfig,
+        dataset_class=Cifar100Dataset,
+        patch_target="waldo.data.vision.aircraft.torchvision.datasets.CIFAR100",
+        mode="train",
+    )
+
+
+# @pytest.fixture
+# def mock_domainnet_dataset(sample_image: Image.Image) -> Dataset:
+#     with patch("waldo.data.vision.domainnet.Image.open", return_value=sample_image):
+#         return mock_dataset_image_folder_factory(
+#             DomainNetDataset,
+#             DomainNetDatasetConfig,
+#             patch_target="waldo.data.vision.domainnet.torchvision.datasets.ImageFolder",
+#             n_samples=10,
+#             domain="clipart",
+#             mode="train",
+#         )
+
+
+@pytest.fixture
+def mock_flowers102_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    """A mock Flowers102Dataset with 10 samples, no disk I/O."""
+    return mock_dataset_torchvision_factory(
+        config_class=Flowers102DatasetConfig,
+        dataset_class=Flowers102Dataset,
+        patch_target="waldo.data.vision.aircraft.torchvision.datasets.Flowers102",
+        mode="train",
+    )
+
+
+@pytest.fixture
+def mock_food101_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    """A mock Food101Dataset with 10 samples, no disk I/O."""
+    return mock_dataset_torchvision_factory(
+        config_class=Food101DatasetConfig,
+        dataset_class=Food101Dataset,
+        patch_target="waldo.data.vision.aircraft.torchvision.datasets.Food101",
+        mode="train",
+    )
+
+
+# @pytest.fixture
+# def mock_imagenetc_dataset(sample_image: Image.Image) -> Dataset:
+#     with patch("waldo.data.vision.imagenet.Image.open", return_value=sample_image):
+#         return mock_dataset_image_folder_factory(
+#             ImageNetDataset,
+#             ImageNetDatasetConfig,
+#             patch_target="waldo.data.vision.imagenet.torchvision.datasets.ImageFolder",
+#             mode="train",
+#         )
+
+# @pytest.fixture
+# def mock_imagenet_dataset(sample_image: Image.Image) -> Dataset:
+#     with patch("waldo.data.vision.imagenet.Image.open", return_value=sample_image):
+#         return mock_dataset_image_folder_factory(
+#             ImageNetDataset,
+#             ImageNetDatasetConfig,
+#             patch_target="waldo.data.vision.imagenet.torchvision.datasets.ImageFolder",
+#             mode="train",
+#         )
+
+
+@pytest.fixture
+def mock_pet_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    """A mock PetDataset with 10 samples, no disk I/O."""
+    return mock_dataset_torchvision_factory(
+        config_class=OxfordIIITPetDatasetConfig,
+        dataset_class=OxfordIIITPetDataset,
+        patch_target="waldo.data.vision.aircraft.torchvision.datasets.OxfordIIITPet",
+        mode="train",
+    )
