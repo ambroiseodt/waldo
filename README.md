@@ -75,7 +75,7 @@ pip install -e ".[experiments,figures,dev]" --extra-index-url https://pypi.nvidi
 > [!NOTE]
 > The `experiments` group includes `cuml-cu12` for GPU-accelerated linear probing,
 > which requires an NVIDIA GPU, CUDA, and the NVIDIA PyPI index. Always append
-> `--extra-index-url https://pypi.nvidia.com` when installing `experiments`.
+> `--extra-index-url https://pypi.nvidia.com` when installing `experiments`. See [cuml](https://github.com/rapidsai/cuml) for details.
 
 ## Testing
 
