@@ -38,7 +38,46 @@ accelerate config
 ### Using HuggingFace pretrained models
 Some models are gated, e.g., the Llama and Gemma ones. Users should request the access and login to the huggingface hub to use them in the scripts. See https://huggingface.co/docs/hub/en/models-gated for more information.
 
-## Unit testing
+
+## Installation
+
+### Why `pip install -e`?
+
+The `-e` flag installs the package in **editable mode** — changes to the source code in
+`src/` are immediately reflected without reinstalling. This is the recommended way to
+install the package for both running experiments and contributing to the codebase.
+
+### Dependency groups
+
+| Group | Description |
+|-------|-------------|
+| _(none)_ | Core dependencies (`torch`, `numpy`, etc.) |
+| `experiments` | Everything needed to run experiments. Requires an NVIDIA GPU and CUDA. |
+| `figures` | Visualization tools for plotting results. |
+| `dev` | Development tools (`pytest`, `ruff`) for contributors. |
+
+### Common setups
+
+```bash
+# Run all experiments (requires NVIDIA GPU + CUDA)
+pip install -e ".[experiments]" --extra-index-url https://pypi.nvidia.com
+
+# Run experiments and plot results
+pip install -e ".[experiments,figures]" --extra-index-url https://pypi.nvidia.com
+
+# Contribute to the codebase (no GPU needed)
+pip install -e ".[dev]"
+
+# Full setup
+pip install -e ".[experiments,figures,dev]" --extra-index-url https://pypi.nvidia.com
+```
+
+> [!NOTE]
+> The `experiments` group includes `cuml-cu12` for GPU-accelerated linear probing,
+> which requires an NVIDIA GPU, CUDA, and the NVIDIA PyPI index. Always append
+> `--extra-index-url https://pypi.nvidia.com` when installing `experiments`.
+
+## Testing
 
 Install the development dependencies:
 ```bash
