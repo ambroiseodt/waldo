@@ -9,60 +9,52 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
-from .language import MTEB, MTEBConfig, build_mteb
-from .vision import (
-    AircraftDataset,
-    AircraftDatasetConfig,
-    Cifar10CDataset,
-    Cifar10CDatasetConfig,
-    Cifar10Dataset,
-    Cifar10DatasetConfig,
-    Cifar100CDataset,
-    Cifar100CDatasetConfig,
-    Cifar100Dataset,
-    Cifar100DatasetConfig,
-    DomainNetDataset,
-    DomainNetDatasetConfig,
-    Flowers102Dataset,
-    Flowers102DatasetConfig,
-    Food101Dataset,
-    Food101DatasetConfig,
-    ImageNetCDataset,
-    ImageNetCDatasetConfig,
-    ImageNetDataset,
-    ImageNetDatasetConfig,
-    OxfordIIITPetDataset,
-    OxfordIIITPetDatasetConfig,
-    build_loader,
-    build_transform,
-)
+import importlib
+from typing import Any
 
-__all__ = [
+_vision = [
     "AircraftDataset",
     "AircraftDatasetConfig",
-    "Cifar10DatasetConfig",
     "Cifar10Dataset",
-    "Cifar10CDatasetConfig",
+    "Cifar10DatasetConfig",
     "Cifar10CDataset",
-    "Cifar100DatasetConfig",
+    "Cifar10CDatasetConfig",
     "Cifar100Dataset",
-    "Cifar100CDatasetConfig",
+    "Cifar100DatasetConfig",
     "Cifar100CDataset",
+    "Cifar100CDatasetConfig",
     "DomainNetDataset",
     "DomainNetDatasetConfig",
-    "ImageNetDatasetConfig",
-    "ImageNetDataset",
-    "ImageNetCDataset",
-    "ImageNetCDatasetConfig",
-    "Flowers102DatasetConfig",
     "Flowers102Dataset",
+    "Flowers102DatasetConfig",
     "Food101Dataset",
     "Food101DatasetConfig",
-    "MTEB",
-    "MTEBConfig",
-    "OxfordIIITPetDatasetConfig",
+    "ImageNetDataset",
+    "ImageNetDatasetConfig",
+    "ImageNetCDataset",
+    "ImageNetCDatasetConfig",
     "OxfordIIITPetDataset",
-    "build_mteb",
+    "OxfordIIITPetDatasetConfig",
     "build_loader",
     "build_transform",
 ]
+
+_language = [
+    "MTEB",
+    "MTEBConfig",
+    "build_mteb",
+]
+
+__all__ = list(_vision) + list(_language)  # type: ignore
+
+
+def __dir__():
+    return __all__
+
+
+def __getattr__(name: str) -> Any:
+    if name in _vision:
+        return getattr(importlib.import_module("waldo.data.vision"), name)
+    if name in _language:
+        return getattr(importlib.import_module("waldo.data.language"), name)
+    raise AttributeError(f"module 'waldo.data' has no attribute {name!r}")

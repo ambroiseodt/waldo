@@ -8,3 +8,5 @@ in the root directory of this source tree.
 
 @ 2026, Ambroise Odonnat
 """
+
+__version__ = "0.0.0"
