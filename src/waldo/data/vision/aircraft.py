@@ -20,7 +20,7 @@ from ...config import DATASET_DIR
 
 
 @dataclass
-class FGVCAircraftDatasetConfig:
+class AircraftDatasetConfig:
     r"""
     FGVCAircraft configuration file.
 
@@ -47,11 +47,13 @@ class FGVCAircraftDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
-class FGVCAircraftDataset(Dataset):
+class AircraftDataset(Dataset):
     r"""
     FGVCAircraft dataset from [1]_.
 
     It consits of 10_000 aircrafts images in 100 classes, with 100 images per class.
+    We make use of the default annotation_level set as 'variant', which means the number of classes is 100.
+    Other values are possible, see the official documentation for details.
 
     Parameters
     ----------
@@ -65,7 +67,7 @@ class FGVCAircraftDataset(Dataset):
 
     Notes
     ----------
-    FGVCAircraft was created by Subhransu Maji, Esa Rahtu, Juho Kannala, Matthew Blaschko, Andrea Vedaldi.
+    Aircraft was created by Subhransu Maji, Esa Rahtu, Juho Kannala, Matthew Blaschko, Andrea Vedaldi.
     Official website: https://www.robots.ox.ac.uk/~vgg/data/fgvc-aircraft/.
 
     References
@@ -73,12 +75,13 @@ class FGVCAircraftDataset(Dataset):
     .. [1] S. Maji et al. Fine-Grained Visual Classification of Aircraft. arXiv, 2013
     """
 
-    def __init__(self, config: FGVCAircraftDatasetConfig):
+    def __init__(self, config: AircraftDatasetConfig):
         super().__init__()
         split = config.mode
         dataset = torchvision.datasets.FGVCAircraft(
             root=str(config.save_dir),
             split=split,
+            annotation_level="variant",
             download=True,
         )
 
