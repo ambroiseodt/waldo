@@ -139,7 +139,7 @@ class TestCifar10CDataset:
 
     def test_getitem_without_transform_returns_pil_image(self, mock_cifar10c_dataset: Cifar10CDataset) -> None:
         r"""Without a transform, __getitem__ should return a PIL image."""
-        sample, label = mock_cifar10c_dataset[0]
+        sample, _ = mock_cifar10c_dataset[0]
         assert isinstance(sample, Image.Image)
 
     def test_getitem_without_transform_returns_int_label(self, mock_cifar10c_dataset: Cifar10CDataset) -> None:
