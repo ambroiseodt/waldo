@@ -17,10 +17,11 @@ from PIL import Image
 
 from waldo.data import AircraftDataset, AircraftDatasetConfig, build_transform
 
-
 # -------------------------------------------------------------------
 # Config class
 # -------------------------------------------------------------------
+
+
 class TestAircraftDatasetConfig:
     r"""Tests for config class valid entries and default values."""
 
@@ -64,6 +65,8 @@ class TestAircraftDatasetConfig:
 # -------------------------------------------------------------------
 # Dataset class
 # -------------------------------------------------------------------
+
+
 class TestAircraftDataset:
     r"""Tests for dataset structure and item retrieval."""
 
@@ -82,13 +85,13 @@ class TestAircraftDataset:
 
     def test_getitem_without_transform_returns_int_label(self, mock_aircraft_dataset: AircraftDataset) -> None:
         r"""Without a transform, __getitem__ should return an integer label."""
-        sample, label = mock_aircraft_dataset[0]
+        _, label = mock_aircraft_dataset[0]
         assert isinstance(label, int)
 
     def test_getitem_with_transform_returns_int_label(self, mock_aircraft_dataset: AircraftDataset) -> None:
         r"""With a transform, __getitem__ should return an integer label."""
         mock_aircraft_dataset.transform = build_transform(resolution=224, transform_type="test")
-        sample, label = mock_aircraft_dataset[0]
+        _, label = mock_aircraft_dataset[0]
         assert isinstance(label, int)
 
     def test_getitem_with_transform_returns_tensor(self, mock_aircraft_dataset: AircraftDataset) -> None:

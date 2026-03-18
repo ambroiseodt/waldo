@@ -51,7 +51,7 @@ def sample_image() -> Image.Image:
 
 @pytest.fixture
 def mock_dataset_torchvision_factory(sample_image: Image.Image) -> Callable[..., Dataset[tuple]]:
-    """For datasets using standard torchvision datasets (FGVCAircraft, CIFAR10, etc.)"""
+    r"""For datasets using standard torchvision datasets (FGVCAircraft, CIFAR10, etc.)"""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -75,7 +75,7 @@ def mock_dataset_torchvision_factory(sample_image: Image.Image) -> Callable[...,
 
 @pytest.fixture
 def mock_dataset_image_folder_factory() -> Callable[..., Dataset[tuple]]:
-    """For datasets using torchvision.datasets.ImageFolder (ImageNet, DomainNet, etc.)"""
+    r"""For datasets using torchvision.datasets.ImageFolder (ImageNet, DomainNet, etc.)"""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -97,16 +97,20 @@ def mock_dataset_image_folder_factory() -> Callable[..., Dataset[tuple]]:
 
 @pytest.fixture
 def mock_dataset_numpy_factory(tmp_path: Path) -> Callable[..., Dataset[tuple]]:
-    """For datasets loaded from .npy files on disk (Cifar10-C, Cifar100-C, etc.)"""
+    r"""
+    For datasets loaded from .npy files on disk (Cifar10-C, Cifar100-C, etc.).
+    To mock those datasets, we creates n_samples random images in a temporary folder with a fixed seed.
+    """
 
     def _factory(
         config_class: Callable[..., Any],
         dataset_class: Callable[..., Dataset[tuple]],
-        n_samples: int = 10,
+        n_samples: int = 50_000,
         n_classes: int = 10,
         **config_kwargs,
     ) -> Dataset[tuple]:
         # Write synthetic .npy files to tmp_path
+        np.random.seed(seed=42)
         images = np.random.randint(0, 255, (n_samples, 32, 32, 3), dtype=np.uint8)
         labels = np.random.randint(0, n_classes, n_samples)
         np.save(tmp_path / f"{config_kwargs.get('corruption_type', 'brightness')}.npy", images)
@@ -125,7 +129,7 @@ def mock_dataset_numpy_factory(tmp_path: Path) -> Callable[..., Dataset[tuple]]:
 
 @pytest.fixture
 def mock_aircraft_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    """A mock AircraftDataset with 10 samples, no disk I/O."""
+    r"""A mock AircraftDataset with 10 samples, no disk I/O."""
     return mock_dataset_torchvision_factory(
         config_class=AircraftDatasetConfig,
         dataset_class=AircraftDataset,
@@ -136,11 +140,11 @@ def mock_aircraft_dataset(mock_dataset_torchvision_factory: Callable[..., Datase
 
 @pytest.fixture
 def mock_cifar10c_dataset(mock_dataset_numpy_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    r"""A mock Cifar10CDataset. Here 10_000 samples are needed to slice by severity."""
+    r"""A mock Cifar10CDataset. Here 50_000 samples are needed to slice by severity."""
     return mock_dataset_numpy_factory(
         config_class=Cifar10CDatasetConfig,
         dataset_class=Cifar10CDataset,
-        n_samples=10_000,
+        n_samples=50_000,
         n_classes=10,
         corruption_type="brightness",
         corruption_severity=1,
@@ -150,23 +154,23 @@ def mock_cifar10c_dataset(mock_dataset_numpy_factory: Callable[..., Dataset[tupl
 
 @pytest.fixture
 def mock_cifar10_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    """A mock Cifar10Dataset with 10 samples, no disk I/O."""
+    r"""A mock Cifar10Dataset with 10 samples, no disk I/O."""
     return mock_dataset_torchvision_factory(
         config_class=Cifar10DatasetConfig,
         dataset_class=Cifar10Dataset,
-        patch_target="waldo.data.vision.aircraft.torchvision.datasets.CIFAR10",
+        patch_target="waldo.data.vision.cifar10.torchvision.datasets.CIFAR10",
         mode="train",
     )
 
 
 @pytest.fixture
 def mock_cifar100c_dataset(mock_dataset_numpy_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    r"""A mock Cifar100CDataset. Here 10_000 samples are needed to slice by severity."""
+    r"""A mock Cifar100CDataset. Here 50_000 samples are needed to slice by severity."""
     return mock_dataset_numpy_factory(
         config_class=Cifar100CDatasetConfig,
         dataset_class=Cifar100CDataset,
-        n_samples=10_000,
-        n_classes=10,
+        n_samples=50_000,
+        n_classes=100,
         corruption_type="brightness",
         corruption_severity=1,
         mode="train",
@@ -175,11 +179,11 @@ def mock_cifar100c_dataset(mock_dataset_numpy_factory: Callable[..., Dataset[tup
 
 @pytest.fixture
 def mock_cifar100_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    """A mock Cifar100Dataset with 10 samples, no disk I/O."""
+    r"""A mock Cifar100Dataset with 10 samples, no disk I/O."""
     return mock_dataset_torchvision_factory(
         config_class=Cifar100DatasetConfig,
         dataset_class=Cifar100Dataset,
-        patch_target="waldo.data.vision.aircraft.torchvision.datasets.CIFAR100",
+        patch_target="waldo.data.vision.cifar100.torchvision.datasets.CIFAR100",
         mode="train",
     )
 
@@ -199,22 +203,22 @@ def mock_cifar100_dataset(mock_dataset_torchvision_factory: Callable[..., Datase
 
 @pytest.fixture
 def mock_flowers102_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    """A mock Flowers102Dataset with 10 samples, no disk I/O."""
+    r"""A mock Flowers102Dataset with 10 samples, no disk I/O."""
     return mock_dataset_torchvision_factory(
         config_class=Flowers102DatasetConfig,
         dataset_class=Flowers102Dataset,
-        patch_target="waldo.data.vision.aircraft.torchvision.datasets.Flowers102",
+        patch_target="waldo.data.vision.flowers102.torchvision.datasets.Flowers102",
         mode="train",
     )
 
 
 @pytest.fixture
 def mock_food101_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    """A mock Food101Dataset with 10 samples, no disk I/O."""
+    r"""A mock Food101Dataset with 10 samples, no disk I/O."""
     return mock_dataset_torchvision_factory(
         config_class=Food101DatasetConfig,
         dataset_class=Food101Dataset,
-        patch_target="waldo.data.vision.aircraft.torchvision.datasets.Food101",
+        patch_target="waldo.data.vision.food101.torchvision.datasets.Food101",
         mode="train",
     )
 
@@ -242,10 +246,10 @@ def mock_food101_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset
 
 @pytest.fixture
 def mock_pet_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    """A mock PetDataset with 10 samples, no disk I/O."""
+    r"""A mock PetDataset with 10 samples, no disk I/O."""
     return mock_dataset_torchvision_factory(
         config_class=OxfordIIITPetDatasetConfig,
         dataset_class=OxfordIIITPetDataset,
-        patch_target="waldo.data.vision.aircraft.torchvision.datasets.OxfordIIITPet",
+        patch_target="waldo.data.vision.pet.torchvision.datasets.OxfordIIITPet",
         mode="train",
     )
