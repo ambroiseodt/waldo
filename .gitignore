@@ -4,6 +4,7 @@
 *.vscode
 *.log
 *.cache
+*.meta
 __pycache__
 
 # Saving directories
@@ -18,3 +19,7 @@ savings/
 coverage.xml
 .coverage
 htmlcov/
+
+# Data
+*.gz
+*tar
