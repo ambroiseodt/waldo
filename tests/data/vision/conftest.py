@@ -36,6 +36,10 @@ from waldo.data import (
     Flowers102DatasetConfig,
     Food101Dataset,
     Food101DatasetConfig,
+    ImageNetCDataset,
+    ImageNetCDatasetConfig,
+    ImageNetDataset,
+    ImageNetDatasetConfig,
     OxfordIIITPetDataset,
     OxfordIIITPetDatasetConfig,
 )
@@ -53,7 +57,7 @@ def sample_image() -> Image.Image:
 
 @pytest.fixture
 def mock_dataset_torchvision_factory(sample_image: Image.Image) -> Callable[..., Dataset[tuple]]:
-    r"""For datasets using standard torchvision datasets (FGVCAircraft, Flowers102, Food101, etc.)"""
+    r"""For datasets using standard torchvision datasets (FGVCAircraft, Flowers102, Food101)"""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -146,7 +150,7 @@ def mock_dataset_pet_factory() -> Callable[..., Dataset[tuple]]:
 
 @pytest.fixture
 def mock_dataset_image_folder_factory() -> Callable[..., Dataset[tuple]]:
-    r"""For datasets using torchvision.datasets.ImageFolder (ImageNet, DomainNet, etc.)"""
+    r"""For datasets using torchvision.datasets.ImageFolder (ImageNet, ImageNet-C, DomainNet)"""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -169,7 +173,7 @@ def mock_dataset_image_folder_factory() -> Callable[..., Dataset[tuple]]:
 @pytest.fixture
 def mock_dataset_numpy_factory(tmp_path: Path) -> Callable[..., Dataset[tuple]]:
     r"""
-    For datasets loaded from .npy files on disk (Cifar10-C, Cifar100-C, etc.). Here, 50_000 samples are needed
+    For datasets loaded from .npy files on disk (Cifar10-C, Cifar100-C). Here, 50_000 samples are needed
     to slice by severity, created as random images loaded in a temporary folder with a fixed seed.
     """
 
@@ -291,25 +295,28 @@ def mock_food101_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset
     )
 
 
-# @pytest.fixture
-# def mock_imagenetc_dataset(sample_image: Image.Image) -> Dataset:
-#     with patch("waldo.data.vision.imagenet.Image.open", return_value=sample_image):
-#         return mock_dataset_image_folder_factory(
-#             ImageNetDataset,
-#             ImageNetDatasetConfig,
-#             patch_target="waldo.data.vision.imagenet.torchvision.datasets.ImageFolder",
-#             mode="train",
-#         )
+@pytest.fixture
+def mock_imagenetc_dataset(mock_dataset_image_folder_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    r"""A mock ImageNetCDataset with 10 samples, no disk I/O."""
+    return mock_dataset_image_folder_factory(
+        config_class=ImageNetCDatasetConfig,
+        dataset_class=ImageNetCDataset,
+        patch_target="waldo.data.vision.imagenet_c.torchvision.datasets.ImageFolder",
+        corruption_type="brightness",
+        corruption_severity=1,
+        mode="train",
+    )
 
-# @pytest.fixture
-# def mock_imagenet_dataset(sample_image: Image.Image) -> Dataset:
-#     with patch("waldo.data.vision.imagenet.Image.open", return_value=sample_image):
-#         return mock_dataset_image_folder_factory(
-#             ImageNetDataset,
-#             ImageNetDatasetConfig,
-#             patch_target="waldo.data.vision.imagenet.torchvision.datasets.ImageFolder",
-#             mode="train",
-#         )
+
+@pytest.fixture
+def mock_imagenet_dataset(mock_dataset_image_folder_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
+    r"""A mock ImageNetDataset with 10 samples, no disk I/O."""
+    return mock_dataset_image_folder_factory(
+        config_class=ImageNetDatasetConfig,
+        dataset_class=ImageNetDataset,
+        patch_target="waldo.data.vision.imagenet.torchvision.datasets.ImageFolder",
+        mode="train",
+    )
 
 
 @pytest.fixture
