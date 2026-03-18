@@ -87,7 +87,7 @@ class Food101Dataset(Dataset):
         self.data = dataset._image_files
         self.targets = dataset._labels
         self.loader = dataset.loader
-        self.n_classes = 100
+        self.n_classes = 101
 
         # Recover transform
         self.transform = config.transform
