@@ -55,7 +55,7 @@ class Flowers102DatasetConfig:
 
 class Flowers102Dataset(Dataset):
     r"""
-    Oxford 102 Flower dataset from [1]_.
+    Oxford Flowers-102 dataset from [1]_.
 
     It consits of images of 102 flower categories with each class containing of between 40 and 258 images.
     The flowers were chosen to be flowers commonly occurring in the United Kingdom.
