@@ -10,11 +10,14 @@ in the root directory of this source tree.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import torchvision
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose
+
+from ...config import DATASET_DIR
 
 
 @dataclass
@@ -32,7 +35,7 @@ class OxfordIIITPetDatasetConfig:
         Transformation to apply to the images.
     """
 
-    save_dir: str | None = None
+    save_dir: Path = DATASET_DIR / "pet"
     mode: str = "train"
     transform: Compose | None = None
 
