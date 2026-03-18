@@ -109,7 +109,7 @@ class Cifar10CDataset(Dataset):
     Cifar10-C dataset from [1]_.
 
     It consits of 15 corruptions with 5 level of severity of the CIFAR-10 test set.
-    To use it for finetuning, we split it into deterministic training and test sets.
+    Since there is no official train or test sets, we create a deterministic 80/20 split.
 
     Parameters
     ----------
