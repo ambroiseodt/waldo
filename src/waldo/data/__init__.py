@@ -13,8 +13,6 @@ import importlib
 from typing import Any
 
 _vision = [
-    "AircraftDataset",
-    "AircraftDatasetConfig",
     "Cifar10Dataset",
     "Cifar10DatasetConfig",
     "Cifar10CDataset",
@@ -25,6 +23,8 @@ _vision = [
     "Cifar100CDatasetConfig",
     "DomainNetDataset",
     "DomainNetDatasetConfig",
+    "FGVCAircraftDataset",
+    "FGVCAircraftDatasetConfig",
     "Flowers102Dataset",
     "Flowers102DatasetConfig",
     "Food101Dataset",

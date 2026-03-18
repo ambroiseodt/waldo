@@ -9,7 +9,7 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
-from .aircraft import AircraftDataset, AircraftDatasetConfig
+from .aircraft import FGVCAircraftDataset, FGVCAircraftDatasetConfig
 from .cifar10 import Cifar10Dataset, Cifar10DatasetConfig
 from .cifar10_c import Cifar10CDataset, Cifar10CDatasetConfig
 from .cifar100 import Cifar100Dataset, Cifar100DatasetConfig
@@ -23,8 +23,6 @@ from .pet import OxfordIIITPetDataset, OxfordIIITPetDatasetConfig
 from .utils import build_loader, build_transform
 
 __all__ = [
-    "AircraftDataset",
-    "AircraftDatasetConfig",
     "Cifar10DatasetConfig",
     "Cifar10Dataset",
     "Cifar10CDatasetConfig",
@@ -39,6 +37,8 @@ __all__ = [
     "ImageNetDataset",
     "ImageNetCDataset",
     "ImageNetCDatasetConfig",
+    "FGVCAircraftDataset",
+    "FGVCAircraftDatasetConfig",
     "Flowers102DatasetConfig",
     "Flowers102Dataset",
     "Food101Dataset",

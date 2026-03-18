@@ -20,7 +20,7 @@ from ...config import DATASET_DIR
 
 
 @dataclass
-class AircraftDatasetConfig:
+class FGVCAircraftDatasetConfig:
     r"""
     FGVCAircraft configuration file.
 
@@ -47,7 +47,7 @@ class AircraftDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
-class AircraftDataset(Dataset):
+class FGVCAircraftDataset(Dataset):
     r"""
     FGVCAircraft dataset from [1]_.
 
@@ -73,7 +73,7 @@ class AircraftDataset(Dataset):
     .. [1] S. Maji et al. Fine-Grained Visual Classification of Aircraft. arXiv, 2013
     """
 
-    def __init__(self, config: AircraftDatasetConfig):
+    def __init__(self, config: FGVCAircraftDatasetConfig):
         super().__init__()
         split = config.mode
         dataset = torchvision.datasets.FGVCAircraft(
