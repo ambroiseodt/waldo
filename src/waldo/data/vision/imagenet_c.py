@@ -110,7 +110,7 @@ class ImageNetCDataset(Dataset):
     ImageNet-C dataset from [1]_.
 
     It consits of 15 corruptions with 5 level of severity of the ImageNet validation set.
-    To use it for finetuning, we split it into deterministic training and test sets.
+    Since there is no official train or test sets, we create a deterministic 80/20 split.
 
     Parameters
     ----------

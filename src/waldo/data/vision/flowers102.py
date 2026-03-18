@@ -91,7 +91,7 @@ class Flowers102Dataset(Dataset):
         )
 
         # Recover dataset
-        self.samples = dataset._image_files
+        self.data = dataset._image_files
         self.targets = dataset._labels
         self.n_classes = 102
 
@@ -99,10 +99,10 @@ class Flowers102Dataset(Dataset):
         self.transform = config.transform
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.data)
 
     def __getitem__(self, idx: int):
-        path = self.samples[idx]
+        path = self.data[idx]
         sample = Image.open(path).convert("RGB")
         label = self.targets[idx]
         if self.transform is not None:
@@ -111,4 +111,4 @@ class Flowers102Dataset(Dataset):
         return sample, label
 
     def __repr__(self):
-        return f"Dataset with {len(self.samples)} images."
+        return f"Dataset with {len(self.data)} images."

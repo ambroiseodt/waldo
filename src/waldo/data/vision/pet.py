@@ -21,7 +21,7 @@ from ...config import DATASET_DIR
 
 
 @dataclass
-class OxfordIIITPetDatasetConfig:
+class PetDatasetConfig:
     r"""
     Oxford-IIIT Pet configuration file.
 
@@ -48,7 +48,7 @@ class OxfordIIITPetDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
-class OxfordIIITPetDataset(Dataset):
+class PetDataset(Dataset):
     r"""
     Oxford-IIIT Pet dataset from [1]_.
 
@@ -75,7 +75,7 @@ class OxfordIIITPetDataset(Dataset):
     .. [1] O. M. Parkhi et al. Cats and Dogs. In CVPR 2012
     """
 
-    def __init__(self, config: OxfordIIITPetDatasetConfig):
+    def __init__(self, config: PetDatasetConfig):
         super().__init__()
         split = "trainval" if config.mode == "train" else "test"
         dataset = torchvision.datasets.OxfordIIITPet(
@@ -85,7 +85,7 @@ class OxfordIIITPetDataset(Dataset):
         )
 
         # Recover dataset
-        self.samples = dataset._images
+        self.data = dataset._images
         self.targets = dataset._labels
         self.n_classes = 37
 
@@ -93,10 +93,10 @@ class OxfordIIITPetDataset(Dataset):
         self.transform = config.transform
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.data)
 
     def __getitem__(self, idx: int):
-        path = self.samples[idx]
+        path = self.data[idx]
         sample = Image.open(path).convert("RGB")
         label = self.targets[idx]
         if self.transform is not None:
@@ -105,4 +105,4 @@ class OxfordIIITPetDataset(Dataset):
         return sample, label
 
     def __repr__(self):
-        return f"Dataset with {len(self.samples)} images."
+        return f"Dataset with {len(self.data)} images."
