@@ -41,7 +41,7 @@ class TestFlowers102DatasetConfig:
         config = Flowers102DatasetConfig()
         assert isinstance(config.save_dir, Path)
 
-    @pytest.mark.parametrize("mode", ["train", "test"])
+    @pytest.mark.parametrize("mode", ["train", "val", "test"])
     def test_valid_modes(self, mode: str) -> None:
         r"""Both valid modes should instantiate without errors."""
         config = Flowers102DatasetConfig(mode=mode)
