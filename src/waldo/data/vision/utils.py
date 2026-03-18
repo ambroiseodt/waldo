@@ -132,6 +132,18 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
             config["domain"] = dataset_name.split("domainnet-", 1)[-1]
             config_obj = build_with_type_check(DomainNetDatasetConfig, config)
 
+        case "dtd":
+            from waldo.data.vision.dtd import DTDDataset, DTDDatasetConfig
+
+            dataset_type = DTDDataset
+            config_obj = build_with_type_check(DTDDatasetConfig, config)
+
+        case "eurosat":
+            from waldo.data.vision.eurosat import EuroSATDataset, EuroSATDatasetConfig
+
+            dataset_type = EuroSATDataset
+            config_obj = build_with_type_check(EuroSATDatasetConfig, config)
+
         case "flowers102":
             from waldo.data.vision.flowers102 import Flowers102Dataset, Flowers102DatasetConfig
 
@@ -162,10 +174,10 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
             config_obj = build_with_type_check(ImageNetDatasetConfig, config)
 
         case "pet":
-            from waldo.data.vision.pet import OxfordIIITPetDataset, OxfordIIITPetDatasetConfig
+            from waldo.data.vision.pet import PetDataset, PetDatasetConfig
 
-            dataset_type = OxfordIIITPetDataset
-            config_obj = build_with_type_check(OxfordIIITPetDatasetConfig, config)
+            dataset_type = PetDataset
+            config_obj = build_with_type_check(PetDatasetConfig, config)
 
         case _:
             raise ValueError(f"Dataset name {dataset_name} not found.")
@@ -190,7 +202,7 @@ def build_transform(resolution: int, transform_type: str) -> Compose:
     resolution: int
         Resolution of the image after resizing.
     transform_type: str
-        Type of transform to apply. Options are "train", "test" and "static".
+        Type of transform to apply. Options are "train", "val", "test" and "static".
         It should be set as static for linear probing on static frozen features.
 
     Returns
@@ -221,6 +233,15 @@ def build_transform(resolution: int, transform_type: str) -> Compose:
                     normalize,
                 ]
             )
+        case "val":
+            transform = Compose(
+                [
+                    Resize(resolution),
+                    CenterCrop(resolution),
+                    ToTensor(),
+                    normalize,
+                ]
+            )
         case "test":
             transform = Compose(
                 [
@@ -240,7 +261,7 @@ def build_transform(resolution: int, transform_type: str) -> Compose:
                 ]
             )
         case _:
-            raise ValueError(f"Type {transform_type} not found. Options are 'train', 'test' and 'static'.")
+            raise ValueError(f"Type {transform_type} not found. Options are 'train', 'val', 'test' and 'static'.")
 
     return transform
 
