@@ -13,6 +13,8 @@ import importlib
 from typing import Any
 
 _vision = [
+    "AircraftDataset",
+    "AircraftDatasetConfig",
     "Cifar10Dataset",
     "Cifar10DatasetConfig",
     "Cifar10CDataset",
@@ -23,8 +25,10 @@ _vision = [
     "Cifar100CDatasetConfig",
     "DomainNetDataset",
     "DomainNetDatasetConfig",
-    "FGVCAircraftDataset",
-    "FGVCAircraftDatasetConfig",
+    "DTDDataset",
+    "DTDDatasetConfig",
+    "EuroSATDataset",
+    "EuroSATDatasetConfig",
     "Flowers102Dataset",
     "Flowers102DatasetConfig",
     "Food101Dataset",
@@ -33,8 +37,8 @@ _vision = [
     "ImageNetDatasetConfig",
     "ImageNetCDataset",
     "ImageNetCDatasetConfig",
-    "OxfordIIITPetDataset",
-    "OxfordIIITPetDatasetConfig",
+    "PetDataset",
+    "PetDatasetConfig",
     "build_loader",
     "build_transform",
 ]

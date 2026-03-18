@@ -9,20 +9,24 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
-from .aircraft import FGVCAircraftDataset, FGVCAircraftDatasetConfig
+from .aircraft import AircraftDataset, AircraftDatasetConfig
 from .cifar10 import Cifar10Dataset, Cifar10DatasetConfig
 from .cifar10_c import Cifar10CDataset, Cifar10CDatasetConfig
 from .cifar100 import Cifar100Dataset, Cifar100DatasetConfig
 from .cifar100_c import Cifar100CDataset, Cifar100CDatasetConfig
 from .domainnet import DomainNetDataset, DomainNetDatasetConfig
+from .dtd import DTDDataset, DTDDatasetConfig
+from .eurosat import EuroSATDataset, EuroSATDatasetConfig
 from .flowers102 import Flowers102Dataset, Flowers102DatasetConfig
 from .food101 import Food101Dataset, Food101DatasetConfig
 from .imagenet import ImageNetDataset, ImageNetDatasetConfig
 from .imagenet_c import ImageNetCDataset, ImageNetCDatasetConfig
-from .pet import OxfordIIITPetDataset, OxfordIIITPetDatasetConfig
+from .pet import PetDataset, PetDatasetConfig
 from .utils import build_loader, build_transform
 
 __all__ = [
+    "AircraftDataset",
+    "AircraftDatasetConfig",
     "Cifar10DatasetConfig",
     "Cifar10Dataset",
     "Cifar10CDatasetConfig",
@@ -33,18 +37,20 @@ __all__ = [
     "Cifar100CDataset",
     "DomainNetDataset",
     "DomainNetDatasetConfig",
-    "ImageNetDatasetConfig",
-    "ImageNetDataset",
-    "ImageNetCDataset",
-    "ImageNetCDatasetConfig",
-    "FGVCAircraftDataset",
-    "FGVCAircraftDatasetConfig",
+    "DTDDataset",
+    "DTDDatasetConfig",
+    "EuroSATDataset",
+    "EuroSATDatasetConfig",
     "Flowers102DatasetConfig",
     "Flowers102Dataset",
     "Food101Dataset",
     "Food101DatasetConfig",
-    "OxfordIIITPetDatasetConfig",
-    "OxfordIIITPetDataset",
+    "ImageNetDatasetConfig",
+    "ImageNetDataset",
+    "ImageNetCDataset",
+    "ImageNetCDatasetConfig",
+    "PetDatasetConfig",
+    "PetDataset",
     "build_loader",
     "build_transform",
 ]
