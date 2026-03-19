@@ -66,9 +66,8 @@ def _build_literal(args: tuple, data: Any) -> Any:
 def _build_primitive(object_type: type, data: Any) -> Any:
     try:
         return object_type(data)
-    except (TypeError, ValueError):
-        logger.warning(f"Initializing {object_type} with value '{data}' without type checking.")
-        return data
+    except (TypeError, ValueError) as err:
+        raise ValueError(f"Could not initialize {object_type} with value '{data}'.") from err
 
 
 def _is_union(origin: Any) -> bool:
@@ -92,11 +91,6 @@ def build_with_type_check(object_type: type, data: Any) -> Any:
     args = get_args(object_type)
     origin = get_origin(object_type)
 
-    # Already the right type
-    base_type = origin or object_type
-    if isinstance(base_type, type) and isinstance(data, base_type):
-        return data
-
     if is_dataclass(object_type):
         return _build_dataclass(object_type, data)
     if origin is list and len(args) == 1:
@@ -107,5 +101,10 @@ def build_with_type_check(object_type: type, data: Any) -> Any:
         return _build_union(args, data)
     if origin is Literal:
         return _build_literal(args, data)
+
+    # Already the right type
+    base_type = origin or object_type
+    if isinstance(base_type, type) and isinstance(data, base_type):
+        return data
 
     return _build_primitive(object_type, data)
