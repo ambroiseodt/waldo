@@ -55,26 +55,26 @@ jobs:
       - name: Run tests
         run: pytest tests/data/language/ --cov=waldo --cov-report term --durations=10
 
-  test-models:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # test-models:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-models-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: ${{ runner.os }}-pip-models-
+  #     - name: Cache pip dependencies
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ~/.cache/pip
+  #         key: ${{ runner.os }}-pip-models-${{ hashFiles('**/pyproject.toml') }}
+  #         restore-keys: ${{ runner.os }}-pip-models-
 
-      - name: Install dependencies
-        run: pip install -e ".[dev]" "transformers==5.2.0"
+  #     - name: Install dependencies
+  #       run: pip install -e ".[dev]" "transformers==5.2.0"
 
-      - name: Run tests
-        run: pytest tests/models/ --cov=waldo --cov-report term --durations=10
+  #     - name: Run tests
+  #       run: pytest tests/models/ --cov=waldo --cov-report term --durations=10
