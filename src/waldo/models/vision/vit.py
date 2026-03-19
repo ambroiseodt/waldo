@@ -40,14 +40,15 @@ from torch.nn import ModuleList
 from transformers import PreTrainedModel, ViTModel
 from transformers.models.vit.modeling_vit import ViTEncoder, ViTIntermediate, ViTOutput
 
+from ..transformer_block import TransformerBlockAdapter
 from ..utils import mean_pooling
-from .base import BaseVisionModel, TransformerBlockAdapter
+from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------------------
-# Config
+#   Config
 # -------------------------------------------------------------------
 @dataclass
 class ViTConfig:
@@ -83,7 +84,7 @@ class ViTConfig:
 
 
 # -------------------------------------------------------------------
-# Block adapter
+#   Transformer block adapter
 # -------------------------------------------------------------------
 class ViTBlockAdapter(TransformerBlockAdapter):
     r"""
@@ -146,7 +147,7 @@ class ViTBlockAdapter(TransformerBlockAdapter):
 
 
 # -------------------------------------------------------------------
-# Model
+#   Model
 # -------------------------------------------------------------------
 class ViT(BaseVisionModel):
     r"""

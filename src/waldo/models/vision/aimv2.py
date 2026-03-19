@@ -38,14 +38,15 @@ from torch.nn import ModuleList
 from transformers import Aimv2VisionModel, PreTrainedModel
 from transformers.models.aimv2.modeling_aimv2 import Aimv2Encoder, Aimv2MLP
 
+from ..transformer_block import TransformerBlockAdapter
 from ..utils import mean_pooling
-from .base import BaseVisionModel, TransformerBlockAdapter
+from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------------------
-# Config
+#   Config
 # -------------------------------------------------------------------
 @dataclass
 class Aimv2Config:
@@ -81,7 +82,7 @@ class Aimv2Config:
 
 
 # -------------------------------------------------------------------
-# Block adapter
+#   Transformer block adapter
 # -------------------------------------------------------------------
 class Aimv2BlockAdapter(TransformerBlockAdapter):
     r"""
@@ -170,7 +171,7 @@ class Aimv2BlockAdapter(TransformerBlockAdapter):
 
 
 # -------------------------------------------------------------------
-# Model
+#   Model
 # -------------------------------------------------------------------
 class Aimv2(BaseVisionModel):
     r"""

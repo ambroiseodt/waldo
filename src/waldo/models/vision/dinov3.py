@@ -38,14 +38,15 @@ from torch.nn import ModuleList
 from transformers import DINOv3ViTModel, PreTrainedModel
 from transformers.models.dinov3_vit.modeling_dinov3_vit import DINOv3ViTGatedMLP, DINOv3ViTMLP
 
+from ..transformer_block import TransformerBlockAdapter
 from ..utils import mean_pooling
-from .base import BaseVisionModel, TransformerBlockAdapter
+from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------------------
-# Config
+#   Config
 # -------------------------------------------------------------------
 @dataclass
 class Dinov3Config:
@@ -77,7 +78,7 @@ class Dinov3Config:
 
 
 # -------------------------------------------------------------------
-# Block adapter
+#   Transformer block adapter
 # -------------------------------------------------------------------
 class Dinov3BlockAdapter(TransformerBlockAdapter):
     r"""
@@ -177,7 +178,7 @@ class Dinov3BlockAdapter(TransformerBlockAdapter):
 
 
 # -------------------------------------------------------------------
-# Model
+#   Model
 # -------------------------------------------------------------------
 class Dinov3(BaseVisionModel):
     r"""

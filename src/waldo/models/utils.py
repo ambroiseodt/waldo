@@ -14,7 +14,7 @@ import torch.nn as nn
 
 
 # -------------------------------------------------------------------
-# Pooling
+#   Pooling
 # -------------------------------------------------------------------
 def mean_pooling(
     x: torch.Tensor,
@@ -130,7 +130,7 @@ def mean_pooling(
 
 
 # -------------------------------------------------------------------
-# Module wrapper
+#   Gated activation wrapper
 # -------------------------------------------------------------------
 class SwiGLUGateProjection(nn.Module):
     r"""

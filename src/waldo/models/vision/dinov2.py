@@ -38,14 +38,15 @@ from torch.nn import ModuleList
 from transformers import Dinov2Model, PreTrainedModel
 from transformers.models.dinov2.modeling_dinov2 import Dinov2Encoder, Dinov2MLP, Dinov2SwiGLUFFN
 
+from ..transformer_block import TransformerBlockAdapter
 from ..utils import SwiGLUGateProjection, mean_pooling
-from .base import BaseVisionModel, TransformerBlockAdapter
+from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------------------
-# Config
+#   Config
 # -------------------------------------------------------------------
 @dataclass
 class Dinov2Config:
@@ -74,7 +75,7 @@ class Dinov2Config:
 
 
 # -------------------------------------------------------------------
-# Block adapter
+#   Transformer block adapter
 # -------------------------------------------------------------------
 class Dinov2BlockAdapter(TransformerBlockAdapter):
     r"""
@@ -187,7 +188,7 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
 
 # -------------------------------------------------------------------
-# Model
+#   Model
 # -------------------------------------------------------------------
 class Dinov2(BaseVisionModel):
     r"""
