@@ -31,7 +31,7 @@ def make_mock_task(
 
 
 # -------------------------------------------------------------------
-# Config
+#   Config
 # -------------------------------------------------------------------
 class TestMTEBConfig:
     r"""Tests for config class valid entries and default values."""
