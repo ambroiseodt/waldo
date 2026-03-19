@@ -18,18 +18,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-vision-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: ${{ runner.os }}-pip-vision-
+      # - name: Cache pip dependencies
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ~/.cache/pip
+      #     key: ${{ runner.os }}-pip-vision-${{ hashFiles('**/pyproject.toml') }}
+      #     restore-keys: ${{ runner.os }}-pip-vision-
 
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
       - name: Run tests
-        run: pytest tests/data/vision/ --cov=src/waldo/data/vision --cov-report term --durations=10
+        run: pytest tests/data/vision/ --cov=waldo --cov-report term --durations=10
 
   test-language:
     runs-on: ubuntu-latest
@@ -42,18 +42,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-language-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: ${{ runner.os }}-pip-language-
+      # - name: Cache pip dependencies
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ~/.cache/pip
+      #     key: ${{ runner.os }}-pip-language-${{ hashFiles('**/pyproject.toml') }}
+      #     restore-keys: ${{ runner.os }}-pip-language-
 
       - name: Install dependencies
         run: pip install -e ".[dev]" "mteb[xet]==2.10.4"
 
       - name: Run tests
-        run: pytest tests/data/language/ --cov=src/waldo/data/language --cov-report term --durations=10
+        run: pytest tests/data/language/ --cov=waldo --cov-report term --durations=10
 
   # test-models:
   #   runs-on: ubuntu-latest
