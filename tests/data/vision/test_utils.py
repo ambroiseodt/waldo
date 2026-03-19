@@ -15,10 +15,11 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import CenterCrop, Compose, RandomHorizontalFlip, RandomResizedCrop, Resize
 
-from waldo.data.vision.utils import build_dataset, build_loader, build_transform, deterministic_split
+from waldo.data.vision.utils import _worker_init_fn, build_dataset, build_loader, build_transform, deterministic_split
 
 
 # -------------------------------------------------------------------
@@ -231,6 +232,12 @@ class TestBuildTransform:
 # -------------------------------------------------------------------
 # Dataloader
 # -------------------------------------------------------------------
+def test_worker_init_fn_sets_num_threads() -> None:
+    r"""_worker_init_fn should set the number of threads to 1."""
+    _worker_init_fn(worker_id=0)
+    assert torch.get_num_threads() == 1
+
+
 class TestBuildLoader:
     r"""Tests for build_loader."""
 
