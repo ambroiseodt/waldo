@@ -20,6 +20,9 @@ from torchvision.transforms import Compose
 from ...config import DATASET_DIR
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class ImageNetDatasetConfig:
     r"""
@@ -48,6 +51,9 @@ class ImageNetDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'val'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class ImageNetDataset(Dataset):
     r"""
     ImageNet dataset from [1]_.

@@ -20,6 +20,9 @@ from torchvision.transforms import Compose
 from ...config import DATASET_DIR
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class Cifar100DatasetConfig:
     r"""
@@ -48,6 +51,9 @@ class Cifar100DatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class Cifar100Dataset(Dataset):
     r"""
     Cifar100 dataset from [1]_.

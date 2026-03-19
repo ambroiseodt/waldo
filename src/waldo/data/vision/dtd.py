@@ -19,6 +19,9 @@ from torchvision.transforms import Compose
 from ...config import DATASET_DIR
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class DTDDatasetConfig:
     r"""
@@ -47,6 +50,9 @@ class DTDDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train', 'val' and 'test'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class DTDDataset(Dataset):
     r"""
     DTD dataset from [1]_.

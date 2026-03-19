@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------------------
-# Dinov2 configuration
+# Config
 # -------------------------------------------------------------------
 @dataclass
 class Dinov2Config:
@@ -74,10 +74,8 @@ class Dinov2Config:
 
 
 # -------------------------------------------------------------------
-# Dinov2 block adapter
+# Block adapter
 # -------------------------------------------------------------------
-
-
 class Dinov2BlockAdapter(TransformerBlockAdapter):
     r"""
     Adapter that maps standard module names to a transformer block's submodules.
@@ -189,7 +187,7 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
 
 # -------------------------------------------------------------------
-# Dinov2 model
+# Model
 # -------------------------------------------------------------------
 class Dinov2(BaseVisionModel):
     r"""

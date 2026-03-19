@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------------------
-# AIMv2 configuration
+# Config
 # -------------------------------------------------------------------
 @dataclass
 class Aimv2Config:
@@ -81,10 +81,8 @@ class Aimv2Config:
 
 
 # -------------------------------------------------------------------
-# AIMv2 block adapter
+# Block adapter
 # -------------------------------------------------------------------
-
-
 class Aimv2BlockAdapter(TransformerBlockAdapter):
     r"""
     Adapter that maps standard module names to a transformer block's submodules.
@@ -172,7 +170,7 @@ class Aimv2BlockAdapter(TransformerBlockAdapter):
 
 
 # -------------------------------------------------------------------
-# AIMv2 model
+# Model
 # -------------------------------------------------------------------
 class Aimv2(BaseVisionModel):
     r"""

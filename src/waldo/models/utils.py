@@ -12,11 +12,10 @@ in the root directory of this source tree.
 import torch
 import torch.nn as nn
 
+
 # -------------------------------------------------------------------
 # Pooling
 # -------------------------------------------------------------------
-
-
 def mean_pooling(
     x: torch.Tensor,
     exclude_cls: bool = False,
@@ -133,8 +132,6 @@ def mean_pooling(
 # -------------------------------------------------------------------
 # Module wrapper
 # -------------------------------------------------------------------
-
-
 class SwiGLUGateProjection(nn.Module):
     r"""
     Wraps a linear layer and returns only the first half of its output.

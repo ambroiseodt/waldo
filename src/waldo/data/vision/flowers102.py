@@ -25,6 +25,9 @@ from torchvision.transforms import Compose
 from ...config import DATASET_DIR
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class Flowers102DatasetConfig:
     r"""
@@ -53,6 +56,9 @@ class Flowers102DatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train', 'val' and 'test'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class Flowers102Dataset(Dataset):
     r"""
     Oxford Flowers-102 dataset from [1]_.

@@ -20,6 +20,9 @@ from torchvision.transforms import Compose
 from ...config import DATASET_DIR
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class PetDatasetConfig:
     r"""
@@ -48,6 +51,9 @@ class PetDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class PetDataset(Dataset):
     r"""
     Oxford-IIIT Pet dataset from [1]_.

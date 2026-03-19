@@ -22,6 +22,9 @@ from ...config import DATASET_DIR
 from .utils import deterministic_split
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class DomainNetDatasetConfig:
     r"""
@@ -64,6 +67,9 @@ class DomainNetDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class DomainNetDataset(Dataset):
     r"""
     DomainNet dataset from [1]_.

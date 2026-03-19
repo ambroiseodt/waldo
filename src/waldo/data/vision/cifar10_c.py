@@ -21,6 +21,9 @@ from ...config import DATASET_DIR
 from .utils import deterministic_split
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class Cifar10CDatasetConfig:
     r"""
@@ -104,6 +107,9 @@ class Cifar10CDatasetConfig:
             raise ValueError(f"Invalid mode {self.mode}. Options are 'train' and 'test.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class Cifar10CDataset(Dataset):
     r"""
     Cifar10-C dataset from [1]_.

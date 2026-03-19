@@ -19,6 +19,9 @@ from torchvision.transforms import Compose
 from ...config import DATASET_DIR
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class AircraftDatasetConfig:
     r"""
@@ -47,6 +50,9 @@ class AircraftDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class AircraftDataset(Dataset):
     r"""
     FGVCAircraft dataset from [1]_.

@@ -19,6 +19,9 @@ from torchvision.transforms import Compose
 from ...config import DATASET_DIR
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class Food101DatasetConfig:
     r"""
@@ -47,6 +50,9 @@ class Food101DatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class Food101Dataset(Dataset):
     r"""
     Food101 dataset from [1]_.

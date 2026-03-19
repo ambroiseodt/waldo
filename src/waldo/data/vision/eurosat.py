@@ -22,6 +22,9 @@ from ...config import DATASET_DIR
 from .utils import deterministic_split
 
 
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
 @dataclass
 class EuroSATDatasetConfig:
     r"""
@@ -50,6 +53,9 @@ class EuroSATDatasetConfig:
             raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
 
 
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
 class EuroSATDataset(Dataset):
     r"""
     EuroSAT dataset from [1]_.

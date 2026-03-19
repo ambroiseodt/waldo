@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------------------
-# ViT configuration
+# Config
 # -------------------------------------------------------------------
 @dataclass
 class ViTConfig:
@@ -83,10 +83,8 @@ class ViTConfig:
 
 
 # -------------------------------------------------------------------
-# ViT block adapter
+# Block adapter
 # -------------------------------------------------------------------
-
-
 class ViTBlockAdapter(TransformerBlockAdapter):
     r"""
     Adapter that maps standard module names to a transformer block's submodules.
@@ -148,7 +146,7 @@ class ViTBlockAdapter(TransformerBlockAdapter):
 
 
 # -------------------------------------------------------------------
-# ViT model
+# Model
 # -------------------------------------------------------------------
 class ViT(BaseVisionModel):
     r"""
