@@ -20,8 +20,7 @@ from PIL import Image
 from waldo.data import Cifar100CDataset, Cifar100CDatasetConfig, build_transform
 
 # Default Parameters, see src/waldo/data/vision/cifar100_c.py
-N_SAMPLES = 50_000
-N_SEVERITY_LEVELS = 5
+N_SAMPLES_PER_SEVERITY = 10_000
 TRAIN_RATIO = 0.8
 TEST_RATIO = 0.2
 
@@ -109,14 +108,13 @@ class TestCifar100CDataset:
         dataset = mock_dataset_numpy_factory(
             config_class=Cifar100CDatasetConfig,
             dataset_class=Cifar100CDataset,
-            n_samples=N_SAMPLES,
-            n_classes=10,
+            n_samples=50_000,
+            n_classes=100,
             corruption_type="brightness",
             corruption_severity=1,
             mode=mode,
         )
-        n_samples_per_severity = N_SAMPLES // N_SEVERITY_LEVELS
-        assert len(dataset) == int(n_samples_per_severity * ratio)
+        assert len(dataset) == int(N_SAMPLES_PER_SEVERITY * ratio)
 
     @pytest.mark.parametrize("severity", [1, 2, 3, 4, 5])
     def test_severity_slicing(self, mock_dataset_numpy_factory: Callable[..., Cifar100CDataset], severity: int) -> None:
@@ -124,14 +122,13 @@ class TestCifar100CDataset:
         dataset = mock_dataset_numpy_factory(
             config_class=Cifar100CDatasetConfig,
             dataset_class=Cifar100CDataset,
-            n_samples=N_SAMPLES,
-            n_classes=10,
+            n_samples=50_000,
+            n_classes=100,
             corruption_type="brightness",
             corruption_severity=severity,
             mode="train",
         )
-        n_samples_per_severity = N_SAMPLES // N_SEVERITY_LEVELS
-        assert len(dataset) == int(n_samples_per_severity * TRAIN_RATIO)
+        assert len(dataset) == int(N_SAMPLES_PER_SEVERITY * TRAIN_RATIO)
 
     def test_n_classes(self, mock_cifar100c_dataset: Cifar100CDataset) -> None:
         r"""Dataset should expose exactly 100 classes."""
@@ -184,8 +181,7 @@ class TestCifar100CDataset:
         kwargs = dict(
             config_class=Cifar100CDatasetConfig,
             dataset_class=Cifar100CDataset,
-            n_samples=N_SAMPLES,
-            n_classes=10,
+            n_classes=100,
             corruption_type="brightness",
             corruption_severity=1,
             mode="train",
@@ -203,6 +199,5 @@ class TestCifar100CDataset:
 
     def test_repr_contains_length(self, mock_cifar100c_dataset: Cifar100CDataset) -> None:
         r"""__repr__ should mention the number of images in the train split."""
-        n_samples_per_severity = N_SAMPLES // N_SEVERITY_LEVELS
-        expected = str(int(n_samples_per_severity * TRAIN_RATIO))
+        expected = str(int(10 * TRAIN_RATIO))
         assert expected in repr(mock_cifar100c_dataset)

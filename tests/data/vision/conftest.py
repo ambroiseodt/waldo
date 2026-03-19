@@ -53,13 +53,13 @@ from waldo.data import (
 # ------------------------------------------------------------------------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample_image() -> Image.Image:
     r"""A small RGB PIL image representative of a real dataset sample."""
     return Image.fromarray(np.random.randint(0, 255, (64, 64, 3), dtype=np.uint8))
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mock_dataset_torchvision_factory(sample_image: Image.Image) -> Callable[..., Dataset[tuple]]:
     r"""For datasets using standard torchvision datasets (FGVCAircraft, Flowers102, Food101)"""
 
@@ -177,14 +177,15 @@ def mock_dataset_image_folder_factory() -> Callable[..., Dataset[tuple]]:
 @pytest.fixture
 def mock_dataset_numpy_factory(tmp_path: Path) -> Callable[..., Dataset[tuple]]:
     r"""
-    For datasets loaded from .npy files on disk (Cifar10-C, Cifar100-C). Here, 50_000 samples are needed
-    to slice by severity, created as random images loaded in a temporary folder with a fixed seed.
+    For datasets loaded from .npy files on disk (Cifar10-C, Cifar100-C). For fast test, we consider 10 samples
+    created as random images loaded in a temporary folder with a fixed seed. To test the length of the datasets
+    and the severity slicing, 50_000 samples are needed.
     """
 
     def _factory(
         config_class: Callable[..., Any],
         dataset_class: Callable[..., Dataset[tuple]],
-        n_samples: int = 50_000,
+        n_samples: int = 10,
         n_classes: int = 10,
         **config_kwargs,
     ) -> Dataset[tuple]:

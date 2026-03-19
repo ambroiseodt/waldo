@@ -244,38 +244,42 @@ class TestBuildLoader:
     def test_returns_dataloader(self) -> None:
         r"""build_loader should return a DataLoader."""
         with patch("waldo.data.vision.utils.build_dataset", return_value=(self._make_mock_dataset(), 10)):
-            loader = build_loader({"dataset_name": "cifar10", "mode": "train"})
+            loader = build_loader({"dataset_name": "cifar10", "mode": "train"}, num_workers=0)
         assert isinstance(loader, DataLoader)
 
     def test_returns_dataloader_and_n_classes_when_requested(self) -> None:
         r"""build_loader should return a tuple of DataLoader and n_classes when return_n_classes=True."""
         with patch("waldo.data.vision.utils.build_dataset", return_value=(self._make_mock_dataset(), 10)):
-            loader, n_classes = build_loader({"dataset_name": "cifar10", "mode": "train"}, return_n_classes=True)
+            loader, n_classes = build_loader(
+                {"dataset_name": "cifar10", "mode": "train"}, num_workers=0, return_n_classes=True
+            )
         assert isinstance(loader, DataLoader)
         assert n_classes == 10
 
     def test_train_mode_shuffles(self) -> None:
         r"""DataLoader should shuffle data in train mode."""
         with patch("waldo.data.vision.utils.build_dataset", return_value=(self._make_mock_dataset(), 10)):
-            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "train"}))
+            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "train"}, num_workers=0))
         assert loader.sampler.__class__.__name__ == "RandomSampler"
 
     def test_test_mode_does_not_shuffle(self) -> None:
         r"""DataLoader should not shuffle data in test mode."""
         with patch("waldo.data.vision.utils.build_dataset", return_value=(self._make_mock_dataset(), 10)):
-            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "test"}))
+            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "test"}, num_workers=0))
         assert loader.sampler.__class__.__name__ == "SequentialSampler"
 
     def test_default_batch_size(self) -> None:
         r"""Default batch size should be 128."""
         with patch("waldo.data.vision.utils.build_dataset", return_value=(self._make_mock_dataset(), 10)):
-            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "train"}))
+            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "train"}, num_workers=0))
         assert loader.batch_size == 128
 
     def test_custom_batch_size(self) -> None:
         r"""Custom batch size should be respected."""
         with patch("waldo.data.vision.utils.build_dataset", return_value=(self._make_mock_dataset(), 10)):
-            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "train", "batch_size": 32}))
+            loader = cast(
+                DataLoader, build_loader({"dataset_name": "cifar10", "mode": "train", "batch_size": 32}, num_workers=0)
+            )
         assert loader.batch_size == 32
 
     def test_default_num_workers(self) -> None:
@@ -287,5 +291,5 @@ class TestBuildLoader:
     def test_custom_num_workers(self) -> None:
         r"""Custom number of workers should be respected."""
         with patch("waldo.data.vision.utils.build_dataset", return_value=(self._make_mock_dataset(), 10)):
-            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "train"}, num_workers=4))
-        assert loader.num_workers == 4
+            loader = cast(DataLoader, build_loader({"dataset_name": "cifar10", "mode": "train"}, num_workers=0))
+        assert loader.num_workers == 0
