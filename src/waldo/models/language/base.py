@@ -1,12 +1,18 @@
 r"""
-Abstract model for large language models (LLMs). It allows to study specific layers and modules
-and exposes an encode() method compatible with the MTEB benchmark.
+Abstract base class for large language models (LLMs). It allows to study specific layer and modules following [1, 2]_.
 
 Comments abbreviations
 ----------------------
     N: batch size
     L: sequence length
     E: embedding dimension
+
+Reference
+---------
+.. [1] A. Odonnat et al. Vision Transformer Finetuning Benefits from Smooth Components. arXiv 2026
+
+.. [2] A. Odonnat et al. Layer by layer, module by module: Choose both for optimal
+       OOD probing of ViT. In ICLR 2026 CAO Workshop
 
 License
 -------
@@ -16,15 +22,20 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from typing import Any
 
 import torch
 import torch.nn as nn
 from torch.nn import ModuleList
+from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
-from .base import TransformerBlockAdapter
+from ..transformer_block import TRANSFORMER_MODULES, TransformerBlockAdapter
+
+logger = logging.getLogger(__name__)
 
 
 # -------------------------------------------------------------------
@@ -32,27 +43,31 @@ from .base import TransformerBlockAdapter
 # -------------------------------------------------------------------
 class BaseLanguageModel(nn.Module, ABC):
     r"""
-    Abstract base class for transformer-based language foundation models.
+    Abstract base class for transformer-based large language models.
 
-    It handles tokenization, sentence mask construction, hook registration,
-    and mean pooling in a single forward pass. Subclasses only need to implement:
+    It handles tokenization, sentence mask construction, hook registration, and mean pooling in a single forward pass.
+    The encode() method is compatible with the MTEB v2 EncoderProtocol: it accepts a DataLoader[BatchedInput] and
+    returns mean-pooled embeddings from the specified layer and module, excluding padding, BOS, and EOS tokens.
+    Subclasses only need to implement:
         - _load_from_huggingface: load and return the HuggingFace model
         - _load_tokenizer: load and return the tokenizer
         - block_adapter: return the adapter class for this model's blocks
         - blocks: return the ModuleList of transformer blocks
 
-    The encode() method is MTEB-compatible — it accepts a list of sentences and
-    returns mean-pooled embeddings from the specified layer and module, excluding
-    padding, BOS, and EOS tokens from the pooling.
-
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled). Call model.train()
-    explicitly if you intend to fine-tune.
-
-    Unlike BaseVisionModel, hooks capture the full (N, L, E) tensor rather than
-    pooling inside the hook. This is necessary to apply the sentence mask after the
-    forward pass, since the mask is only available at encode() time.
+    The model is loaded in evaluation mode by default (dropout disabled). Call model.train() explicitly if you intend
+    to fine-tune. Unlike BaseVisionModel, hooks capture the full (N, L, E) tensor rather than pooling inside the hook.
+    This is necessary to apply the sentence mask after the forward pass, since the mask depends on input_ids which are
+    only available at encode() time. To add a new method, we advise users to follow this order for clarity:
+        1. __init__
+        2. abstract private methods
+        3. abstract public methods
+        4. abstract properties
+        5. private methods
+        6. public methods
+        7. dunder methods
+        8. properties
     """
 
     def __init__(self):
@@ -60,17 +75,48 @@ class BaseLanguageModel(nn.Module, ABC):
         self.device: str
         self.model: PreTrainedModel
         self.tokenizer: PreTrainedTokenizerBase
-        self.layer: int
-        self.module: str
+        self.layer: int | None = None
+        self.module: str | None = None
 
     @abstractmethod
-    def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:
+    def _load_from_huggingface(self, model_name: str, dtype: torch.dtype, device: str):
         r"""Load a pretrained HuggingFace model in evaluation mode on the specified device."""
         ...
 
     @abstractmethod
     def _load_tokenizer(self, model_name: str) -> PreTrainedTokenizerBase:
         r"""Load the tokenizer for the model."""
+        ...
+
+    @abstractmethod
+    def pooling(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
+        input_ids: torch.Tensor | None = None,
+        special_token_ids: list[int | None] | None = None,
+    ) -> torch.Tensor:
+        r"""
+        Pooling method over the sequence of tokens to obtain a global embedding.
+
+        Parameters
+        ----------
+        hidden_states: torch.Tensor of shape (N, L, E)
+            Sequence of tokens to pool.
+        attention_mask: torch.Tensor of shape (N, L) | None, default=None
+            Padding mask (1 for real tokens, 0 for padding). If None, no padding tokens are excluded.
+        input_ids: torch.Tensor of shape (N, L) | None, default=None
+            Integer tensor mapping each token to its vocabulary index, as returned by the tokenizer.
+            Used to identify and exclude special tokens by id. Required when special_token_ids is set.
+        special_token_ids: list[int | None] | None, default=None
+            Token ids to exclude from pooling, e.g. [bos_token_id, eos_token_id]. None values are ignored
+            to handle tokenizers that miss some special tokens. When defined, input_ids must be provided.
+
+        Returns
+        -------
+        torch.Tensor of shape (N, E)
+            Global sequence representation after pooling stored on CPU.
+        """
         ...
 
     @property
@@ -85,11 +131,16 @@ class BaseLanguageModel(nn.Module, ABC):
         r"""Return the list of transformer blocks."""
         ...
 
+    @property
+    @abstractmethod
+    def special_token_ids(self) -> list[int | None]:
+        r"""Return the list of special tokens to excluse from the pooling."""
+        ...
+
     def _make_pre_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
         r"""
         Create a forward pre-hook that captures the full INPUT tensor of a module.
-
-        Unlike BaseVisionModel, no pooling is applied inside the hook — the full
+        Unlike BaseVisionModel, no pooling is applied inside the hook: the full
         (N, L, E) tensor is stored for later mean pooling with the sentence mask.
 
         Parameters
@@ -116,8 +167,7 @@ class BaseLanguageModel(nn.Module, ABC):
     def _make_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
         r"""
         Create a forward hook that captures the full OUTPUT tensor of a module.
-
-        Unlike BaseVisionModel, no pooling is applied inside the hook — the full
+        Unlike BaseVisionModel, no pooling is applied inside the hook: the full
         (N, L, E) tensor is stored for later mean pooling with the sentence mask.
 
         Parameters
@@ -143,81 +193,21 @@ class BaseLanguageModel(nn.Module, ABC):
 
         return hook_fn
 
-    def _build_sentence_mask(
-        self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        r"""
-        Build a mask that is 1 only for true sentence tokens.
-
-        Excludes padding (attention_mask == 0), BOS, and EOS tokens.
-
-        Parameters
-        ----------
-        input_ids: torch.Tensor of shape (N, L)
-            Token ids of the input sequences.
-        attention_mask: torch.Tensor of shape (N, L)
-            Padding mask from the tokenizer (1 = real token, 0 = padding).
-
-        Returns
-        -------
-        sentence_mask: torch.Tensor of shape (N, L)
-            Binary mask with 1 only for true sentence tokens.
-        """
-        bos_id = self.tokenizer.bos_token_id
-        eos_id = self.tokenizer.eos_token_id
-
-        sentence_mask = attention_mask.clone()
-        if bos_id is not None:
-            sentence_mask = sentence_mask * (input_ids != bos_id).long()
-        if eos_id is not None:
-            sentence_mask = sentence_mask * (input_ids != eos_id).long()
-
-        return sentence_mask
-
-    def _mean_pooling(
-        self,
-        hidden_states: torch.Tensor,
-        sentence_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        r"""
-        Mean pool over true sentence tokens.
-
-        Parameters
-        ----------
-        hidden_states: torch.Tensor of shape (N, L, E)
-            Token embeddings captured by a hook.
-        sentence_mask: torch.Tensor of shape (N, L)
-            Binary mask with 1 only for true sentence tokens.
-
-        Returns
-        -------
-        pooled: torch.Tensor of shape (N, E)
-            Mean-pooled sentence embeddings stored on CPU.
-        """
-        mask = sentence_mask.unsqueeze(-1).expand(hidden_states.size()).float()
-        sum_embeddings = torch.sum(hidden_states * mask, dim=1)
-        sum_mask = torch.clamp(mask.sum(dim=1), min=1e-9)
-        return (sum_embeddings / sum_mask).cpu()
-
     @torch.inference_mode()
-    def _get_embedding(
+    def _get_hidden_states(
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        layer: int,
-        module: str,
     ) -> torch.Tensor:
         r"""
-        Single forward pass recovering the (N, L, E) tensor from one layer and module.
+        Single forward pass recovering the sequence of tokens of shape (N, L, E) after the specified layer and module.
 
         Parameters
         ----------
         input_ids: torch.Tensor of shape (N, L)
-            Tokenized input on the model device.
+            Tokenized input on the same device as the model.
         attention_mask: torch.Tensor of shape (N, L)
-            Padding mask on the model device.
+            Padding mask on the same device as the model.
         layer: int
             Layer index to recover.
         module: str
@@ -226,12 +216,19 @@ class BaseLanguageModel(nn.Module, ABC):
         Returns
         -------
         hidden_states: torch.Tensor of shape (N, L, E)
-            Raw token embeddings before pooling.
+            Token embeddings before pooling.
         """
         embeddings: dict[str, torch.Tensor] = {}
         handles: list[torch.utils.hooks.RemovableHandle] = []
-        key = f"block_{layer}_{module}"
 
+        # Instantiate layer and module
+        if self.layer is None or self.module is None:
+            raise RuntimeError(
+                "Layer and module must be set before encoding. Call model.set_probe(layer=..., module=...) first."
+            )
+        module = self.module
+        layer = self.layer
+        key = f"block_{layer}_{module}"
         adapter = self.block_adapter(self.blocks[layer])
         module_obj = adapter.module_map()[module]
 
@@ -246,20 +243,18 @@ class BaseLanguageModel(nn.Module, ABC):
             for handle in handles:
                 handle.remove()
 
-        return embeddings[key]
+        # Recover hidden states
+        hidden_states = embeddings[key]
 
-    def encode(
+        return hidden_states
+
+    def _encode_sentences(
         self,
         sentences: list[str],
         batch_size: int = 32,
-        **kwargs,
     ) -> torch.Tensor:
         r"""
-        Encode a list of sentences into embeddings compatible with MTEB.
-
-        Tokenizes the input, runs a forward pass with a hook on the specified
-        layer and module, and returns mean-pooled embeddings over true sentence
-        tokens only (excluding padding, BOS, EOS).
+        Encode a flat list of sentences into mean-pooled embeddings.
 
         Parameters
         ----------
@@ -274,46 +269,97 @@ class BaseLanguageModel(nn.Module, ABC):
             Sentence embeddings stored on CPU.
         """
         all_embeddings = []
-        layer = self.layer % self.n_layers
 
         for i in range(0, len(sentences), batch_size):
             batch = sentences[i : i + batch_size]
 
-            encoded = self.tokenizer(
-                batch,
-                padding=True,
-                truncation=True,
-                return_tensors="pt",
-            ).to(self.device)
+            # Recover encoding, input_ids and padding tokens (attention_mask)
+            encoding = self.tokenizer(batch, padding=True, truncation=True, return_tensors="pt").to(self.device)
+            input_ids = encoding.input_ids
+            attention_mask = encoding.attention_mask
 
-            input_ids = encoded["input_ids"]
-            attention_mask = encoded["attention_mask"]
+            # Recover hidden states
+            hidden_states = self._get_hidden_states(input_ids=input_ids, attention_mask=attention_mask)
 
-            sentence_mask = self._build_sentence_mask(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-            )
-
-            hidden_states = self._get_embedding(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                layer=layer,
-                module=self.module,
-            )
-
-            pooled = self._mean_pooling(
+            # Recover pooled embeddings
+            embeddings = self.pooling(
                 hidden_states=hidden_states,
-                sentence_mask=sentence_mask,
+                attention_mask=attention_mask,
+                input_ids=input_ids,
+                special_token_ids=self.special_token_ids,
             )
-            all_embeddings.append(pooled)
+            all_embeddings.append(embeddings)
 
         return torch.cat(all_embeddings, dim=0)
 
+    def set_probe(self, layer: int, module: str) -> None:
+        r"""
+        Set the layer and module to probe for embedding extraction.
+
+        Allows reusing the same model instance across multiple (layer, module) pairs without reloading weights.
+
+        Parameters
+        ----------
+        layer: int
+            Layer index to probe. Negative indices are supported (-1 = last layer).
+        module: str
+            Module name from TRANSFORMER_MODULES to probe.
+        """
+        # Set layer
+        if layer > self.n_layers or layer >= self.n_layers:
+            logger.warning(
+                f"Layer index {layer} is out of range for a model with {self.n_layers} layers. "
+                f"Defaulting to the last layer (index=-1)."
+            )
+            layer = -1
+        self.layer = layer
+
+        # Set module
+        if module not in TRANSFORMER_MODULES:
+            raise ValueError(f"Invalid module '{module}'. Options are {TRANSFORMER_MODULES}.")
+        self.module = module
+
+    def encode(
+        self,
+        inputs: DataLoader,
+        *,
+        task_metadata: Any = None,
+        hf_split: str = "",
+        hf_subset: str = "",
+        prompt_type: Any | None = None,
+        **kwargs: Any,
+    ) -> torch.Tensor:
+        r"""
+        Encode inputs compatible with MTEB v2 EncoderProtocol.
+
+        Unpacks the DataLoader[BatchedInput] into a flat list of sentences,
+        then encodes them in batches using _encode_sentences.
+
+        Parameters
+        ----------
+        inputs: DataLoader[BatchedInput]
+            Batched inputs from MTEB containing text under the "text" key.
+        task_metadata: TaskMetadata | None
+            Metadata of the current MTEB task.
+        hf_split: str
+            Current dataset split.
+        hf_subset: str
+            Current dataset subset.
+        prompt_type: PromptType | None
+            Query or passage prompt type.
+
+        Returns
+        -------
+        embeddings: torch.Tensor of shape (N, E)
+            Sentence embeddings stored on CPU.
+        """
+        # Unpack DataLoader[BatchedInput] to flat list of strings
+        sentences = [text for batch in inputs for text in batch["text"]]
+        return self._encode_sentences(sentences)
+
     def __repr__(self) -> str:
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        return (
-            f"{self.__class__.__name__} — layer={self.layer}, module={self.module}, {n_params:,} trainable parameters."
-        )
+        return f"{self.__class__.__name__} model with {n_params:,} trainable parameters."
 
     @property
     def embedding_dim(self) -> int:
