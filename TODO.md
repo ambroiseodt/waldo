@@ -73,7 +73,7 @@
         - Layers:
             - Loop over each block
         - Transformer block (8 outputs per block)
-            - Main transformer components: ln1, mha, res1, ln2, fc1, act, fc2, res2
+            - Main transformer components: ln1, mha, rc1, ln2, fc1, act, fc2, rc2
             - Architectural changes
                 - Normalization layers
                     - LayerNorm
@@ -111,8 +111,18 @@
         - Language
             - Remove special tokens (BOS, EOS, pad tokens), only consider the sentence embedding
             - Justification: akin to consider only patch tokens in vision
+        - Related work: [interpreting physics in video models](https://arxiv.org/pdf/2602.07050), they alsoy rely on mean-pooled probe over content patches (space-time patches in their case)
 
 
 
     - Related work
         - iGPT paper in ICML 2020 (https://proceedings.mlr.press/v119/chen20s.html): the authors show that for pretrained generative models, middle layers give the best representation (in terms of linear probing accuracy), see Figure 2
+
+
+
+### Related work
+- Interpretability:
+    - https://arxiv.org/pdf/2510.08638
+    - https://arxiv.org/pdf/2602.07050
+    - https://arxiv.org/pdf/2602.06218
+    - Thomas Fel [papers](https://scholar.google.com/citations?hl=en&user=_Rsjt9kAAAAJ&view_op=list_works&sortby=pubdate) on interpretability of vision-language models
