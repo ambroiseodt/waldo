@@ -17,7 +17,7 @@ import torch.nn as nn
 #   Pooling
 # -------------------------------------------------------------------
 def mean_pooling(
-    x: torch.Tensor,
+    hidden_states: torch.Tensor,
     exclude_cls: bool = False,
     attention_mask: torch.Tensor | None = None,
     input_ids: torch.Tensor | None = None,
@@ -30,29 +30,22 @@ def mean_pooling(
 
     Parameters
     ----------
-    x: torch.Tensor of shape (N, L, E)
+    hidden_states: torch.Tensor of shape (N, L, E)
         Sequence of tokens to pool.
     exclude_cls: bool, default=False
         If True, excludes the CLS token (position 0).
     attention_mask: torch.Tensor of shape (N, L) | None, default=None
         Padding mask (1 for real tokens, 0 for padding). If None, no padding tokens are excluded.
     input_ids: torch.Tensor of shape (N, L) | None, default=None
-        Integer tensor mapping each token to its vocabulary index, as returned
-        by the tokenizer. Used to identify and exclude special tokens by id.
-        Required when special_token_ids is set. For instance, the sentence "Hello world"
-        writes with a Llama tokenizer as:
-            input_ids = tensor([[1, 15043, 3186, 2]])
-                                 ↑               ↑
-                                BOS             EOS
-        The BOS (1) and EOS (2) ids would be passed in special_token_ids to exclude them from pooling.
+        Integer tensor mapping each token to its vocabulary index, as returned by the tokenizer.
+        Used to identify and exclude special tokens by id. Required when special_token_ids is set.
     special_token_ids: list[int | None] | None, default=None
-        Token ids to exclude from pooling, e.g. [bos_token_id, eos_token_id].
-        None values are ignored to handle tokenizers that miss some special tokens).
-        When defined, input_ids must be provided.
+        Token ids to exclude from pooling, e.g. [bos_token_id, eos_token_id]. None values are ignored
+        to handle tokenizers that miss some special tokens. When defined, input_ids must be provided.
 
     Returns
     -------
-    x_pooled: torch.Tensor of shape (N, E)
+    emb: torch.Tensor of shape (N, E)
         Global sequence representation after pooling.
 
     Raises
@@ -100,8 +93,8 @@ def mean_pooling(
     if special_token_ids is not None and input_ids is None:
         raise ValueError("special_token_ids requires input_ids to be provided.")
 
-    N, L, _ = x.shape
-    mask = torch.ones(N, L, dtype=torch.bool, device=x.device)
+    N, L, _ = hidden_states.shape
+    mask = torch.ones(N, L, dtype=torch.bool, device=hidden_states.device)
 
     # Exclude CLS token (always at position 0)
     if exclude_cls:
@@ -115,7 +108,7 @@ def mean_pooling(
     if special_token_ids is not None and input_ids is not None:
         valid_ids = [sid for sid in special_token_ids if sid is not None]
         if valid_ids:
-            special_ids_tensor = torch.tensor(valid_ids, device=x.device)
+            special_ids_tensor = torch.tensor(valid_ids, device=hidden_states.device)
             mask = mask & ~torch.isin(input_ids, special_ids_tensor)
 
     # Check that no sequence has all tokens masked
@@ -124,9 +117,9 @@ def mean_pooling(
 
     # Apply mask and pool
     mask = mask[:, :, None].float()
-    x_pooled = (x * mask).sum(dim=1) / mask.sum(dim=1).float()
+    emb = (hidden_states * mask).sum(dim=1) / mask.sum(dim=1).float()
 
-    return x_pooled
+    return emb
 
 
 # -------------------------------------------------------------------
