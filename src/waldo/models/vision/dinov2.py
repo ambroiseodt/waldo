@@ -18,7 +18,8 @@ References
 
 See also
 --------
-TransformerBlockAdapter and BaseVisionModel in base.py
+TransformerBlockAdapter
+BaseVisionModel
 
 License
 -------
@@ -142,7 +143,7 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
         r"""
         When SwiGLUFFN is used, the DINOv2 implementation concatenates the gate_proj and up_proj
-        using a matrix weight_in of dimension emb_dim x 2 * hidden_dim and then recover gate_proj
+        using a matrix weight_in of shape emb_dim x 2 * hidden_dim and then recover gate_proj
         and up_proj by chunk. The SwiGLUGateProjection allows us to recover only the gate_proj to
         obtain fc1.
 
@@ -250,7 +251,7 @@ class Dinov2(BaseVisionModel):
         model.eval()
         return model
 
-    def pooling(self, x: torch.Tensor) -> torch.Tensor:
+    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
         r"""
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
@@ -259,15 +260,15 @@ class Dinov2(BaseVisionModel):
 
         Parameters
         ----------
-        x: torch.Tensor of shape (N, L, E)
+        hidden_states: torch.Tensor of shape (N, L, E)
             Sequence of tokens to pool.
 
         Returns
         -------
-        emb: torch.Tensor of shape (N, E)
+        torch.Tensor of shape (N, E)
             Pooled embedding stored on CPU.
         """
-        return mean_pooling(x=x, exclude_cls=True).cpu()
+        return mean_pooling(hidden_states=hidden_states, exclude_cls=True).cpu()
 
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:

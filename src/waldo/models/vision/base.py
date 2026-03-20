@@ -51,7 +51,7 @@ class BaseVisionModel(nn.Module, ABC):
     Notes
     -----
     The model is loaded in evaluation mode by default (dropout disabled). Call model.train() explicitly if you intend
-    to fine-tune. To add a new method, we advise users to follow this order for clarity and consistency:
+    to fine-tune. To add a new method, we advise users to follow this order for clarity:
         1. __init__
         2. abstract private methods
         3. abstract public methods
@@ -62,7 +62,7 @@ class BaseVisionModel(nn.Module, ABC):
         8. properties
 
     Usage
-    --------
+    -----
     >>> class ViT(BaseVisionModel):
     ...     def __init__(self, config: ViTConfig):
     ...         super().__init__()
@@ -97,18 +97,18 @@ class BaseVisionModel(nn.Module, ABC):
         ...
 
     @abstractmethod
-    def pooling(self, x: torch.Tensor) -> torch.Tensor:
+    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
         r"""
         Pooling method over the sequence of tokens to obtain a global embedding.
 
         Parameters
         ----------
-        x: torch.Tensor of shape (N, L, E)
+        hidden_states: torch.Tensor of shape (N, L, E)
             Sequence of tokens to pool.
 
         Returns
         -------
-        x_pooled: torch.Tensor of shape (N, E)
+        torch.Tensor of shape (N, E)
             Global sequence representation after pooling stored on CPU.
         """
         ...
@@ -128,13 +128,14 @@ class BaseVisionModel(nn.Module, ABC):
     def _make_pre_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
         r"""
         Create a forward pre-hook that captures the INPUT of a module.
+        The pooling is done at the hood level for efficiency.
 
         Parameters
         ----------
         embeddings: dict[str, torch.Tensor]
             Shared dict where the captured embedding will be stored.
         key: str
-            Key under which the embedding is stored, e.g. "block_3_res1".
+            Key under which the embedding is stored, e.g. "block_3_rc1".
 
         Returns
         -------
@@ -148,13 +149,14 @@ class BaseVisionModel(nn.Module, ABC):
         ) -> None:
 
             # Recover embedding after global average pooling over the sequence of tokens
-            embeddings[key] = self.pooling(input[0])
+            embeddings[key] = self.pooling(hidden_states=input[0])
 
         return pre_hook_fn
 
     def _make_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
         r"""
         Create a forward hook that captures the OUTPUT of a module.
+        The pooling is done at the hood level for efficiency.
 
         Parameters
         ----------
@@ -178,7 +180,7 @@ class BaseVisionModel(nn.Module, ABC):
             out = output[0] if isinstance(output, tuple) else output
 
             # Recover embedding after global average pooling over the sequence of tokens
-            embeddings[key] = self.pooling(out)
+            embeddings[key] = self.pooling(hidden_states=out)
 
         return hook_fn
 
@@ -190,7 +192,7 @@ class BaseVisionModel(nn.Module, ABC):
         modules: list[str] | None = None,
     ) -> dict[str, torch.Tensor]:
         r"""
-        Single forward pass recovering token embeddings after each specified
+        Single forward pass recovering the pooled sequence of tokens of shape (N, E) after each specified
         module in each specified transformer block.
 
         Parameters
@@ -205,7 +207,7 @@ class BaseVisionModel(nn.Module, ABC):
         Returns
         -------
         embeddings: dict[str, torch.Tensor]
-            Maps "block_{layer_idx}_{module_name}" to a tensor of shape (N, E) stored on CPU.
+            Maps "block_{layer_idx}_{module_name}" to the pooled patch embeddings of shape (N, E) stored on CPU.
         """
         # Recover layers and modules
         layers = layers if layers is not None else list(range(self.n_layers))
@@ -250,7 +252,7 @@ class BaseVisionModel(nn.Module, ABC):
 
     def __repr__(self) -> str:
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        return f"{self.__class__.__name__} — {n_params:,} trainable parameters."
+        return f"{self.__class__.__name__} model with {n_params:,} trainable parameters."
 
     @property
     def embedding_dim(self) -> int:
