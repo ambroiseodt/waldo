@@ -7,12 +7,41 @@ Comments abbreviations
     L: sequence length
     E: embedding dimension
 
+MTEB Compatibility [3, 4]_
+--------------------------
+BaseLanguageModel inherits from EncoderProtocol, which is the MTEB v2 abstract contract for encoder models.
+This makes any subclass (e.g., Gemma3) directly compatible with mteb.evaluate() without any additional
+wrapping, and supports the following MTEB task types out of the box:
+
+    - Classification
+    - Clustering
+    - Semantic Textual Similarity (STS)
+    - Reranking (bi-encoder)
+    - Bitext Mining
+    - Retrieval (MTEB automatically wraps EncoderProtocol into SearchProtocol)
+
+EncoderProtocol requires three concrete methods which are implemented here at the base class level
+so that all subclasses inherit them for free:
+    - encode: produces mean-pooled sentence embeddings from a specified layer and module.
+    - similarity: pairwise cosine similarity between two sets of paired embeddings.
+    - similarity_pairwise: full cosine similarity matrix between two sets of embeddings.
+
+Note that CrossEncoderProtocol is a separate MTEB contract for cross-encoder reranking models,
+where query and document are encoded jointly rather than independently. This is a fundamentally
+different architecture and is not supported here. If cross-encoder reranking with Gemma3 is
+needed in the future, a separate BaseLanguageCrossEncoder class should be created inheriting
+from CrossEncoderProtocol.
+
 Reference
 ---------
 .. [1] A. Odonnat et al. Vision Transformer Finetuning Benefits from Smooth Components. arXiv 2026
 
 .. [2] A. Odonnat et al. Layer by layer, module by module: Choose both for optimal
        OOD probing of ViT. In ICLR 2026 CAO Workshop
+
+.. [3] N. Muennighoff et al. MTEB: Massive Text Embedding Benchmark. In EACL 2023
+
+.. [4] K. Enevoldsen et al. MMTEB: : Massive Multilingual Text Embedding Benchmark. In ICLR 2025
 
 License
 -------
@@ -25,10 +54,21 @@ in the root directory of this source tree.
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Unpack
 
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from mteb.abstasks.task_metadata import TaskMetadata
+from mteb.models.model_meta import ModelMeta
+from mteb.models.models_protocols import EncoderProtocol
+from mteb.types import (
+    Array,
+    BatchedInput,
+    EncodeKwargs,
+    PromptType,
+)
 from torch.nn import ModuleList
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
@@ -41,7 +81,7 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------------
 # Base Language Model
 # -------------------------------------------------------------------
-class BaseLanguageModel(nn.Module, ABC):
+class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
     r"""
     Abstract base class for transformer-based large language models.
 
@@ -51,8 +91,10 @@ class BaseLanguageModel(nn.Module, ABC):
     Subclasses only need to implement:
         - _load_from_huggingface: load and return the HuggingFace model
         - _load_tokenizer: load and return the tokenizer
-        - block_adapter: return the adapter class for this model's blocks
-        - blocks: return the ModuleList of transformer blocks
+        - pooling: returns the pooling method over sequences of tokens
+        - block_adapter: returns the adapter class for this model's blocks
+        - blocks: returns the ModuleList of transformer blocks
+        - special_token_ids: returns the list of special token ids to exclude from pooling
 
     Notes
     -----
@@ -75,11 +117,13 @@ class BaseLanguageModel(nn.Module, ABC):
         self.device: str
         self.model: PreTrainedModel
         self.tokenizer: PreTrainedTokenizerBase
-        self.layer: int | None = None
-        self.module: str | None = None
+
+        # Default probe on the final output
+        self.layer: int = -1
+        self.module: str = "rc2"
 
     @abstractmethod
-    def _load_from_huggingface(self, model_name: str, dtype: torch.dtype, device: str):
+    def _load_from_huggingface(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
         r"""Load a pretrained HuggingFace model in evaluation mode on the specified device."""
         ...
 
@@ -133,8 +177,17 @@ class BaseLanguageModel(nn.Module, ABC):
 
     @property
     @abstractmethod
-    def special_token_ids(self) -> list[int | None]:
-        r"""Return the list of special tokens to excluse from the pooling."""
+    def special_token_ids(self) -> list[Any]:
+        r"""Return the list of special tokens to exclude from the pooling."""
+        ...
+
+    @property
+    @abstractmethod
+    def mteb_model_meta(self) -> ModelMeta:
+        r"""
+        Metadata needed for MTEB v2. More information on the official documentation
+        at https://github.com/embeddings-benchmark/mteb.
+        """
         ...
 
     def _make_pre_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
@@ -194,11 +247,7 @@ class BaseLanguageModel(nn.Module, ABC):
         return hook_fn
 
     @torch.inference_mode()
-    def _get_hidden_states(
-        self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
+    def _get_hidden_states(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         r"""
         Single forward pass recovering the sequence of tokens of shape (N, L, E) after the specified layer and module.
 
@@ -208,10 +257,6 @@ class BaseLanguageModel(nn.Module, ABC):
             Tokenized input on the same device as the model.
         attention_mask: torch.Tensor of shape (N, L)
             Padding mask on the same device as the model.
-        layer: int
-            Layer index to recover.
-        module: str
-            Module name from TRANSFORMER_MODULES to recover.
 
         Returns
         -------
@@ -221,18 +266,21 @@ class BaseLanguageModel(nn.Module, ABC):
         embeddings: dict[str, torch.Tensor] = {}
         handles: list[torch.utils.hooks.RemovableHandle] = []
 
-        # Instantiate layer and module
-        if self.layer is None or self.module is None:
-            raise RuntimeError(
-                "Layer and module must be set before encoding. Call model.set_probe(layer=..., module=...) first."
-            )
-        module = self.module
-        layer = self.layer
-        key = f"block_{layer}_{module}"
-        adapter = self.block_adapter(self.blocks[layer])
-        module_obj = adapter.module_map()[module]
+        # Valid layer and module
+        if self.layer > self.n_layers:
+            raise ValueError(f"Layer index {self.layer} is out of range for a model with {self.n_layers} layers.")
+        if self.module is not None:
+            if self.module not in TRANSFORMER_MODULES:
+                raise ValueError(f"Invalid module '{self.module}'. Options are {TRANSFORMER_MODULES}.")
 
-        if module in adapter.pre_hooks:
+        logging.info(f"Probing layer {self.layer} and module {self.module} for hidden state extraction.")
+
+        # Recover embedding from the specified layer and module
+        key = f"block_{self.layer}_{self.module}"
+        adapter = self.block_adapter(self.blocks[self.layer])
+        module_obj = adapter.module_map()[self.module]
+
+        if self.module in adapter.pre_hooks:
             handles.append(module_obj.register_forward_pre_hook(self._make_pre_hook(embeddings=embeddings, key=key)))
         else:
             handles.append(module_obj.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
@@ -292,43 +340,16 @@ class BaseLanguageModel(nn.Module, ABC):
 
         return torch.cat(all_embeddings, dim=0)
 
-    def set_probe(self, layer: int, module: str) -> None:
-        r"""
-        Set the layer and module to probe for embedding extraction.
-
-        Allows reusing the same model instance across multiple (layer, module) pairs without reloading weights.
-
-        Parameters
-        ----------
-        layer: int
-            Layer index to probe. Negative indices are supported (-1 = last layer).
-        module: str
-            Module name from TRANSFORMER_MODULES to probe.
-        """
-        # Set layer
-        if layer > self.n_layers or layer >= self.n_layers:
-            logger.warning(
-                f"Layer index {layer} is out of range for a model with {self.n_layers} layers. "
-                f"Defaulting to the last layer (index=-1)."
-            )
-            layer = -1
-        self.layer = layer
-
-        # Set module
-        if module not in TRANSFORMER_MODULES:
-            raise ValueError(f"Invalid module '{module}'. Options are {TRANSFORMER_MODULES}.")
-        self.module = module
-
     def encode(
         self,
-        inputs: DataLoader,
+        inputs: DataLoader[BatchedInput],
         *,
-        task_metadata: Any = None,
-        hf_split: str = "",
-        hf_subset: str = "",
-        prompt_type: Any | None = None,
-        **kwargs: Any,
-    ) -> torch.Tensor:
+        task_metadata: TaskMetadata,
+        hf_split: str,
+        hf_subset: str,
+        prompt_type: PromptType | None = None,
+        **kwargs: Unpack[EncodeKwargs],
+    ) -> Array:
         r"""
         Encode inputs compatible with MTEB v2 EncoderProtocol.
 
@@ -339,7 +360,7 @@ class BaseLanguageModel(nn.Module, ABC):
         ----------
         inputs: DataLoader[BatchedInput]
             Batched inputs from MTEB containing text under the "text" key.
-        task_metadata: TaskMetadata | None
+        task_metadata: TaskMetadata
             Metadata of the current MTEB task.
         hf_split: str
             Current dataset split.
@@ -347,15 +368,100 @@ class BaseLanguageModel(nn.Module, ABC):
             Current dataset subset.
         prompt_type: PromptType | None
             Query or passage prompt type.
+        **kwargs: Unpack[EncodeKwargs]
+            Additional arguments to pass to the encoder.
 
         Returns
         -------
         embeddings: torch.Tensor of shape (N, E)
             Sentence embeddings stored on CPU.
         """
-        # Unpack DataLoader[BatchedInput] to flat list of strings
-        sentences = [text for batch in inputs for text in batch["text"]]
+
+        if isinstance(inputs, DataLoader):
+            sentences = [text for batch in inputs for text in batch["text"]]
+        elif isinstance(inputs, list):
+            sentences = inputs
+        else:
+            raise ValueError("Unsupported input type. Expected DataLoader or list of strings.")
         return self._encode_sentences(sentences)
+
+    def similarity(self, embeddings1: Array, embeddings2: Array) -> Array:
+        r"""
+        Cosine similarity between paired embeddings.
+
+        Required by EncoderProtocol. Implemented here at the base class level so
+        all subclasses (e.g. Gemma3) inherit it for free without boilerplate.
+        Cosine similarity is consistent with similarity_fn_name="cosine" in ModelMeta.
+
+        Parameters
+        ----------
+        embeddings1: Array of shape (N, E) or (E,)
+            First set of embeddings.
+        embeddings2: Array of shape (N, E) or (E,)
+            Second set of embeddings.
+
+        Returns
+        -------
+        Array of shape (N, M)
+            Cosine similarity matrix.
+        """
+        if isinstance(embeddings1, np.ndarray):
+            embeddings1 = torch.from_numpy(embeddings1)
+        if isinstance(embeddings2, np.ndarray):
+            embeddings2 = torch.from_numpy(embeddings2)
+        embeddings1 = F.normalize(embeddings1, dim=-1)
+        embeddings2 = F.normalize(embeddings2, dim=-1)
+        return embeddings1 @ embeddings2.T
+
+    def similarity_pairwise(self, embeddings1: Array, embeddings2: Array) -> Array:
+        r"""
+        Pairwise cosine similarity between corresponding embedding pairs.
+
+        Required by EncoderProtocol. Implemented here at the base class level so
+        all subclasses (e.g. Gemma3) inherit it for free without boilerplate.
+        Cosine similarity is consistent with similarity_fn_name="cosine" in ModelMeta.
+
+        Parameters
+        ----------
+        embeddings1: Array of shape (N, E) or (E,)
+            First set of embeddings.
+        embeddings2: Array of shape (N, E) or (E,)
+            Second set of embeddings, paired with embeddings1.
+
+        Returns
+        -------
+        Array of shape (N,)
+            Cosine similarity for each pair.
+        """
+        if isinstance(embeddings1, np.ndarray):
+            embeddings1 = torch.from_numpy(embeddings1)
+        if isinstance(embeddings2, np.ndarray):
+            embeddings2 = torch.from_numpy(embeddings2)
+        return F.cosine_similarity(embeddings1, embeddings2, dim=-1)
+
+    def set_probe(self, layer: int | None, module: str | None) -> None:
+        r"""
+        Set the layer and module to probe for embedding extraction.
+
+        Allows reusing the same model instance across multiple (layer, module) pairs without
+        reloading weights. To keep the previous value for either argument, pass None.
+
+        Parameters
+        ----------
+        layer: int
+            Index of the layer index to probe.
+        module: str
+            Module name from TRANSFORMER_MODULES to probe.
+        """
+        # Valid layer and module
+        if layer is not None:
+            if layer > self.n_layers:
+                raise ValueError(f"Layer index {layer} is out of range for a model with {self.n_layers} layers.")
+            self.layer = layer
+        if module is not None:
+            if module not in TRANSFORMER_MODULES:
+                raise ValueError(f"Invalid module '{module}'. Options are {TRANSFORMER_MODULES}.")
+            self.module = module
 
     def __repr__(self) -> str:
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
