@@ -146,22 +146,26 @@ class Dinov3BlockAdapter(TransformerBlockAdapter):
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
         if isinstance(layer.mlp, DINOv3ViTGatedMLP):
             return cast(nn.Module, layer.mlp.gate_proj)
-        if isinstance(layer.mlp, DINOv3ViTMLP):
+        elif isinstance(layer.mlp, DINOv3ViTMLP):
             return cast(nn.Module, layer.mlp.up_proj)
-        raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
+        else:
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
 
     def _get_act(self, layer: nn.Module) -> nn.Module:
+        # Use pre_hook to capture act
         if isinstance(layer.mlp, DINOv3ViTGatedMLP):
-            # Use pre_hook to capture act
             return cast(nn.Module, layer.mlp.down_proj)
-        if isinstance(layer.mlp, DINOv3ViTMLP):
+        # Use hook to capture act
+        elif isinstance(layer.mlp, DINOv3ViTMLP):
             return cast(nn.Module, layer.mlp.act_fn)
-        raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
+        else:
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
 
     def _get_fc2(self, layer: nn.Module) -> nn.Module:
         if isinstance(layer.mlp, (DINOv3ViTGatedMLP, DINOv3ViTMLP)):
             return cast(nn.Module, layer.mlp.down_proj)
-        raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
+        else:
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
 
     def _get_rc2(self, layer: nn.Module) -> nn.Module:
         return layer
@@ -173,9 +177,10 @@ class Dinov3BlockAdapter(TransformerBlockAdapter):
         """
         if isinstance(layer.mlp, DINOv3ViTGatedMLP):
             return {"rc1", "act"}
-        if isinstance(layer.mlp, DINOv3ViTMLP):
+        elif isinstance(layer.mlp, DINOv3ViTMLP):
             return {"rc1"}
-        raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
+        else:
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected DINOv3ViTGatedMLP or DINOv3ViTMLP.")
 
 
 # -------------------------------------------------------------------

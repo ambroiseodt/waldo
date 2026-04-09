@@ -154,24 +154,28 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
         """
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
             return cast(nn.Module, SwiGLUGateProjection(layer.mlp.weights_in))
-        if isinstance(layer.mlp, Dinov2MLP):
+        elif isinstance(layer.mlp, Dinov2MLP):
             return cast(nn.Module, layer.mlp.fc1)
-        raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+        else:
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
 
     def _get_act(self, layer: nn.Module) -> nn.Module:
+        # Use pre_hook to capture act
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
-            # Use pre_hook to capture act
             return cast(nn.Module, layer.mlp.weights_out)
-        if isinstance(layer.mlp, Dinov2MLP):
+        # Use hook to capture act
+        elif isinstance(layer.mlp, Dinov2MLP):
             return cast(nn.Module, layer.mlp.activation)
-        raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+        else:
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
 
     def _get_fc2(self, layer: nn.Module) -> nn.Module:
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
             return cast(nn.Module, layer.mlp.weights_out)
-        if isinstance(layer.mlp, Dinov2MLP):
+        elif isinstance(layer.mlp, Dinov2MLP):
             return cast(nn.Module, layer.mlp.fc2)
-        raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+        else:
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
 
     def _get_rc2(self, layer: nn.Module) -> nn.Module:
         return layer
@@ -183,9 +187,10 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
         """
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
             return {"rc1", "act"}
-        if isinstance(layer.mlp, Dinov2MLP):
+        elif isinstance(layer.mlp, Dinov2MLP):
             return {"rc1"}
-        raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+        else:
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
 
 
 # -------------------------------------------------------------------
