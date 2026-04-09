@@ -34,7 +34,7 @@ experiments = [
     "mteb[xet]==2.10.4",
     "open_clip_torch==3.3.0", 
     "scikit-learn==1.8.0",
-    "transformers==5.2.0",
+    "transformers==5.5.0", #5.2.0",
 ]
 figures = [
     "ipykernel==7.2.0",    
