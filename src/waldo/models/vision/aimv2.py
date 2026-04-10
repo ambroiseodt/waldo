@@ -1,5 +1,5 @@
 r"""
-AIMv2 model following [1]_. Our implementation allows to study specific layer and modules.
+AIMv2 model following [1]_. Our implementation allows to study specific layers and modules.
 
 Comments abbreviations
 ----------------------
@@ -186,6 +186,8 @@ class Aimv2(BaseVisionModel):
             Type of model to use. Options are "large", "huge", "1B", and "3B".
         resolution: int
             Image resolution. Options are 224, 336, 448.
+        device: str
+            Device to use.
 
     Notes
     -----
@@ -213,16 +215,16 @@ class Aimv2(BaseVisionModel):
         model_name: str
             Name of the model. Options are:
                 "apple/aimv2-large-patch14-224",
-                "apple/aimv2-huge-patch14-224",
-                "apple/aimv2-1B-patch14-224",
-                "apple/aimv2-3B-patch14-224",
                 "apple/aimv2-large-patch14-336",
-                "apple/aimv2-huge-patch14-336",
-                "apple/aimv2-1B-patch14-336",
-                "apple/aimv2-3B-patch14-336",
                 "apple/aimv2-large-patch14-448",
+                "apple/aimv2-huge-patch14-224",
+                "apple/aimv2-huge-patch14-336",
                 "apple/aimv2-huge-patch14-448",
-                "apple/aimv2-1B-patch14-448",
+                "apple/aimv2-1B-patch14-224",
+                 "apple/aimv2-1B-patch14-336",
+                 "apple/aimv2-1B-patch14-448",
+                "apple/aimv2-3B-patch14-224",
+                "apple/aimv2-3B-patch14-336",
                 "apple/aimv2-3B-patch14-448".
         device: str
             Device to use.
@@ -234,16 +236,16 @@ class Aimv2(BaseVisionModel):
         """
         available_models = [
             "apple/aimv2-large-patch14-224",
-            "apple/aimv2-huge-patch14-224",
-            "apple/aimv2-1B-patch14-224",
-            "apple/aimv2-3B-patch14-224",
             "apple/aimv2-large-patch14-336",
-            "apple/aimv2-huge-patch14-336",
-            "apple/aimv2-1B-patch14-336",
-            "apple/aimv2-3B-patch14-336",
             "apple/aimv2-large-patch14-448",
+            "apple/aimv2-huge-patch14-224",
+            "apple/aimv2-huge-patch14-336",
             "apple/aimv2-huge-patch14-448",
+            "apple/aimv2-1B-patch14-224",
+            "apple/aimv2-1B-patch14-336",
             "apple/aimv2-1B-patch14-448",
+            "apple/aimv2-3B-patch14-224",
+            "apple/aimv2-3B-patch14-336",
             "apple/aimv2-3B-patch14-448",
         ]
         if model_name not in available_models:
@@ -257,7 +259,7 @@ class Aimv2(BaseVisionModel):
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
 
-        In AIMv2, there is no CLS token, so not need to exclude it before the global pooling.
+        In AIMv2, there is no CLS token, so we do not need to exclude it before the global pooling.
 
         Parameters
         ----------

@@ -176,8 +176,16 @@ class Llama3(BaseLanguageModel):
 
     Parameters
     ----------
-    config: Llama3Config
-        Configuration object specifying model size, layer, module, and device.
+    config: configuration class with
+        model_size: str
+            Size of the model. Options are "3.2-1B", "3.2-3B", "3.1-8B", "3.1-70B".
+        dtype: torch.dtype
+            Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
+            pretrained in bfloat16, which halves memory footprint vs float32 with no
+            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
+            or float32 for CPU inference or when full precision is required.
+        device: str
+            Device to use.
 
     Notes
     -----

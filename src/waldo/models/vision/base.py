@@ -1,5 +1,5 @@
 r"""
-Abstract model for vision foundation models (VFMs). It allows to study specific layer and modules following [1, 2]_.
+Abstract model for vision foundation models (VFMs). It allows to study specific layers and modules following [1, 2]_.
 
 Comments abbreviations
 ----------------------

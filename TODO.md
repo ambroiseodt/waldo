@@ -126,3 +126,4 @@
     - https://arxiv.org/pdf/2602.07050
     - https://arxiv.org/pdf/2602.06218
     - Thomas Fel [papers](https://scholar.google.com/citations?hl=en&user=_Rsjt9kAAAAJ&view_op=list_works&sortby=pubdate) on interpretability of vision-language models
+    - [The platonic representation hypothesis](https://arxiv.org/pdf/2405.079870)

@@ -1,5 +1,5 @@
 r"""
-Abstract base class for large language models (LLMs). It allows to study specific layer and modules following [1, 2]_.
+Abstract base class for large language models (LLMs). It allows to study specific layers and modules following [1, 2]_.
 
 Comments abbreviations
 ----------------------
@@ -299,7 +299,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
     def _encode_sentences(
         self,
         sentences: list[str],
-        batch_size: int = 32,
+        batch_size: int = 256,
     ) -> torch.Tensor:
         r"""
         Encode a flat list of sentences into mean-pooled embeddings.
@@ -308,7 +308,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         ----------
         sentences: list[str]
             List of input sentences or documents to encode.
-        batch_size: int, default=32
+        batch_size: int, default=256
             Number of sentences to process per forward pass.
 
         Returns
@@ -342,7 +342,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
     def encode(
         self,
-        inputs: DataLoader[BatchedInput],
+        inputs: DataLoader[BatchedInput] | list[str],
         *,
         task_metadata: TaskMetadata,
         hf_split: str,
@@ -358,7 +358,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
         Parameters
         ----------
-        inputs: DataLoader[BatchedInput]
+        inputs: DataLoader[BatchedInput] | list[str]
             Batched inputs from MTEB containing text under the "text" key.
         task_metadata: TaskMetadata
             Metadata of the current MTEB task.
@@ -376,14 +376,17 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         embeddings: torch.Tensor of shape (N, E)
             Sentence embeddings stored on CPU.
         """
-
         if isinstance(inputs, DataLoader):
-            sentences = [text for batch in inputs for text in batch["text"]]
+            all_embeddings = []
+            for batch in inputs:
+                batch_embeddings = self._encode_sentences(batch["text"])
+                all_embeddings.append(batch_embeddings)
+            return torch.cat(all_embeddings, dim=0)
+
         elif isinstance(inputs, list):
-            sentences = inputs
+            return self._encode_sentences(inputs)
         else:
             raise ValueError("Unsupported input type. Expected DataLoader or list of strings.")
-        return self._encode_sentences(sentences)
 
     def similarity(self, embeddings1: Array, embeddings2: Array) -> Array:
         r"""

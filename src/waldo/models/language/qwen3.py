@@ -180,9 +180,16 @@ class Qwen3(BaseLanguageModel):
 
     Parameters
     ----------
-    config: Qwen3Config
-        Configuration object specifying model size, layer, module, and device.
-
+    config: configuration class with
+        model_size: str
+            Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B".
+        dtype: torch.dtype
+            Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
+            pretrained in bfloat16, which halves memory footprint vs float32 with no
+            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
+            or float32 for CPU inference or when full precision is required.
+        device: str
+            Device to use.
     Notes
     -----
     The model is loaded in evaluation mode by default (dropout disabled).

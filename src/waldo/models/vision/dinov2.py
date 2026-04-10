@@ -1,5 +1,5 @@
 r"""
-DINOv2 model following [1]_. It allows to study specific layer and modules.
+DINOv2 model following [1]_. It allows to study specific layers and modules.
 
 Comments abbreviations
 ----------------------
@@ -206,6 +206,8 @@ class Dinov2(BaseVisionModel):
     config: configuration class with
         model_size: str
             Type of model to use. Options are "small", "base", "large", and "giant".
+        device: str
+            Device to use.
 
     Notes
     -----

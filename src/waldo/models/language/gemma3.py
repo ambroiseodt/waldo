@@ -178,8 +178,16 @@ class Gemma3(BaseLanguageModel):
 
     Parameters
     ----------
-    config: Gemma3Config
-        Configuration object specifying model size, layer, module, and device.
+    config: configuration class with
+        model_size: str
+            Size of the model. Options are "1b", "4b", "12b", "27b".
+        dtype: torch.dtype
+            Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
+            pretrained in bfloat16, which halves memory footprint vs float32 with no
+            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
+            or float32 for CPU inference or when full precision is required.
+        device: str
+            Device to use.
 
     Notes
     -----

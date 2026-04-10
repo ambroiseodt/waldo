@@ -1,5 +1,5 @@
 r"""
-Vision Transformer model pretrained on ImageNet-21k following [1]_. It allows to study specific layer and modules.
+Vision Transformer model pretrained on ImageNet-21k following [1]_. It allows to study specific layers and modules.
 
 
 Comments abbreviations
@@ -166,6 +166,7 @@ class ViT(BaseVisionModel):
             Image resolution.
         device: str
             Device to use.
+
     Notes
     -----
     The model is loaded in evaluation mode by default (dropout disabled,
@@ -193,10 +194,11 @@ class ViT(BaseVisionModel):
         model_name: str
             Name of the model. Options are:
                 "google/vit-base-patch16-224-in21k",
-                "google/vit-large-patch16-224-in21k",
-                "google/vit-huge-patch14-224-in21k",
                 "google/vit-base-patch32-224-in21k",
-                "google/vit-large-patch32-224-in21k".
+                "google/vit-large-patch16-224-in21k",
+                "google/vit-large-patch32-224-in21k",
+                "google/vit-huge-patch14-224-in21k".
+
         device: str
             Device to use.
 
@@ -207,10 +209,10 @@ class ViT(BaseVisionModel):
         """
         available_models = [
             "google/vit-base-patch16-224-in21k",
-            "google/vit-large-patch16-224-in21k",
-            "google/vit-huge-patch14-224-in21k",
             "google/vit-base-patch32-224-in21k",
+            "google/vit-large-patch16-224-in21k",
             "google/vit-large-patch32-224-in21k",
+            "google/vit-huge-patch14-224-in21k",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")

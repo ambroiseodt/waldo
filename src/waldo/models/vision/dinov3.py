@@ -1,5 +1,5 @@
 r"""
-DINOv3 ViT-based pretrained on LVD-1689m following [1]_. It allows to study specific layer and modules.
+DINOv3 ViT-based pretrained on LVD-1689m following [1]_. It allows to study specific layers and modules.
 
 Comments abbreviations
 ----------------------
@@ -196,6 +196,8 @@ class Dinov3(BaseVisionModel):
     config: configuration class with
         model_size: str
             Type of model to use. Options are "vits16", "vitb16", "vitl16", "vit7b16", "vits16plus" and "vith16plus".
+        device: str
+            Device to use.
 
     Notes
     -----
@@ -223,11 +225,11 @@ class Dinov3(BaseVisionModel):
         model_name: str
             Name of the model. Options are:
                 "facebook/dinov3-vits16-pretrain-lvd1689m",
+                "facebook/dinov3-vits16plus-pretrain-lvd1689m",
                 "facebook/dinov3-vitb16-pretrain-lvd1689m",
                 "facebook/dinov3-vitl16-pretrain-lvd1689m",
-                "facebook/dinov3-vit7b16-pretrain-lvd1689m",
-                "facebook/dinov3-vits16plus-pretrain-lvd1689m",
-                "facebook/dinov3-vith16plus-pretrain-lvd1689m".
+                "facebook/dinov3-vith16plus-pretrain-lvd1689m",
+                "facebook/dinov3-vit7b16-pretrain-lvd1689m".
         device: str
             Device to use.
 
@@ -238,11 +240,11 @@ class Dinov3(BaseVisionModel):
         """
         available_models = [
             "facebook/dinov3-vits16-pretrain-lvd1689m",
+            "facebook/dinov3-vits16plus-pretrain-lvd1689m",
             "facebook/dinov3-vitb16-pretrain-lvd1689m",
             "facebook/dinov3-vitl16-pretrain-lvd1689m",
-            "facebook/dinov3-vit7b16-pretrain-lvd1689m",
-            "facebook/dinov3-vits16plus-pretrain-lvd1689m",
             "facebook/dinov3-vith16plus-pretrain-lvd1689m",
+            "facebook/dinov3-vit7b16-pretrain-lvd1689m",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
