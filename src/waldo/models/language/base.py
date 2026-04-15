@@ -89,12 +89,13 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
     The encode() method is compatible with the MTEB v2 EncoderProtocol: it accepts a DataLoader[BatchedInput] and
     returns mean-pooled embeddings from the specified layer and module, excluding padding, BOS, and EOS tokens.
     Subclasses only need to implement:
-        - _load_from_huggingface: load and return the HuggingFace model
+        - _load_model: load and return the HuggingFace model
         - _load_tokenizer: load and return the tokenizer
         - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
         - special_token_ids: returns the list of special token ids to exclude from pooling
+        - mteb_model_meta: returns the model metadata needed for compatibility with the MTEB benchmark
 
     Notes
     -----
@@ -110,6 +111,63 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         6. public methods
         7. dunder methods
         8. properties
+
+    Usage
+    -----
+    >>> class Gemma3(BaseLanguageModel):
+    ...     def __init__(self, config: Gemma3Config):
+    ...         super().__init__()
+    ...         self.device = config.device
+    ...         self.model_name = f"google/gemma-3-{config.model_size}-pt"
+    ...         self.model = self._load_model(model_name=self.model_name, dtype=self.dtype, device=self.device)
+    ...         self.tokenizer = self._load_tokenizer(model_name=self.model_name)
+    ...
+    ...     def _load_model(self, model_name: str, dtype: torch.dtype, device: str):
+    ...         model = Gemma3TextModel.from_pretrained(f"{model_name}", dtype=dtype, device_map=device)
+    ...         model.eval()
+    ...         return model
+    ...
+    ...     def _load_tokenizer(self, model_name: str):
+    ...         return AutoTokenizer.from_pretrained(model_name)
+    ...
+    ...     def pooling(
+    ...         self,
+    ...         hidden_states: torch.Tensor,
+    ...         attention_mask: torch.Tensor | None = None,
+    ...         input_ids: torch.Tensor | None = None,
+    ...         special_token_ids: list[int | None] | None = None,
+    ...    ) : return mean_pooling(hidden_states=hidden_states,
+    ...                             attention_mask=attention_mask,
+    ...                             input_ids=input_ids,
+    ...                             special_token_ids=special_token_ids,
+    ...                             ).cpu()
+    ...
+    ...     @property
+    ...     def block_adapter(self): return Gemma3BlockAdapter
+    ...
+    ...     @property
+    ...     def blocks(self):
+    ...         cast(ModuleList, self.model.layers)
+    ...
+    ...     @property
+    ...     def special_token_ids(self):
+    ...         return [
+    ...             self.tokenizer.bos_token_id,
+    ...             self.tokenizer.eos_token_id,
+    ...             self.tokenizer.pad_token_id,
+    ...         ]
+    ...
+    ...     @property
+    ...     def mteb_model_meta(self):
+    ...         layer = self.layer + self.n_layers if self.layer < 0 else self.layer
+    ...         return ModelMeta(
+    ...             name=f"{self.model_name}_layer_{layer}_module_{self.module}"),
+    ...             revision="main",
+    ...             release_date="2025-03-25",
+    ...             open_weights=True,
+    ...             framework=["PyTorch"],
+    ...             license="gemma",
+    ...            )
     """
 
     def __init__(self):
@@ -123,7 +181,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         self.module: str = "rc2"
 
     @abstractmethod
-    def _load_from_huggingface(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
+    def _load_model(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
         r"""Load a pretrained HuggingFace model in evaluation mode on the specified device."""
         ...
 
@@ -319,10 +377,10 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         all_embeddings = []
 
         for i in range(0, len(sentences), batch_size):
-            batch = sentences[i : i + batch_size]
+            text = sentences[i : i + batch_size]
 
             # Recover encoding, input_ids and padding tokens (attention_mask)
-            encoding = self.tokenizer(batch, padding=True, truncation=True, return_tensors="pt").to(self.device)
+            encoding = self.tokenizer(text=text, padding=True, truncation=True, return_tensors="pt").to(self.device)
             input_ids = encoding.input_ids
             attention_mask = encoding.attention_mask
 
@@ -379,7 +437,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         if isinstance(inputs, DataLoader):
             all_embeddings = []
             for batch in inputs:
-                batch_embeddings = self._encode_sentences(batch["text"])
+                batch_embeddings = self._encode_sentences(sentences=batch["text"])
                 all_embeddings.append(batch_embeddings)
             return torch.cat(all_embeddings, dim=0)
 
@@ -472,8 +530,10 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
     @property
     def embedding_dim(self) -> int:
+        r"""Return the embedding dimension."""
         return self.model.config.hidden_size
 
     @property
     def n_layers(self) -> int:
-        return self.model.config.num_hidden_layers
+        r"""Return the number of transformer blocks."""
+        return len(self.blocks)
