@@ -37,16 +37,25 @@ import torch
 import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import (
+    AutoProcessor,
     AutoTokenizer,
     PreTrainedModel,
     PreTrainedTokenizerBase,
+    Siglip2TextModel,
     Siglip2VisionModel,
+    SiglipTextModel,
+    SiglipVisionModel,
 )
-from transformers.models.siglip2.modeling_siglip2 import Siglip2Encoder, Siglip2MLP
+from transformers.models.siglip2.modeling_siglip2 import (
+    Siglip2Encoder,
+    Siglip2MLP,
+    Siglip2VisionTransformer,
+)
+from transformers.processing_utils import ProcessorMixin
 
 from ..transformer_block import TransformerBlockAdapter
 from ..utils import mean_pooling
-from .base import BaseVisionModel
+from .base import BaseVisionLanguageModel
 
 logger = logging.getLogger(__name__)
 
@@ -64,16 +73,16 @@ class Siglip2Config:
     model_size: str
         Type of model to use. Options are "base", "large", "giant-opt", and "so400m".
     patch_size: int
-        Size of the patches to be extracted from the image. Options are 14, 16 and 32.
-    resolution: int
-        Image resolution. Options are 224, 256, 384 and 512.
+        Size of the patches to be extracted from the image. Options are 14, 16, and 32.
+    resolution: int | str
+        Image resolution. Options are 224, 256, 384, 512 and "naflex".
     device: str
         Device to use.
     """
 
     model_size: str = "base"
     patch_size: int = 16
-    resolution: int = 224
+    resolution: int | str = 224
     device: str = "cpu"
 
     def __post_init__(self):
@@ -85,11 +94,11 @@ class Siglip2Config:
 
         # Valid patch size
         if self.patch_size not in [14, 16, 32]:
-            raise ValueError(f"Invalid patch size {self.patch_size}. Options are 14, 16 and 32.")
+            raise ValueError(f"Invalid patch size {self.patch_size}. Options are 14, 16, and 32.")
 
         # Valid resolution
-        if self.resolution not in [224, 256, 384, 512]:
-            raise ValueError(f"Invalid resolution {self.resolution}. Options are 224, 256, 384 and 512.")
+        if self.resolution not in [224, 256, 384, 512, "naflex"]:
+            raise ValueError(f"Invalid resolution {self.resolution}. Options are 224, 256, 384, 512 and 'naflex'.")
 
 
 # -------------------------------------------------------------------
@@ -132,15 +141,15 @@ class Siglip2BlockAdapter(TransformerBlockAdapter):
         return cast(nn.Module, layer.layer_norm2)
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
-        ffn = cast(Siglip2MLP, layer.ffn)
+        ffn = cast(Siglip2MLP, layer.mlp)
         return cast(nn.Module, ffn.fc1)
 
     def _get_act(self, layer: nn.Module) -> nn.Module:
-        ffn = cast(Siglip2MLP, layer.ffn)
+        ffn = cast(Siglip2MLP, layer.mlp)
         return cast(nn.Module, ffn.activation_fn)
 
     def _get_fc2(self, layer: nn.Module) -> nn.Module:
-        ffn = cast(Siglip2MLP, layer.ffn)
+        ffn = cast(Siglip2MLP, layer.mlp)
         return cast(nn.Module, ffn.fc2)
 
     def _get_rc2(self, layer: nn.Module) -> nn.Module:
@@ -155,9 +164,9 @@ class Siglip2BlockAdapter(TransformerBlockAdapter):
 
 
 # -------------------------------------------------------------------
-#   Vision Tower (The Probing Weapon)
+#   Model
 # -------------------------------------------------------------------
-class Siglip2(BaseVisionModel):
+class Siglip2(BaseVisionLanguageModel):
     r"""
     SigLip2 vision model implementation following [1]_.
 
@@ -171,17 +180,22 @@ class Siglip2(BaseVisionModel):
         model_size: str
             Type of model to use. Options are "base", "large", "giant-opt", and "so400m".
         patch_size: int
-            Size of the patches to be extracted from the image. Options are 14, 16 and 32.
-        resolution: int
-            Image resolution. Options are 224, 256, 384 and 512.
+            Size of the patches to be extracted from the image. Options are 14, 16, and 32.
+        resolution: int | str
+            Image resolution. Options are 224, 256, 384, 512 and "naflex".
         device: str
             Device to use.
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled,
-    BatchNorm uses running statistics). Call `model.train()` explicitly
-    if you intend to fine-tune.
+    The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses running statistics).
+    Call `model.train()` if you intend to fine-tune. SigLip2 allows a NaFlex implementation that supports native
+    resolution (by opposition to FixRes variants). In particular, NaFlex variants need already patched images
+    (3D tensors with the batch dimension) as input to the forward require 3D patch sequences while the FixRes
+    ones require 4D tensors (with the batch dimension). Since the default HuggingFace implementation follows the NaFlex
+    variant, it throws errors with FixRes checkpoints. We fix this using SiglipVisionModel and SiglipTextModel to load
+    FixRes checkpoints. This works because SigLip2 has the same architecture as SigLip (except for the image embedding).
+    This is not a smart fix but allows for an efficient loading. Future transformers versions might solve this.
 
     References
     ----------
@@ -193,12 +207,14 @@ class Siglip2(BaseVisionModel):
         super().__init__()
         self.device = config.device
         self.model_name = f"google/siglip2-{config.model_size}-patch{config.patch_size}-{config.resolution}"
-        self.model = self._load_from_huggingface(model_name=self.model_name, device=self.device)
+        self.vision_model = self._load_vision_model(model_name=self.model_name, device=self.device)
+        self.text_model = self._load_text_model(model_name=self.model_name, device=self.device)
+        self.processor = self._load_processor(model_name=self.model_name)
         self.tokenizer = self._load_tokenizer(model_name=self.model_name)
 
-    def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:
+    def _load_vision_model(self, model_name: str, device: str) -> PreTrainedModel:
         r"""
-        Load weights from the HuggingFace Transformers library.
+        Load vision weights from the HuggingFace Transformers library.
 
         Parameters
         ----------
@@ -208,6 +224,7 @@ class Siglip2(BaseVisionModel):
                 "google/siglip2-base-patch16-256",
                 "google/siglip2-base-patch16-384",
                 "google/siglip2-base-patch16-512",
+                "google/siglip2-base-patch16-naflex",
                 "google/siglip2-base-patch32-224",
                 "google/siglip2-large-patch16-224",
                 "google/siglip2-large-patch16-256",
@@ -218,20 +235,29 @@ class Siglip2(BaseVisionModel):
                 "google/siglip2-so400m-patch14-384",
                 "google/siglip2-so400m-patch16-256",
                 "google/siglip2-so400m-patch16-384",
-                "google/siglip2-so400m-patch16-512".
+                "google/siglip2-so400m-patch16-512",
+                "google/siglip2-so400m-patch16-naflex".
         device: str
             Device to use.
 
         Notes
         -----
-        The model is set to evaluation mode after loading (dropout disabled).
-        Call model.train() explicitly to re-enable training mode.
+        The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses running statistics).
+        Call `model.train()` if you intend to fine-tune. SigLip2 allows a NaFlex implementation that supports native
+        resolution (by opposition to FixRes variants). In particular, NaFlex variants need already patched images
+        (3D tensors with the batch dimension) as input to the forward require 3D patch sequences while the FixRes
+        ones require 4D tensors (with the batch dimension). Since the default HuggingFace implementation follows the
+        NaFlex variant, it throws errors with FixRes checkpoints. We fix this using Siglip models to load the FixRes
+        checkpoints. This works because SigLip2 has the same architecture as SigLip (except for the image embedding).
+        This is not a smart fix but allows for an efficient loading. Future transformers versions might solve this.
+
         """
         available_models = [
             "google/siglip2-base-patch16-224",
             "google/siglip2-base-patch16-256",
             "google/siglip2-base-patch16-384",
             "google/siglip2-base-patch16-512",
+            "google/siglip2-base-patch16-naflex",
             "google/siglip2-base-patch32-224",
             "google/siglip2-large-patch16-224",
             "google/siglip2-large-patch16-256",
@@ -243,15 +269,92 @@ class Siglip2(BaseVisionModel):
             "google/siglip2-so400m-patch16-256",
             "google/siglip2-so400m-patch16-384",
             "google/siglip2-so400m-patch16-512",
+            "google/siglip2-so400m-patch16-naflex",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
 
-        # We set ignore_mismatched_sizes=True is required because the official checkpoint keys 'logit_scale' does not
-        # align with the HuggingFace implementation. This does not affect the integrity of the pretrained weights.
-        model = Siglip2VisionModel.from_pretrained(f"{model_name}", device_map=device, ignore_mismatched_sizes=True)
+        # Native resolution
+        huggingface_model = Siglip2VisionModel if "naflex" in model_name else SiglipVisionModel
+        model = huggingface_model.from_pretrained(f"{model_name}", device_map=device)
         model.eval()
         return model
+
+    def _load_text_model(self, model_name: str, device: str) -> PreTrainedModel:
+        r"""
+        Load text weights from the HuggingFace Transformers library.
+
+        Parameters
+        ----------
+        model_name: str
+            Name of the model. Options are:
+                "google/siglip2-base-patch16-224",
+                "google/siglip2-base-patch16-256",
+                "google/siglip2-base-patch16-384",
+                "google/siglip2-base-patch16-512",
+                "google/siglip2-base-patch16-naflex",
+                "google/siglip2-base-patch32-224",
+                "google/siglip2-large-patch16-224",
+                "google/siglip2-large-patch16-256",
+                "google/siglip2-large-patch16-384",
+                "google/siglip2-large-patch16-512",
+                "google/siglip2-giant-opt-patch16-256",
+                "google/siglip2-giant-opt-patch16-384",
+                "google/siglip2-so400m-patch14-384",
+                "google/siglip2-so400m-patch16-256",
+                "google/siglip2-so400m-patch16-384",
+                "google/siglip2-so400m-patch16-512",
+                "google/siglip2-so400m-patch16-naflex".
+        device: str
+            Device to use.
+
+        Notes
+        -----
+        The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses running statistics).
+        Call `model.train()` if you intend to fine-tune. SigLip2 allows a NaFlex implementation that supports native
+        resolution (by opposition to FixRes variants). In particular, NaFlex variants need already patched images
+        (3D tensors with the batch dimension) as input to the forward require 3D patch sequences while the FixRes
+        ones require 4D tensors (with the batch dimension). Since the default HuggingFace implementation follows the
+        NaFlex variant, it throws errors with FixRes checkpoints. We fix this using Siglip models to load the FixRes
+        checkpoints. This works because SigLip2 has the same architecture as SigLip (except for the image embedding).
+        This is not a smart fix but allows for an efficient loading. Future transformers versions might solve this.
+        """
+        available_models = [
+            "google/siglip2-base-patch16-224",
+            "google/siglip2-base-patch16-256",
+            "google/siglip2-base-patch16-384",
+            "google/siglip2-base-patch16-512",
+            "google/siglip2-base-patch16-naflex",
+            "google/siglip2-base-patch32-224",
+            "google/siglip2-large-patch16-224",
+            "google/siglip2-large-patch16-256",
+            "google/siglip2-large-patch16-384",
+            "google/siglip2-large-patch16-512",
+            "google/siglip2-giant-opt-patch16-256",
+            "google/siglip2-giant-opt-patch16-384",
+            "google/siglip2-so400m-patch14-384",
+            "google/siglip2-so400m-patch16-256",
+            "google/siglip2-so400m-patch16-384",
+            "google/siglip2-so400m-patch16-512",
+            "google/siglip2-so400m-patch16-naflex",
+        ]
+        if model_name not in available_models:
+            raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
+        huggingface_model = Siglip2TextModel if "naflex" in model_name else SiglipTextModel
+        model = huggingface_model.from_pretrained(f"{model_name}", device_map=device)
+        model.eval()
+        return model
+
+    def _load_processor(self, model_name: str) -> ProcessorMixin:
+        r"""
+        Load the image processor from the HuggingFace Transformers library.
+
+        Parameters
+        ----------
+        model_name: str
+            Name of the model.
+        """
+        return AutoProcessor.from_pretrained(model_name)
 
     def _load_tokenizer(self, model_name: str) -> PreTrainedTokenizerBase:
         r"""
@@ -283,40 +386,6 @@ class Siglip2(BaseVisionModel):
         """
         return mean_pooling(hidden_states, exclude_cls=False).cpu()
 
-    @torch.inference_mode()
-    def get_class_embeddings_dict(self, text_labels: list[str]) -> torch.Tensor:
-        r"""
-        Return the embeddings of the text labels of a given dataset.
-
-        Parameters
-        ----------
-        text_labels: list of length n_classes
-            List of text labels of the dataset classes.
-
-        Returns
-        -------
-        torch.Tensor of shape n_classes x embedding dimension
-            The i-th entry is the text embeddings of the i-th class in the dataset.
-        """
-        # Recover encoding of the text labels
-        encoding = self.tokenizer(
-            text_labels,
-            padding="max_length",
-            max_length=64,
-            truncation=True,
-            return_tensors="pt",
-        ).to(self.device)
-        print(encoding)
-
-        input_ids = encoding.input_ids
-        attention_mask = encoding.attention_mask
-
-        # Recover text embeddings
-        embeddings = self.model.text_model(input_ids=input_ids, attention_mask=attention_mask)
-
-        # Recover the dictionnary of text embeddings
-        return embeddings
-
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
         r"""Return the block adapter class for the model's transformer blocks."""
@@ -325,5 +394,6 @@ class Siglip2(BaseVisionModel):
     @property
     def blocks(self) -> ModuleList:
         r"""Return the list of transformer blocks."""
-        encoder = cast(Siglip2Encoder, self.model.encoder)
+        vision_model = cast(Siglip2VisionTransformer, self.vision_model.vision_model)
+        encoder = cast(Siglip2Encoder, vision_model.encoder)
         return cast(ModuleList, encoder.layers)
