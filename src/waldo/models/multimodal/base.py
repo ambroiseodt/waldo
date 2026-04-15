@@ -68,27 +68,42 @@ class BaseVisionLanguageModel(nn.Module, ABC):
 
     Usage
     -----
-    >>> class ViT(BaseVisionModel):
-    ...     def __init__(self, config: ViTConfig):
+    >>> class Clip(BaseVisionLanguageModel):
+    ...     def __init__(self, config: ClipConfig):
     ...         super().__init__()
     ...         self.device = config.device
-    ...         self.model_name = f"google/vit-{config.model_size}-patch{config.patch_size}-{config.resolution}-in21k"
-    ...         self.model = self._load_model(model_name=self.model_name, device=self.device)
+    ...         self.model_name = f"openai/clip-vit-{config.model_size}-patch{config.patch_size}"
+    ...         self.vision_model = self._load_vision_model(model_name=self.model_name, device=self.device)
+    ...         self.text_model = self._load_text_model(model_name=self.model_name, device=self.device)
+    ...         self.processor = self._load_processor(model_name=self.model_name)
+    ...         self.tokenizer = self._load_tokenizer(model_name=self.model_name)
     ...
-    ...     def _load_model(self, model_name: str, device: str):
-    ...         model = ViTModel.from_pretrained(f"{model_name}", device_map=device)
+    ...     def _load_vision_model(self, model_name: str, dtype: torch.dtype, device: str):
+    ...         model = CLIPVisionModel.from_pretrained(f"{model_name}", dtype=dtype, device_map=device)
     ...         model.eval()
     ...         return model
+    ...
+    ...     def _load_text_model(self, model_name: str, dtype: torch.dtype, device: str):
+    ...         model = CLIPTextModel.from_pretrained(f"{model_name}", dtype=dtype, device_map=device)
+    ...         model.eval()
+    ...         return model
+    ...
+    ...     def _load_processor(self, model_name: str):
+    ...         return Autoprocessor.from_pretrained(model_name)
+    ...
+    ...     def _load_tokenizer(self, model_name: str):
+    ...         return AutoTokenizer.from_pretrained(model_name)
     ...
     ...     def pooling(self, x: torch.Tensor): return mean_pooling(x=x, exclude_cls=True).cpu()
     ...
     ...     @property
-    ...     def block_adapter(self): return ViTBlockAdapter
+    ...     def block_adapter(self): return ClipBlockAdapter
     ...
     ...     @property
     ...     def blocks(self):
-    ...         encoder = cast(ViTEncoder, self.model.encoder)
-    ...         return cast(ModuleList, encoder.layer)
+    ...         vision_model = cast(CLIPVisionTransformer, self.vision_model.vision_model)
+    ...         encoder = cast(CLIPEncoder, vision_model.encoder)
+    ...         return cast(ModuleList, encoder.layers)
     """
 
     def __init__(self):
