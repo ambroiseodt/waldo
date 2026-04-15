@@ -191,8 +191,9 @@ class Gemma3(BaseLanguageModel):
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled).
-    Call model.train() explicitly if you intend to fine-tune.
+    The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
+    running statistics). Call `model.train()` explicitly if you intend to fine-tune.
+    The model is loaded in bfloat16 to reduce memory footprint.
 
     References
     ----------
@@ -204,10 +205,10 @@ class Gemma3(BaseLanguageModel):
         self.device = config.device
         self.model_name = f"google/gemma-3-{config.model_size}-pt"
         self.dtype = config.dtype
-        self.model = self._load_from_huggingface(model_name=self.model_name, dtype=self.dtype, device=self.device)
+        self.model = self._load_model(model_name=self.model_name, dtype=self.dtype, device=self.device)
         self.tokenizer = self._load_tokenizer(model_name=self.model_name)
 
-    def _load_from_huggingface(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
+    def _load_model(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
         r"""
         Load weights from the HuggingFace Transformers library.
 
@@ -229,8 +230,8 @@ class Gemma3(BaseLanguageModel):
 
         Notes
         -----
-        The model is set to evaluation mode after loading (dropout disabled).
-        Call model.train() explicitly to re-enable training mode.
+        The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
+        running statistics). Call `model.train()` explicitly if you intend to fine-tune.
         The model is loaded in bfloat16 to reduce memory footprint.
         """
         available_models = [

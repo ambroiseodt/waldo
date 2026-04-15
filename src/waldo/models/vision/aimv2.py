@@ -204,9 +204,9 @@ class Aimv2(BaseVisionModel):
         super().__init__()
         self.device = config.device
         self.model_name = f"apple/aimv2-{config.model_size}-patch14-{config.resolution}"
-        self.model = self._load_from_huggingface(model_name=self.model_name, device=self.device)
+        self.model = self._load_model(model_name=self.model_name, device=self.device)
 
-    def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:
+    def _load_model(self, model_name: str, device: str) -> PreTrainedModel:
         r"""
         Load weights from the HuggingFace Transformers library.
 
@@ -231,8 +231,9 @@ class Aimv2(BaseVisionModel):
 
         Notes
         -----
-        The model is set to evaluation mode after loading (dropout disabled).
-        Call model.train() explicitly to re-enable training mode.
+        The model is loaded in evaluation mode by default (dropout disabled,
+        BatchNorm uses running statistics). Call `model.train()` explicitly
+        if you intend to fine-tune.
         """
         available_models = [
             "apple/aimv2-large-patch14-224",

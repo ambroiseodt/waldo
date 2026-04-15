@@ -189,8 +189,10 @@ class Llama3(BaseLanguageModel):
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled).
-    Call model.train() explicitly if you intend to fine-tune.
+    The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
+    running statistics). Call `model.train()` explicitly if you intend to fine-tune.
+    The model is loaded in bfloat16 to reduce memory footprint. Note that he model loading
+    is done with LlamaModel because Llama, Llama2 and Llama3 share the same architecture.
 
     References
     ----------
@@ -202,14 +204,14 @@ class Llama3(BaseLanguageModel):
         self.device = config.device
         self.model_name = f"meta-llama/Llama-{config.model_size.upper()}"
         self.dtype = config.dtype
-        self.model = self._load_from_huggingface(model_name=self.model_name, dtype=self.dtype, device=self.device)
+        self.model = self._load_model(model_name=self.model_name, dtype=self.dtype, device=self.device)
         self.tokenizer = self._load_tokenizer(model_name=self.model_name)
 
         # Llama3 tokenizer does not have a pad token. Following standard practices, we set it equal to eos token.
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.model.config.pad_token_id = self.tokenizer.eos_token_id
 
-    def _load_from_huggingface(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
+    def _load_model(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
         r"""
         Load weights from the HuggingFace Transformers library.
 
@@ -231,9 +233,10 @@ class Llama3(BaseLanguageModel):
 
         Notes
         -----
-        The model is set to evaluation mode after loading (dropout disabled).
-        Call model.train() explicitly to re-enable training mode.
-        The model is loaded in bfloat16 to reduce memory footprint.
+        The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
+        running statistics). Call `model.train()` explicitly if you intend to fine-tune.
+        The model is loaded in bfloat16 to reduce memory footprint. Note that he model loading
+        is done with LlamaModel because Llama, Llama2 and Llama3 share the same architecture.
         """
         available_models = [
             "meta-llama/Llama-3.2-1B",

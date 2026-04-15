@@ -43,7 +43,7 @@ class BaseVisionModel(nn.Module, ABC):
 
     It handles the full encoding pipeline in a single forward pass using hooks and pre-hooks.
     Subclasses only need to implement three things:
-        - _load_from_huggingface: load and return the HuggingFace model
+        - _load_model: load and return the HuggingFace model
         - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
@@ -68,9 +68,9 @@ class BaseVisionModel(nn.Module, ABC):
     ...         super().__init__()
     ...         self.device = config.device
     ...         self.model_name = f"google/vit-{config.model_size}-patch{config.patch_size}-{config.resolution}-in21k"
-    ...         self.model = self._load_from_huggingface(model_name=self.model_name, device=self.device)
+    ...         self.model = self._load_model(model_name=self.model_name, device=self.device)
     ...
-    ...     def _load_from_huggingface(self, model_name: str, device: str):
+    ...     def _load_model(self, model_name: str, device: str):
     ...         model = ViTModel.from_pretrained(f"{model_name}", device_map=device)
     ...         model.eval()
     ...         return model
@@ -92,7 +92,7 @@ class BaseVisionModel(nn.Module, ABC):
         self.model: PreTrainedModel
 
     @abstractmethod
-    def _load_from_huggingface(self, model_name: str, device: str) -> PreTrainedModel:
+    def _load_model(self, model_name: str, device: str) -> PreTrainedModel:
         r"""Load a pretrained HuggingFace model in evaluation mode on the specified device."""
         ...
 
@@ -187,7 +187,7 @@ class BaseVisionModel(nn.Module, ABC):
     @torch.inference_mode()
     def get_embeddings(
         self,
-        x: torch.Tensor,
+        pixel_values: torch.Tensor,
         layers: list[int] | None = None,
         modules: list[str] | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -197,7 +197,7 @@ class BaseVisionModel(nn.Module, ABC):
 
         Parameters
         ----------
-        x: torch.Tensor of shape (N, C, H, W)
+        pixel_values: torch.Tensor of shape (N, C, H, W)
             Preprocessed input image on the same device as the model.
         layers: list[int] | None, default=None
             Layer indices to recover. If None, all layers are recovered.
@@ -239,7 +239,7 @@ class BaseVisionModel(nn.Module, ABC):
 
         # Forward pass
         try:
-            self.model(x)
+            self.model(pixel_values=pixel_values)
 
         # Always remove hooks after the forward pass, even if an exception
         # is raised. Otherwise hooks accumulate on the model and corrupt
@@ -256,8 +256,10 @@ class BaseVisionModel(nn.Module, ABC):
 
     @property
     def embedding_dim(self) -> int:
+        r"""Return the embedding dimension."""
         return self.model.config.hidden_size
 
     @property
     def n_layers(self) -> int:
-        return self.model.config.num_hidden_layers
+        r"""Return the number of transformer blocks."""
+        return len(self.blocks)
