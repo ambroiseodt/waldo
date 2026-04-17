@@ -48,20 +48,24 @@ from waldo.data import (
     PetDatasetConfig,
 )
 
+# Default parameters
+N_SAMPLES_PER_SEVERITY = 10_000
+TRAIN_RATIO = 0.8
+TEST_RATIO = 0.2
+
+
 # -----------------------------------------------------------------------------
 # Global fixtures
 # ------------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="session")
 def sample_image() -> Image.Image:
-    r"""A small RGB PIL image representative of a real dataset sample."""
+    r"""A random RGB PIL image representative of a real dataset sample."""
     return Image.fromarray(np.random.randint(0, 255, (64, 64, 3), dtype=np.uint8))
 
 
 @pytest.fixture(scope="session")
 def mock_dataset_torchvision_factory(sample_image: Image.Image) -> Callable[..., Dataset[tuple]]:
-    r"""For datasets using standard torchvision datasets (FGVCAircraft, Flowers102, Food101)"""
+    r"""A mock dataset for datasets using standard torchvision datasets (FGVCAircraft, Flowers102, Food101)"""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -85,7 +89,7 @@ def mock_dataset_torchvision_factory(sample_image: Image.Image) -> Callable[...,
 
 @pytest.fixture
 def mock_dataset_cifar_factory() -> Callable[..., Dataset[tuple]]:
-    r"""For CIFAR10/100 datasets using data/targets structure."""
+    r"""A mock dataset for CIFAR10/100 datasets using data/targets structure."""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -108,7 +112,7 @@ def mock_dataset_cifar_factory() -> Callable[..., Dataset[tuple]]:
 
 @pytest.fixture
 def mock_dataset_flowers102_factory() -> Callable[..., Dataset[tuple]]:
-    r"""For Oxford Flowers-102 using _images_files/_labels structure."""
+    r"""A mock dataset for Oxford Flowers-102 using _images_files/_labels structure."""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -131,7 +135,7 @@ def mock_dataset_flowers102_factory() -> Callable[..., Dataset[tuple]]:
 
 @pytest.fixture
 def mock_dataset_pet_factory() -> Callable[..., Dataset[tuple]]:
-    r"""For Pet using _images/_labels structure."""
+    r"""A mock dataset for Pet using _images/_labels structure."""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -154,7 +158,7 @@ def mock_dataset_pet_factory() -> Callable[..., Dataset[tuple]]:
 
 @pytest.fixture
 def mock_dataset_image_folder_factory() -> Callable[..., Dataset[tuple]]:
-    r"""For datasets using torchvision.datasets.ImageFolder (ImageNet, ImageNet-C, DomainNet)"""
+    r"""A mock dataset for datasets using torchvision.datasets.ImageFolder (ImageNet, ImageNet-C, DomainNet)"""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -177,9 +181,9 @@ def mock_dataset_image_folder_factory() -> Callable[..., Dataset[tuple]]:
 @pytest.fixture
 def mock_dataset_numpy_factory(tmp_path: Path) -> Callable[..., Dataset[tuple]]:
     r"""
-    For datasets loaded from .npy files on disk (Cifar10-C, Cifar100-C). For fast test, we consider 10 samples
-    created as random images loaded in a temporary folder with a fixed seed. To test the length of the datasets
-    and the severity slicing, 50_000 samples are needed.
+    A mock dataset for datasets loaded from .npy files on disk (Cifar10-C, Cifar100-C). For fast test, we consider
+    10 samples created as random images loaded in a temporary folder with a fixed seed. To test the length of
+    the datasets and the severity slicing, 50_000 samples are needed.
     """
 
     def _factory(
@@ -202,10 +206,8 @@ def mock_dataset_numpy_factory(tmp_path: Path) -> Callable[..., Dataset[tuple]]:
 
 
 # -----------------------------------------------------------------------------
-# Dataset-specific type
+# Dataset-specific fixtures
 # ------------------------------------------------------------------------------
-
-
 @pytest.fixture
 def mock_aircraft_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
     r"""A mock AircraftDataset with 10 samples, no disk I/O."""
