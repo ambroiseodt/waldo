@@ -14,18 +14,42 @@ from typing import Any
 
 _vision = [
     "Aimv2",
+    "Aimv2BlockAdapter",
     "Aimv2Config",
     "Dinov2",
+    "Dinov2BlockAdapter",
     "Dinov2Config",
     "Dinov3",
+    "Dinov3BlockAdapter",
     "Dinov3Config",
     "ViT",
+    "ViTBlockAdapter",
     "ViTConfig",
 ]
 
-_language = []
+_language = [
+    "Gemma3",
+    "Gemma3BlockAdapter",
+    "Gemma3Config",
+    "Gemma4",
+    "Gemma4BlockAdapter",
+    "Gemma4Config",
+    "Llama3",
+    "Llama3BlockAdapter",
+    "Llama3Config",
+    "Qwen3",
+    "Qwen3BlockAdapter",
+    "Qwen3Config",
+]
 
-_multimodal = []
+_multimodal = [
+    "Clip",
+    "ClipBlockAdapter",
+    "ClipConfig",
+    "Siglip2",
+    "Siglip2BlockAdapter",
+    "Siglip2Config",
+]
 
 __all__ = list(_vision) + list(_language) + list(_multimodal)  # type: ignore
 
@@ -41,4 +65,4 @@ def __getattr__(name: str) -> Any:
         return getattr(importlib.import_module("waldo.models.language"), name)
     if name in _multimodal:
         return getattr(importlib.import_module("waldo.models.multimodal"), name)
-    raise AttributeError(f"module 'waldo.data' has no attribute {name!r}")
+    raise AttributeError(f"module 'waldo.models' has no attribute {name!r}")
