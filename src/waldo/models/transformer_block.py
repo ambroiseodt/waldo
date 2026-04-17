@@ -1,12 +1,6 @@
 r"""
 Transformer primitives shared across vision, language, and multimodal foundation models.
 
-This module contains:
-    - TRANSFORMER_MODULES: standard module names for transformer blocks
-    - TransformerBlockAdapter: abstract adapter mapping standard names to model-specific submodules
-    - mean_pooling: flexible mean pooling over token sequences with special token exclusion
-    - SwiGLUGateProjection: module wrapper recovering the gate projection of a SwiGLU FFN
-
 License
 -------
 This source code is licensed under the MIT license found in the LICENSE file
