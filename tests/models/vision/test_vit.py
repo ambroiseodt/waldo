@@ -112,7 +112,6 @@ class TestViTBlockAdapter:
 
     def test_mha_points_to_attention(self) -> None:
         adapter, block = _make_adapter()
-        
         assert adapter.mha is block.attention
 
 
