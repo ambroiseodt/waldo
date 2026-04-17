@@ -18,11 +18,10 @@ from PIL import Image
 
 from waldo.data import Flowers102Dataset, Flowers102DatasetConfig, build_transform
 
+
 # -------------------------------------------------------------------
 # Config class
 # -------------------------------------------------------------------
-
-
 class TestFlowers102DatasetConfig:
     r"""Tests for config class valid entries and default values."""
 
@@ -66,8 +65,6 @@ class TestFlowers102DatasetConfig:
 # -------------------------------------------------------------------
 # Dataset class
 # -------------------------------------------------------------------
-
-
 class TestFlowers102Dataset:
     r"""Tests for dataset structure and item retrieval."""
 

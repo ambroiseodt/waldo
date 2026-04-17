@@ -19,17 +19,12 @@ from PIL import Image
 
 from waldo.data import Cifar10CDataset, Cifar10CDatasetConfig, build_transform
 
-# Default Parameters, see src/waldo/data/vision/cifar10_c.py
-N_SAMPLES_PER_SEVERITY = 10_000
-TRAIN_RATIO = 0.8
-TEST_RATIO = 0.2
+from .conftest import N_SAMPLES_PER_SEVERITY, TEST_RATIO, TRAIN_RATIO
 
 
 # -------------------------------------------------------------------
 # Config class
 # -------------------------------------------------------------------
-
-
 class TestCifar10CDatasetConfig:
     r"""Tests for config class valid entries and default values."""
 

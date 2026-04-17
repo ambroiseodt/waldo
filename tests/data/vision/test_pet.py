@@ -18,11 +18,10 @@ from PIL import Image
 
 from waldo.data import PetDataset, PetDatasetConfig, build_transform
 
+
 # -------------------------------------------------------------------
 # Config class
 # -------------------------------------------------------------------
-
-
 class TestPetDatasetConfig:
     r"""Tests for config class valid entries and default values."""
 
@@ -66,8 +65,6 @@ class TestPetDatasetConfig:
 # -------------------------------------------------------------------
 # Dataset class
 # -------------------------------------------------------------------
-
-
 class TestPetDataset:
     r"""Tests for dataset structure and item retrieval."""
 

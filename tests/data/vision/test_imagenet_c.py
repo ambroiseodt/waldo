@@ -20,16 +20,12 @@ from PIL import Image
 
 from waldo.data import ImageNetCDataset, ImageNetCDatasetConfig, build_transform
 
-# Default Parameters, see src/waldo/data/vision/imagenet_c.py
-TRAIN_RATIO = 0.8
-TEST_RATIO = 0.2
+from .conftest import TEST_RATIO, TRAIN_RATIO
 
 
 # -------------------------------------------------------------------
 # Config class
 # -------------------------------------------------------------------
-
-
 class TestImageNetCDatasetConfig:
     r"""Tests for config class valid entries and default values."""
 
@@ -99,8 +95,6 @@ class TestImageNetCDatasetConfig:
 # -------------------------------------------------------------------
 # Dataset class
 # -------------------------------------------------------------------
-
-
 class TestImageNetCDataset:
     r"""Tests for dataset structure and item retrieval."""
 

@@ -20,9 +20,7 @@ from PIL import Image
 
 from waldo.data import DomainNetDataset, DomainNetDatasetConfig, build_transform
 
-# Default Parameters, see src/waldo/data/vision/domainnet.py
-TRAIN_RATIO = 0.8
-TEST_RATIO = 0.2
+from .conftest import TEST_RATIO, TRAIN_RATIO
 
 
 # -------------------------------------------------------------------

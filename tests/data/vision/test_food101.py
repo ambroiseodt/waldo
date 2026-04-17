@@ -17,11 +17,10 @@ from PIL import Image
 
 from waldo.data import Food101Dataset, Food101DatasetConfig, build_transform
 
+
 # -------------------------------------------------------------------
 # Config class
 # -------------------------------------------------------------------
-
-
 class TestFood101DatasetConfig:
     r"""Tests for config class valid entries and default values."""
 
@@ -65,8 +64,6 @@ class TestFood101DatasetConfig:
 # -------------------------------------------------------------------
 # Dataset class
 # -------------------------------------------------------------------
-
-
 class TestFood101Dataset:
     r"""Tests for dataset structure and item retrieval."""
 

@@ -17,11 +17,10 @@ from PIL import Image
 
 from waldo.data import Cifar10Dataset, Cifar10DatasetConfig, build_transform
 
+
 # -------------------------------------------------------------------
 # Config class
 # -------------------------------------------------------------------
-
-
 class TestCifar10DatasetConfig:
     r"""Tests for config class valid entries and default values."""
 
@@ -65,8 +64,6 @@ class TestCifar10DatasetConfig:
 # -------------------------------------------------------------------
 # Dataset class
 # -------------------------------------------------------------------
-
-
 class TestCifar10Dataset:
     r"""Tests for dataset structure and item retrieval."""
 

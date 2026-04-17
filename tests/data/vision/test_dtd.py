@@ -64,8 +64,6 @@ class TestDTDDatasetConfig:
 # -------------------------------------------------------------------
 # Dataset class
 # -------------------------------------------------------------------
-
-
 class TestDTDDataset:
     r"""Tests for dataset structure and item retrieval."""
 

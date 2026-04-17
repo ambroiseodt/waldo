@@ -64,8 +64,6 @@ class TestAircraftDatasetConfig:
 # -------------------------------------------------------------------
 # Dataset class
 # -------------------------------------------------------------------
-
-
 class TestAircraftDataset:
     r"""Tests for dataset structure and item retrieval."""
 
