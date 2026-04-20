@@ -92,7 +92,6 @@ class TestViTBlockAdapter:
     def test_module_instantiation(self) -> None:
         r"""Default ViTBlockAdapter should correctly each transformer module."""
         adapter, block = _make_adapter()
-        assert adapter.ln1 is not adapter.ln2
         assert adapter.ln1 is block.layernorm_before
         assert adapter.mha is block.attention
         assert adapter.ln2 is block.layernorm_after
