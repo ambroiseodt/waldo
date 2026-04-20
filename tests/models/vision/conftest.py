@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 import torch.nn as nn
+from transformers.models.dinov3_vit.modeling_dinov3_vit import DINOv3ViTGatedMLP, DINOv3ViTMLP
 
 from waldo.models import (
     Dinov3,
@@ -94,30 +95,30 @@ class MokeViTOutput(nn.Module):
         return self.dense(x) + input_tensor
 
 
-class MockFFN(nn.Module):
-    r"""A mock FFN with non-gated activation."""
+# class MockFFN(nn.Module):
+#     r"""A mock FFN with non-gated activation."""
 
-    def __init__(self):
-        super().__init__()
-        self.up_proj = MockLinear()
-        self.act_fn = MockActivation()
-        self.down_proj = MockLinear()
+#     def __init__(self):
+#         super().__init__()
+#         self.up_proj = MockLinear()
+#         self.act_fn = MockActivation()
+#         self.down_proj = MockLinear()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.down_proj(self.act_fn(self.up_proj(x)))
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         return self.down_proj(self.act_fn(self.up_proj(x)))
 
 
-class MockGatedFFN(nn.Module):
-    r"""A mock MLFFNP with gated activation."""
+# class MockGatedFFN(nn.Module):
+#     r"""A mock FFN with gated activation."""
 
-    def __init__(self):
-        super().__init__()
-        self.up_proj = MockLinear()
-        self.act_fn = MockActivation()
-        self.down_proj = MockLinear()
+#     def __init__(self):
+#         super().__init__()
+#         self.up_proj = MockLinear()
+#         self.act_fn = MockActivation()
+#         self.down_proj = MockLinear()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.down_proj(self.act_fn(self.up_proj(x)))
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         return self.down_proj(self.act_fn(self.up_proj(x)))
 
 
 class MockViTBlock(nn.Module):
@@ -139,15 +140,40 @@ class MockViTBlock(nn.Module):
         return (ffn_out,)
 
 
-class MockDinov3Block(nn.Module):
-    r"""A mock DINOv3 transformer block."""
+class MockDINOv3ViTMLP(DINOv3ViTMLP):
+    """A mock DINOv3 MLP using fc1, act_fn, fc2."""
 
+    def __init__(self):
+        nn.Module.__init__(self)
+        self.up_proj = MockLinear()
+        self.act_fn = MockActivation()
+        self.down_proj = MockLinear()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.down_proj(self.act_fn(self.up_proj(x)))
+
+
+class MockDINOv3ViTGatedMLP(DINOv3ViTGatedMLP):
+    """A mock gated DINOv3 MLP using gate_proj, up_proj, down_proj."""
+
+    def __init__(self):
+        nn.Module.__init__(self)
+        self.gate_proj = MockLinear()
+        self.up_proj = MockLinear()
+        self.act_fn = MockActivation()
+        self.down_proj = MockLinear()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+
+
+class MockDinov3Block(nn.Module):
     def __init__(self, gated: bool = False):
         super().__init__()
         self.norm1 = MockLayerNorm()
         self.attention = MockAttention()
         self.norm2 = MockLayerNorm()
-        self.mlp: nn.Module = MockGatedFFN() if gated else MockFFN()
+        self.mlp = MockDINOv3ViTGatedMLP() if gated else MockDINOv3ViTMLP()
 
     def forward(self, x: torch.Tensor, **kwargs) -> tuple[torch.Tensor]:
         attn_out, _ = self.attention(self.norm1(x))
