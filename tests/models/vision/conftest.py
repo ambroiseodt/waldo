@@ -167,22 +167,7 @@ def pixel_values() -> torch.Tensor:
 
 @pytest.fixture(scope="session")
 def make_mock_hf_model() -> Callable[..., tuple[MagicMock, nn.ModuleList]]:
-    """
-    Session-scoped factory.  Returns (mock_hf_model, module_list).
-
-    Return a MagicMock that looks enough like a HuggingFace PreTrainedModel for
-    BaseVisionModel.get_embeddings to work:
-
-    * model.config.hidden_size  → int
-    * model(pixel_values=...)   → runs each block in sequence
-    * model.eval() / model.parameters()  → sensible no-ops / empty
-
-    Parameters
-    ----------
-    blocks: list[nn.Module]
-        Fake transformer blocks to embed in the model.
-    hidden_size: int, default HIDDEN_SIZE
-    """
+    r"""A mock model for HuggingFace pretrained model inheriting from BaseVisionModel."""
 
     def _make_hf_model_shell(
         blocks: list[nn.Module], hidden_size: int = HIDDEN_SIZE
@@ -204,8 +189,12 @@ def make_mock_hf_model() -> Callable[..., tuple[MagicMock, nn.ModuleList]]:
             out.last_hidden_state = x
             return out
 
+        # Allow to run the mock blocks to fire the hook and pre-hook calls
         mock_model.side_effect = _forward
-        mock_model.__call__ = _forward  # also satisfy direct call
+
+        # Ensure robust call
+        mock_model.__call__ = _forward
+
         return mock_model, layers
 
     return _make_hf_model_shell
