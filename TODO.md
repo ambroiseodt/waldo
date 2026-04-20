@@ -11,6 +11,7 @@
     - openclip https://github.com/mlfoundations/open_clip 
     - cuml https://github.com/rapidsai/cuml (see https://docs.rapids.ai/install/#selector for installation)
 
+
 - Add models
     - Vision 
         - ViT (base, large, huge) https://huggingface.co/google/vit-base-patch16-224 (included HF transformers)
