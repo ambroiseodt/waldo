@@ -31,6 +31,7 @@
         - Justification: following Layer by layer (https://arxiv.org/pdf/2502.02013): generic models to study their representation and avoid potential cofounder of instruct models or models finetuned for the task of embedding
         - Although not embedding specific models, our aim is not performance-oriented but to understand the impact of layer and module on the hidden representation quality so make sense to use the general pretrained model since creating an embedding model implies extensive finetuning (see https://arxiv.org/pdf/2503.07891) and might destort the generic hidden representation. Also easier to access all the internal representations with open-source general models than API ones and embedding specific (again our aim is to understand the transformer architecture, not reach the highest performance on probing tasks). Again pretrained models encompass the general knowledge of the model while instruct-ones are laigned to prioritize helpfulness and safety. We want to probe the general knowledge so focus on non-instruct models. Same argument for general model and not embedding ones, noting that most embedding models are based on general pretrained ones after finetuning (e.g. Gemini embedding (https://arxiv.org/pdf/2503.07891) and Mistral embedding (https://arxiv.org/pdf/2401.00368))
 
+
 - Add datasets
     - Vision (fine-grained classification)
         - DomainNet (5 domains)
