@@ -32,7 +32,6 @@ experiments = [
     "cuml-cu12==26.2.*",            
     "huggingface_hub[hf_xet]==1.5.0",  
     "mteb[xet]==2.10.4",
-    "open_clip_torch==3.3.0", 
     "scikit-learn==1.8.0",
     "transformers==5.5.0",
 ]
