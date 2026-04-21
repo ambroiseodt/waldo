@@ -62,8 +62,6 @@ class TestDinov3Config:
 # ---------------------------------------------------------------------------
 # BlockAdapter class
 # ---------------------------------------------------------------------------
-
-
 def _make_adapter(gated: bool = False) -> tuple[Dinov3BlockAdapter, MockDinov3Block]:
     r"""Helper to instantiate Dinov3BlockAdapter."""
     block = MockDinov3Block(gated=gated)
@@ -78,12 +76,12 @@ class TestDinov3BlockAdapter:
         adapter, _ = _make_adapter()
         assert set(adapter.module_map().keys()) == set(TRANSFORMER_MODULES)
 
-    def test_only_rc1_in_pre_hooks_standard(self) -> None:
+    def test_pre_hooks_match_spec_standard(self) -> None:
         r"""Default Dinov3BlockAdapter apply pre-hook only on 'rc1' for standard MLP."""
         adapter, _ = _make_adapter(gated=False)
         assert adapter.pre_hooks == {"rc1"}
 
-    def test_rc1_and_act_in_pre_hooks_gated(self) -> None:
+    def test_pre_hooks_match_spec_gated(self) -> None:
         r"""Gated Dinov3BlockAdapter apply pre-hooks on 'rc1' and 'act'."""
         adapter, _ = _make_adapter(gated=True)
         assert adapter.pre_hooks == {"rc1", "act"}
@@ -175,24 +173,24 @@ class TestDinov3Model:
                 f"{key}: expected ({BATCH_SIZE}, {HIDDEN_SIZE}), got {tensor.shape}"
             )
 
-    def test_embeddings_are_on_cpu(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
+    def test_embeddings_are_on_cpu(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
         r"""Each embedding should be on CPU."""
-        embeddings = mock_vit_model.get_embeddings(pixel_values)
+        embeddings = mock_dinov3_model.get_embeddings(pixel_values)
         for key, tensor in embeddings.items():
             assert tensor.device.type == "cpu", f"{key} is on {tensor.device}"
 
-    def test_no_extra_keys_produced(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
+    def test_no_extra_keys_produced(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
         r"""Embedding dict should contain only pairs of layer and module as keys."""
-        embeddings = mock_vit_model.get_embeddings(pixel_values)
+        embeddings = mock_dinov3_model.get_embeddings(pixel_values)
         for key in embeddings:
             parts = key.split("_")
             assert parts[0] == "block"
             assert int(parts[1]) < N_LAYERS
             assert "_".join(parts[2:]) in TRANSFORMER_MODULES
 
-    def test_layer_filter_single(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
+    def test_layer_filter_single(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
         r"""Only specified single layer in get_embeddings should be returned."""
-        embeddings = mock_vit_model.get_embeddings(pixel_values, layers=[0])
+        embeddings = mock_dinov3_model.get_embeddings(pixel_values, layers=[0])
         layers_found = {int(k.split("_")[1]) for k in embeddings}
         assert layers_found == {0}
 
@@ -202,9 +200,9 @@ class TestDinov3Model:
         layers_found = {int(k.split("_")[1]) for k in embeddings}
         assert layers_found == {0, 2}
 
-    def test_module_filter_single(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
+    def test_module_filter_single(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
         r"""Only specified single module in get_embeddings should be returned."""
-        embeddings = mock_vit_model.get_embeddings(pixel_values, modules=["mha"])
+        embeddings = mock_dinov3_model.get_embeddings(pixel_values, modules=["mha"])
         modules_found = {k.split("_")[2] for k in embeddings}
         assert modules_found == {"mha"}
 
@@ -214,33 +212,36 @@ class TestDinov3Model:
         modules_found = {k.split("_")[2] for k in embeddings}
         assert modules_found == {"mha", "rc2"}
 
-    def test_module_filter_all_layers(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
+    def test_module_filter_all_layers(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
         r"""In default setting, all layers should be return for the specified module."""
-        embeddings = mock_vit_model.get_embeddings(pixel_values, modules=["mha"])
+        embeddings = mock_dinov3_model.get_embeddings(pixel_values, modules=["mha"])
         assert len(embeddings) == N_LAYERS
         assert all(k.endswith("_mha") for k in embeddings)
 
-    def test_rc1_filter_all_layer(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
-        r"""In default setting, all layers should be return for rc1 even as a pre-hook module."""
-        embeddings = mock_vit_model.get_embeddings(pixel_values, modules=["rc1"])
+    def test_embeddings_rc1_capture(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
+        r"""In standard model, rc1 module (captured via pre-hook) should be present in results."""
+        embeddings = mock_dinov3_model.get_embeddings(pixel_values, modules=["rc1"])
         assert len(embeddings) == N_LAYERS
         assert all(k.endswith("_rc1") for k in embeddings)
 
-    def test_empty_layers_returns_empty(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
+    def test_gated_embeddings_rc1_act_capture(
+        self, mock_dinov3_gated_model: Dinov3, pixel_values: torch.Tensor
+    ) -> None:
+        r"""In gated model, rc1 and act modules (captured via pre-hook) should be present in results."""
+        for module_name in ["rc1", "act"]:
+            embeddings = mock_dinov3_gated_model.get_embeddings(pixel_values, modules=[module_name])
+            assert len(embeddings) == N_LAYERS
+            assert all(k.endswith(f"_{module_name}") for k in embeddings)
+
+    def test_empty_layers_returns_empty(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
         r"""Empty specified layers should returned empty dict."""
-        assert mock_vit_model.get_embeddings(pixel_values, layers=[]) == {}
+        assert mock_dinov3_model.get_embeddings(pixel_values, layers=[]) == {}
 
-    def test_empty_modules_returns_empty(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
+    def test_empty_modules_returns_empty(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
         r"""Empty specified modules should returned empty dict."""
-        assert mock_vit_model.get_embeddings(pixel_values, modules=[]) == {}
+        assert mock_dinov3_model.get_embeddings(pixel_values, modules=[]) == {}
 
-    def test_combined_layer_and_module_filter(self, mock_vit_model: Dinov3, pixel_values: torch.Tensor) -> None:
+    def test_combined_layer_and_module_filter(self, mock_dinov3_model: Dinov3, pixel_values: torch.Tensor) -> None:
         r"""Only specified layers and modules in get_embeddings should be returned."""
-        embeddings = mock_vit_model.get_embeddings(pixel_values, layers=[2], modules=["mha", "rc2"])
+        embeddings = mock_dinov3_model.get_embeddings(pixel_values, layers=[2], modules=["mha", "rc2"])
         assert set(embeddings.keys()) == {"block_2_mha", "block_2_rc2"}
-
-    def test_gated_embeddings_act_capture(self, mock_dinov3_gated_model: Dinov3, pixel_values: torch.Tensor) -> None:
-        r"""In gated model, act module (captured via pre-hook) should be present in results."""
-        embeddings = mock_dinov3_gated_model.get_embeddings(pixel_values, modules=["act"])
-        assert all(k.endswith("_act") for k in embeddings)
-        assert len(embeddings) == N_LAYERS

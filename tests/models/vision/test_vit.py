@@ -68,8 +68,6 @@ class TestViTConfig:
 # ---------------------------------------------------------------------------
 # BlockAdapter class
 # ---------------------------------------------------------------------------
-
-
 def _make_adapter() -> tuple[ViTBlockAdapter, MockViTBlock]:
     r"""Helper to instantiate ViTBlockAdapter."""
     block = MockViTBlock()
@@ -84,7 +82,7 @@ class TestViTBlockAdapter:
         adapter, _ = _make_adapter()
         assert set(adapter.module_map().keys()) == set(TRANSFORMER_MODULES)
 
-    def test_only_rc1_in_pre_hooks(self) -> None:
+    def test_pre_hooks_match_spec(self) -> None:
         r"""Default ViTBlockAdapter apply pre-hook only on 'rc1'."""
         adapter, _ = _make_adapter()
         assert adapter.pre_hooks == {"rc1"}
