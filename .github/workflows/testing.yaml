@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test-vision:
+  test-data-vision:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -24,7 +24,7 @@ jobs:
       - name: Run tests
         run: pytest tests/data/vision/ --cov=waldo --cov-report term --durations=10
 
-  test-language:
+  test-data-language:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -41,7 +41,7 @@ jobs:
       - name: Run tests
         run: pytest tests/data/language/ --cov=waldo --cov-report term --durations=10
 
-  test-models:
+  test-models-vision:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -56,4 +56,38 @@ jobs:
         run: pip install -e ".[dev]" "transformers==5.5.0"
 
       - name: Run tests
-        run: pytest tests/models/ --cov=waldo --cov-report term --durations=10
+        run: pytest tests/models/vision --cov=waldo --cov-report term --durations=10
+  
+  test-models-language:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" "transformers==5.5.0"
+
+      - name: Run tests
+        run: pytest tests/models/language --cov=waldo --cov-report term --durations=10
+
+  test-models-multimodal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" "transformers==5.5.0"
+
+      - name: Run tests
+        run: pytest tests/models/multimodal --cov=waldo --cov-report term --durations=10
