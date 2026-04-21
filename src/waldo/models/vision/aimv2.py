@@ -64,7 +64,7 @@ class Aimv2Config:
         Device to use.
     """
 
-    model_size: str = "base"
+    model_size: str = "large"
     resolution: int = 224
     device: str = "cpu"
 
