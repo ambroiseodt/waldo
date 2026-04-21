@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test-data-vision:
+  data (vision):
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -24,7 +24,7 @@ jobs:
       - name: Run tests
         run: pytest tests/data/vision/ --cov=waldo --cov-report term --durations=10
 
-  test-data-language:
+  data (language):
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -41,7 +41,7 @@ jobs:
       - name: Run tests
         run: pytest tests/data/language/ --cov=waldo --cov-report term --durations=10
 
-  test-models-vision:
+  models (vision):
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -58,7 +58,7 @@ jobs:
       - name: Run tests
         run: pytest tests/models/vision --cov=waldo --cov-report term --durations=10
   
-  test-models-language:
+  models (language):
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -75,7 +75,7 @@ jobs:
       - name: Run tests
         run: pytest tests/models/language --cov=waldo --cov-report term --durations=10
 
-  test-models-multimodal:
+  models (multimodal):
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
