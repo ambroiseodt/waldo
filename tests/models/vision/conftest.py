@@ -15,9 +15,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 import torch.nn as nn
+from transformers.models.dinov2.modeling_dinov2 import Dinov2MLP, Dinov2SwiGLUFFN
 from transformers.models.dinov3_vit.modeling_dinov3_vit import DINOv3ViTGatedMLP, DINOv3ViTMLP
 
 from waldo.models import (
+    Aimv2,
+    Aimv2Config,
+    Dinov2,
+    Dinov2Config,
     Dinov3,
     Dinov3Config,
     ViT,
@@ -53,6 +58,13 @@ class MockLayerNorm(nn.LayerNorm):
         super().__init__(dim)
 
 
+class MockRMSNorm(nn.RMSNorm):
+    r"""A mock RMSNorm."""
+
+    def __init__(self, dim: int = HIDDEN_SIZE):
+        super().__init__(dim)
+
+
 class MockActivation(nn.Module):
     r"""A mock activation returning ReLU."""
 
@@ -70,8 +82,6 @@ class MockAttention(nn.Module):
 # ---------------------------------------------------------------------------
 # Moke transformer blocks
 # ---------------------------------------------------------------------------
-
-
 class MokeViTIntermediate(nn.Module):
     r"""A mock ViT intemediate."""
 
@@ -95,32 +105,6 @@ class MokeViTOutput(nn.Module):
         return self.dense(x) + input_tensor
 
 
-# class MockFFN(nn.Module):
-#     r"""A mock FFN with non-gated activation."""
-
-#     def __init__(self):
-#         super().__init__()
-#         self.up_proj = MockLinear()
-#         self.act_fn = MockActivation()
-#         self.down_proj = MockLinear()
-
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         return self.down_proj(self.act_fn(self.up_proj(x)))
-
-
-# class MockGatedFFN(nn.Module):
-#     r"""A mock FFN with gated activation."""
-
-#     def __init__(self):
-#         super().__init__()
-#         self.up_proj = MockLinear()
-#         self.act_fn = MockActivation()
-#         self.down_proj = MockLinear()
-
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         return self.down_proj(self.act_fn(self.up_proj(x)))
-
-
 class MockViTBlock(nn.Module):
     r"""A mock ViT transformer block."""
 
@@ -140,6 +124,51 @@ class MockViTBlock(nn.Module):
         return (ffn_out,)
 
 
+class MockDinov2MLP(Dinov2MLP):
+    """A mock DINOv2 MLP using standard fc1, activation, fc2."""
+
+    def __init__(self):
+        nn.Module.__init__(self)
+        self.fc1 = MockLinear()
+        self.activation = MockActivation()
+        self.fc2 = MockLinear()
+
+    def forward(self, hidden_state: torch.Tensor) -> torch.Tensor:
+        return self.fc2(self.activation(self.fc1(hidden_state)))
+
+
+class MockDinov2SwiGLUFFN(Dinov2SwiGLUFFN):
+    """A mock DINOv2 gated MLP using concatenated weights_in."""
+
+    def __init__(self):
+        nn.Module.__init__(self)
+        # weights_in output dim is 2 * hidden_size to represent gated and up projections
+        self.weights_in = nn.Linear(HIDDEN_SIZE, 2 * HIDDEN_SIZE, bias=False)
+        self.weights_out = MockLinear()
+
+    def forward(self, hidden_state: torch.Tensor) -> torch.Tensor:
+        x = self.weights_in(hidden_state)
+        x1, x2 = x.chunk(2, dim=-1)
+        return self.weights_out(torch.nn.functional.silu(x1) * x2)
+
+
+class MockDinov2Block(nn.Module):
+    r"""A mock DINOv2 transformer block."""
+
+    def __init__(self, gated: bool = False):
+        super().__init__()
+        self.norm1 = MockLayerNorm()
+        self.attention = MockAttention()
+        self.norm2 = MockLayerNorm()
+        self.mlp = MockDinov2SwiGLUFFN() if gated else MockDinov2MLP()
+
+    def forward(self, x: torch.Tensor, **kwargs) -> tuple[torch.Tensor]:
+        attn_out, _ = self.attention(self.norm1(x))
+        rc1 = x + attn_out
+        ffn_out = rc1 + self.mlp(self.norm2(rc1))
+        return (ffn_out,)
+
+
 class MockDINOv3ViTMLP(DINOv3ViTMLP):
     """A mock DINOv3 MLP using fc1, act_fn, fc2."""
 
@@ -154,7 +183,7 @@ class MockDINOv3ViTMLP(DINOv3ViTMLP):
 
 
 class MockDINOv3ViTGatedMLP(DINOv3ViTGatedMLP):
-    """A mock gated DINOv3 MLP using gate_proj, up_proj, down_proj."""
+    """A mock DINOv3 gated MLP using gate_proj, up_proj, down_proj."""
 
     def __init__(self):
         nn.Module.__init__(self)
@@ -179,6 +208,37 @@ class MockDinov3Block(nn.Module):
         attn_out, _ = self.attention(self.norm1(x))
         rc1 = x + attn_out
         ffn_out = rc1 + self.mlp(self.norm2(rc1))
+        return (ffn_out,)
+
+
+class MockAimv2MLP(nn.Module):
+    r"""A mock AIMv2 gated MLP using gate_proj, up_proj, and down_proj."""
+
+    def __init__(self):
+        super().__init__()
+        self.gate_proj = MockLinear()
+        self.up_proj = MockLinear()
+        self.down_proj = MockLinear()
+        self.act_fn = MockActivation()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+
+
+class MockAimv2Block(nn.Module):
+    r"""A mock AIMv2 transformer block."""
+
+    def __init__(self):
+        super().__init__()
+        self.rms_norm1 = MockRMSNorm()
+        self.attention = MockAttention()
+        self.rms_norm2 = MockRMSNorm()
+        self.ffn = MockAimv2MLP()
+
+    def forward(self, x: torch.Tensor, **kwargs) -> tuple[torch.Tensor]:
+        attn_out, _ = self.attention(self.rms_norm1(x))
+        rc1 = x + attn_out
+        ffn_out = rc1 + self.ffn(self.rms_norm2(rc1))
         return (ffn_out,)
 
 
@@ -253,8 +313,51 @@ def mock_vit_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleL
 
 
 @pytest.fixture
-def mock_dinov3_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> BaseVisionModel:
+def mock_dinov2_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Dinov2:
+    r"""
+    A Dinov2 instance backed by standard MLP blocks (no SwiGLU).
+    Patches DINOv2Model.from_pretrained.
+    Returns the Dinov2 wrapper (waldo.models.Dinov2).
     """
+    blocks = [MockDinov2Block(gated=False) for _ in range(N_LAYERS)]
+    mock_hf, layers = make_mock_hf_model(blocks)
+
+    mock_hf.encoder = MagicMock()
+    mock_hf.encoder.layer = layers
+
+    with patch("waldo.models.vision.dinov2.Dinov2Model.from_pretrained", return_value=mock_hf):
+        config = Dinov2Config(model_size="base", device="cpu")
+        model = Dinov2(config)
+
+    model.model = mock_hf
+    return model
+
+
+@pytest.fixture
+def mock_dinov2_gated_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Dinov2:
+    r"""
+    A Dinov2 instance backed by GatedMLP (SwiGLU) blocks.
+    Patches DINOv2Model.from_pretrained.
+    Returns the Dinov2 wrapper (waldo.models.Dinov2).
+    """
+    blocks = [MockDinov2Block(gated=True) for _ in range(N_LAYERS)]
+    mock_hf, layers = make_mock_hf_model(blocks)
+
+    # DINOv2 reads encoder.layers for self.blocks
+    mock_hf.encoder = MagicMock()
+    mock_hf.encoder.layer = layers
+
+    with patch("waldo.models.vision.dinov2.Dinov2Model.from_pretrained", return_value=mock_hf):
+        config = Dinov2Config(model_size="giant", device="cpu")
+        model = Dinov2(config)
+
+    model.model = mock_hf
+    return model
+
+
+@pytest.fixture
+def mock_dinov3_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> BaseVisionModel:
+    r"""
     A Dinov3 instance backed by standard MLP blocks (no SwiGLU).
     Patches DINOv3ViTModel.from_pretrained.
     Returns the Dinov3 wrapper (waldo.models.Dinov3).
@@ -274,7 +377,7 @@ def mock_dinov3_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.Modu
 
 @pytest.fixture
 def mock_dinov3_gated_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> BaseVisionModel:
-    """
+    r"""
     A Dinov3 instance backed by GatedMLP (SwiGLU) blocks.
     Patches DINOv3ViTModel.from_pretrained.
     Returns the Dinov3 wrapper (waldo.models.Dinov3).
@@ -287,6 +390,28 @@ def mock_dinov3_gated_model(make_mock_hf_model: Callable[..., tuple[MagicMock, n
     with patch("waldo.models.vision.dinov3.DINOv3ViTModel.from_pretrained", return_value=mock_hf):
         config = Dinov3Config(model_size="vit7b16", device="cpu")
         model = Dinov3(config)
+
+    model.model = mock_hf
+    return model
+
+
+@pytest.fixture
+def mock_aimv2_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Aimv2:
+    r"""
+    An Aimv2 instance whose HuggingFace backbone is fully mocked.
+    Patches Aimv2VisionModel.from_pretrained.
+    Returns the Aimv2 wrapper (waldo.models.Aimv2).
+    """
+    blocks = [MockAimv2Block() for _ in range(N_LAYERS)]
+    mock_hf, layers = make_mock_hf_model(blocks)
+
+    # AIMv2 reads encoder.layers for self.blocks
+    mock_hf.encoder = MagicMock()
+    mock_hf.encoder.layers = layers
+
+    with patch("waldo.models.vision.aimv2.Aimv2VisionModel.from_pretrained", return_value=mock_hf):
+        config = Aimv2Config(model_size="large", resolution=224, device="cpu")
+        model = Aimv2(config)
 
     model.model = mock_hf
     return model
