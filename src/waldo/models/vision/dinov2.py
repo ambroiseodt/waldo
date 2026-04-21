@@ -135,10 +135,10 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
     def _get_rc1(self, layer: nn.Module) -> nn.Module:
         # Use pre_hook to capture rc1
-        return cast(nn.Module, layer.norm1)
+        return cast(nn.Module, layer.norm2)
 
     def _get_ln2(self, layer: nn.Module) -> nn.Module:
-        return cast(nn.Module, layer.norm1)
+        return cast(nn.Module, layer.norm2)
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
         r"""
