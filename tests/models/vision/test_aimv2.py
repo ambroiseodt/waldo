@@ -9,6 +9,8 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+from typing import Any, cast
+
 import pytest
 import torch
 from torch.nn import ModuleList
@@ -112,7 +114,7 @@ class TestAimv2Model:
 
     def test_model_in_eval_mode_after_loading(self, mock_aimv2_model: Aimv2) -> None:
         r"""Eval mode should be set after loading the model."""
-        mock_aimv2_model.model.eval.assert_called()
+        cast(Any, mock_aimv2_model.model.eval).assert_called()
 
     def test_blocks_returns_module_list(self, mock_aimv2_model: Aimv2) -> None:
         r"""Blocks property should return a module list object."""

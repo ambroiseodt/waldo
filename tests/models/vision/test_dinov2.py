@@ -9,6 +9,8 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+from typing import Any, cast
+
 import pytest
 import torch
 from torch.nn import ModuleList
@@ -116,7 +118,7 @@ class TestDinov2Model:
 
     def test_model_in_eval_mode_after_loading(self, mock_dinov2_model: Dinov2) -> None:
         r"""Eval mode should be set after loading the model."""
-        mock_dinov2_model.model.eval.assert_called()
+        cast(Any, mock_dinov2_model.model.eval).assert_called()
 
     def test_blocks_returns_module_list(self, mock_dinov2_model: Dinov2) -> None:
         r"""Blocks property should return a module list object."""
@@ -146,7 +148,7 @@ class TestDinov2Model:
         r"""Pooling should exclude the CLS token: setting it to large value should make this clear."""
         torch.manual_seed(42)
         hidden = torch.randn(1, SEQ_LEN, HIDDEN_SIZE)
-        hidden[:, 0, :] = 100.0
+        hidden[:, 0, :] = 100
         out_excl = mock_dinov2_model.pooling(hidden)
         out_incl = hidden.mean(dim=1).cpu()
         assert not torch.allclose(out_excl, out_incl)
