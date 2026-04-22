@@ -104,11 +104,11 @@ class Gemma3BlockAdapter(TransformerBlockAdapter):
 
     Notes
     -----
-    Gemma3 relies on a gated SwiGLU activation in the FFN (see [1, 2]_ for details). For consistency with other models,
-    we decompose the FFN block as follows:
+    Gemma3 relies on a GeGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
+    with ViT, we decompose the FFN block as follows:
 
         fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = silu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
+        act  = gelu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
         fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
 
     This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
@@ -120,12 +120,12 @@ class Gemma3BlockAdapter(TransformerBlockAdapter):
     other models, we do not probe them.
 
     References
-    ----------
-    .. [1] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
+    .. [1] D. Hendrycks and K. Gimpel. Bridging nonlinearities and stochastic regularizers with
+           gaussian error linear units. arXiv 2016
 
-    .. [2] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
+    .. [2] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
 
-    .. [3] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
+    .. [3] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
 
     See also
     --------

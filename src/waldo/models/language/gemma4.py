@@ -104,11 +104,11 @@ class Gemma4BlockAdapter(TransformerBlockAdapter):
 
     Notes
     -----
-    Gemma4 relies on a gated SwiGLU activation in the FFN (see [1, 2]_ for details). For consistency with other models,
-    we decompose the FFN block as follows:
+    Gemma4 relies on a GeGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
+    with ViT, we decompose the FFN block as follows:
 
         fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = silu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
+        act  = gelu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
         fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
 
     This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
@@ -117,16 +117,15 @@ class Gemma4BlockAdapter(TransformerBlockAdapter):
     their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
     when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that Gemma4
     models also normalize the outputs of the attention and FFN blocks for training stability. For consistency with
-    other models, we do not probe them. We also note that the E2B and E4B variants incorporate Per-Layer Embeddings.
-    Again, for consistency with other models, we consider the second residual to be the output of transformer blocks.
+    other models, we do not probe them.
 
     References
-    ----------
-    .. [1] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
+    .. [1] D. Hendrycks and K. Gimpel. Bridging nonlinearities and stochastic regularizers with
+           gaussian error linear units. arXiv 2016
 
-    .. [2] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
+    .. [2] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
 
-    .. [3] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
+    .. [3] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
 
     See also
     --------
@@ -198,10 +197,10 @@ class Gemma4(BaseLanguageModel):
         self.device = config.device
         self.model_name = f"google/gemma-4-{config.model_size}"
         self.dtype = config.dtype
-        self.model = self._load_from_huggingface(model_name=self.model_name, dtype=self.dtype, device=self.device)
+        self.model = self._load_model(model_name=self.model_name, dtype=self.dtype, device=self.device)
         self.tokenizer = self._load_tokenizer(model_name=self.model_name)
 
-    def _load_from_huggingface(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
+    def _load_model(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
         r"""
         Load weights from the HuggingFace Transformers library.
 

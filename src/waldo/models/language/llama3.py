@@ -106,11 +106,11 @@ class Llama3BlockAdapter(TransformerBlockAdapter):
 
     Notes
     -----
-    llama3 relies on a gated SwiGLU activation in the FFN (see [1, 2]_ for details). For consistency with other models,
-    we decompose the FFN block as follows:
+    Llama3 relies on a SwiGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
+    with ViT, we decompose the FFN block as follows:
 
         fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = silu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
+        act  = swish(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
         fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
 
     This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
@@ -121,9 +121,11 @@ class Llama3BlockAdapter(TransformerBlockAdapter):
 
     References
     ----------
-    .. [1] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
+    .. [1] P. Ramachandran et al. Searching for activation functions. arXiv 2017
 
-    .. [2] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
+    .. [2] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
+
+    .. [3] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
 
     See also
     --------

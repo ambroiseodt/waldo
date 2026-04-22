@@ -43,14 +43,14 @@ class TransformerBlockAdapter(ABC):
     Our implementation assumes that pre-norm is used, as is the case in modern transformer models like ViT, DINO,
     or Llama, i.e., normalization layers are applied before the attention and feedforward blocks (see [1, 2]). It
     allows us to recover all modules using a single forward pass by using register_forward_hook, except for rc1,
-    which can be seen as the input to ln2 and is recovered using register_forward_pre_hook.  We advice users that
+    which can be seen as the input to ln2 and is recovered using register_forward_pre_hook.  We advise users that
     would like to use a post-norm standard to make sure their implementation matches our design. For generality, the
     modules that require a pre_hook can be specified in the _pre_hook_modules method. This is notably needed for
     modern models that rely on a gated activation like SwiGLU in the FFN (see [3, 4]_ for details). For consistency,
     we decompose the FFN block as follows:
 
         fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = silu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
+        act  = swish(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
         fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
 
     This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The

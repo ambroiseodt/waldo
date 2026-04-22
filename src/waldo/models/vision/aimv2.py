@@ -105,11 +105,11 @@ class Aimv2BlockAdapter(TransformerBlockAdapter):
 
     Notes
     -----
-    AIMv2 model relies on a gated SwiGLU activation in the FFN (see [1, 2]_ for details). For consistency
+    AIMv2 model relies on a SwiGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
     with ViT, we decompose the FFN block as follows:
 
         fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = silu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
+        act  = swish(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
         fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
 
     This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
@@ -117,17 +117,19 @@ class Aimv2BlockAdapter(TransformerBlockAdapter):
     the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
     their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
     when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that AIMv2
-    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [3]_) that do not
+    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [4]_) that do not
     fundamentally change the transformer architecture and merely improve memory-efficiency and training
     stability. For the consistency of our analysis, we do not probe them.
 
     References
     ----------
-    .. [1] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
+    .. [1] P. Ramachandran et al. Searching for activation functions. arXiv 2017
 
-    .. [2] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
+    .. [2] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
 
-    .. [3] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
+    .. [3] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
+
+    .. [4] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
 
     See also
     --------
