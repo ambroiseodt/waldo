@@ -1,5 +1,5 @@
 r"""
-Shared fixtures for vision foundation model unit tests.
+Shared fixtures for vision foundation models unit tests.
 
 License
 -------
@@ -18,17 +18,7 @@ import torch.nn as nn
 from transformers.models.dinov2.modeling_dinov2 import Dinov2MLP, Dinov2SwiGLUFFN
 from transformers.models.dinov3_vit.modeling_dinov3_vit import DINOv3ViTGatedMLP, DINOv3ViTMLP
 
-from waldo.models import (
-    Aimv2,
-    Aimv2Config,
-    Dinov2,
-    Dinov2Config,
-    Dinov3,
-    Dinov3Config,
-    ViT,
-    ViTConfig,
-)
-from waldo.models.vision.base import BaseVisionModel
+from waldo.models import Aimv2, Aimv2Config, Dinov2, Dinov2Config, Dinov3, Dinov3Config, ViT, ViTConfig
 
 # Default parameters
 N_LAYERS = 3
@@ -252,10 +242,10 @@ def pixel_values() -> torch.Tensor:
 
 
 @pytest.fixture(scope="session")
-def make_mock_hf_model() -> Callable[..., tuple[MagicMock, nn.ModuleList]]:
-    r"""A mock model for HuggingFace pretrained model inheriting from BaseVisionModel."""
+def make_mock_vision_model() -> Callable[..., tuple[MagicMock, nn.ModuleList]]:
+    r"""A mock model for vision models inheriting from BaseVisionModel."""
 
-    def _make_hf_model_shell(
+    def _make_vision_model_shell(
         blocks: list[nn.Module], hidden_size: int = HIDDEN_SIZE
     ) -> tuple[MagicMock, nn.ModuleList]:
 
@@ -283,22 +273,21 @@ def make_mock_hf_model() -> Callable[..., tuple[MagicMock, nn.ModuleList]]:
 
         return mock_model, layers
 
-    return _make_hf_model_shell
+    return _make_vision_model_shell
 
 
 # -----------------------------------------------------------------------------
 # Dataset-specific fixtures
 # ------------------------------------------------------------------------------
 @pytest.fixture
-def mock_vit_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> ViT:
+def mock_vit_model(make_mock_vision_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> ViT:
     """
     A ViT instance whose HuggingFace backbone is fully mocked.
     Patches ViTModel.from_pretrained so no network call is made.
-    Returns the ViT wrapper (waldo.models.ViT).
     """
 
     blocks = [MockViTBlock() for _ in range(N_LAYERS)]
-    mock_hf, layers = make_mock_hf_model(blocks)
+    mock_hf, layers = make_mock_vision_model(blocks)
 
     # ViT reads encoder.layer for self.blocks
     mock_hf.encoder = MagicMock()
@@ -313,14 +302,13 @@ def mock_vit_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleL
 
 
 @pytest.fixture
-def mock_dinov2_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Dinov2:
+def mock_dinov2_model(make_mock_vision_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Dinov2:
     r"""
     A Dinov2 instance backed by standard MLP blocks (no SwiGLU).
-    Patches DINOv2Model.from_pretrained.
-    Returns the Dinov2 wrapper (waldo.models.Dinov2).
+    Patches DINOv2Model.from_pretrained so no network call is made.
     """
     blocks = [MockDinov2Block(gated=False) for _ in range(N_LAYERS)]
-    mock_hf, layers = make_mock_hf_model(blocks)
+    mock_hf, layers = make_mock_vision_model(blocks)
 
     mock_hf.encoder = MagicMock()
     mock_hf.encoder.layer = layers
@@ -334,14 +322,13 @@ def mock_dinov2_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.Modu
 
 
 @pytest.fixture
-def mock_dinov2_gated_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Dinov2:
+def mock_dinov2_gated_model(make_mock_vision_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Dinov2:
     r"""
     A Dinov2 instance backed by GatedMLP (SwiGLU) blocks.
-    Patches DINOv2Model.from_pretrained.
-    Returns the Dinov2 wrapper (waldo.models.Dinov2).
+    Patches DINOv2Model.from_pretrained so no network call is made.
     """
     blocks = [MockDinov2Block(gated=True) for _ in range(N_LAYERS)]
-    mock_hf, layers = make_mock_hf_model(blocks)
+    mock_hf, layers = make_mock_vision_model(blocks)
 
     # DINOv2 reads encoder.layers for self.blocks
     mock_hf.encoder = MagicMock()
@@ -356,15 +343,14 @@ def mock_dinov2_gated_model(make_mock_hf_model: Callable[..., tuple[MagicMock, n
 
 
 @pytest.fixture
-def mock_dinov3_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> BaseVisionModel:
+def mock_dinov3_model(make_mock_vision_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Dinov3:
     r"""
     A Dinov3 instance backed by standard MLP blocks (no SwiGLU).
-    Patches DINOv3ViTModel.from_pretrained.
-    Returns the Dinov3 wrapper (waldo.models.Dinov3).
+    Patches DINOv3ViTModel.from_pretrained so no network call is made.
     """
 
     blocks = [MockDinov3Block(gated=False) for _ in range(N_LAYERS)]
-    mock_hf, layers = make_mock_hf_model(blocks)
+    mock_hf, layers = make_mock_vision_model(blocks)
     mock_hf.layer = layers
 
     with patch("waldo.models.vision.dinov3.DINOv3ViTModel.from_pretrained", return_value=mock_hf):
@@ -376,15 +362,14 @@ def mock_dinov3_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.Modu
 
 
 @pytest.fixture
-def mock_dinov3_gated_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> BaseVisionModel:
+def mock_dinov3_gated_model(make_mock_vision_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Dinov3:
     r"""
     A Dinov3 instance backed by GatedMLP (SwiGLU) blocks.
-    Patches DINOv3ViTModel.from_pretrained.
-    Returns the Dinov3 wrapper (waldo.models.Dinov3).
+    Patches DINOv3ViTModel.from_pretrained so no network call is made.
     """
 
     blocks = [MockDinov3Block(gated=True) for _ in range(N_LAYERS)]
-    mock_hf, layers = make_mock_hf_model(blocks)
+    mock_hf, layers = make_mock_vision_model(blocks)
     mock_hf.layer = layers
 
     with patch("waldo.models.vision.dinov3.DINOv3ViTModel.from_pretrained", return_value=mock_hf):
@@ -396,14 +381,13 @@ def mock_dinov3_gated_model(make_mock_hf_model: Callable[..., tuple[MagicMock, n
 
 
 @pytest.fixture
-def mock_aimv2_model(make_mock_hf_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Aimv2:
+def mock_aimv2_model(make_mock_vision_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Aimv2:
     r"""
     An Aimv2 instance whose HuggingFace backbone is fully mocked.
-    Patches Aimv2VisionModel.from_pretrained.
-    Returns the Aimv2 wrapper (waldo.models.Aimv2).
+    Patches Aimv2VisionModel.from_pretrained so no network call is made.
     """
     blocks = [MockAimv2Block() for _ in range(N_LAYERS)]
-    mock_hf, layers = make_mock_hf_model(blocks)
+    mock_hf, layers = make_mock_vision_model(blocks)
 
     # AIMv2 reads encoder.layers for self.blocks
     mock_hf.encoder = MagicMock()
