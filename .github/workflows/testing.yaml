@@ -70,7 +70,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -e ".[dev]" "transformers==5.5.0"
+        run: pip install -e ".[dev]" "transformers==5.5.0" "mteb[xet]==2.10.4"
 
       - name: Run tests
         run: pytest tests/models/language --cov=waldo --cov-report term --durations=10
