@@ -1,7 +1,7 @@
 r"""
-SigLIP 2 implementation following [1]_. It allows to study specific layers and modules.
+SigLIP2 implementation following [1]_. It allows to study specific layers and modules.
 
-Since SigLip2 is a vision-language model, we also implement a method to recover the text embedding. This
+Since SigLIP2 is a vision-language model, we also implement a method to recover the text embedding. This
 can be used to study the alignement between image and text embeddings depending on layers and modules.
 
 Comments abbreviations
@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Siglip2Config:
     r"""
-    Siglip2 configuration file.
+    SigLIP2 configuration file.
 
     Parameters
     ----------
@@ -168,7 +168,7 @@ class Siglip2BlockAdapter(TransformerBlockAdapter):
 # -------------------------------------------------------------------
 class Siglip2(BaseVisionLanguageModel):
     r"""
-    SigLip2 vision model implementation following [1]_.
+    SigLIP2 vision model implementation following [1]_.
 
     The vision encoder of SigLip2 can be studied as a standalone vision model. Since SigLip2 is a
     vision-language model, we also implement a method that can be used to recover the text embeddings
@@ -189,12 +189,12 @@ class Siglip2(BaseVisionLanguageModel):
     Notes
     -----
     The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses running statistics).
-    Call `model.train()` if you intend to fine-tune. SigLip2 allows a NaFlex implementation that supports native
+    Call `model.train()` if you intend to fine-tune. SigLIP2 allows a NaFlex implementation that supports native
     resolution (by opposition to FixRes variants). In particular, NaFlex variants need already patched images
     (3D tensors with the batch dimension) as input to the forward require 3D patch sequences while the FixRes
     ones require 4D tensors (with the batch dimension). Since the default HuggingFace implementation follows the NaFlex
     variant, it throws errors with FixRes checkpoints. We fix this using SiglipVisionModel and SiglipTextModel to load
-    FixRes checkpoints. This works because SigLip2 has the same architecture as SigLip (except for the image embedding).
+    FixRes checkpoints. This works because SigLIP2 has the same architecture as SigLip (except for the image embedding).
     This is not a smart fix but allows for an efficient loading. Future transformers versions might solve this.
 
     References
@@ -243,12 +243,12 @@ class Siglip2(BaseVisionLanguageModel):
         Notes
         -----
         The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses running statistics).
-        Call `model.train()` if you intend to fine-tune. SigLip2 allows a NaFlex implementation that supports native
+        Call `model.train()` if you intend to fine-tune. SigLIP2 allows a NaFlex implementation that supports native
         resolution (by opposition to FixRes variants). In particular, NaFlex variants need already patched images
         (3D tensors with the batch dimension) as input to the forward require 3D patch sequences while the FixRes
         ones require 4D tensors (with the batch dimension). Since the default HuggingFace implementation follows the
         NaFlex variant, it throws errors with FixRes checkpoints. We fix this using Siglip models to load the FixRes
-        checkpoints. This works because SigLip2 has the same architecture as SigLip (except for the image embedding).
+        checkpoints. This works because SigLIP2 has the same architecture as SigLip (except for the image embedding).
         This is not a smart fix but allows for an efficient loading. Future transformers versions might solve this.
 
         """
@@ -372,7 +372,7 @@ class Siglip2(BaseVisionLanguageModel):
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
 
-        In SigLip2, there is no CLS token, so we do not need to exclude it before the global pooling.
+        In SigLIP2, there is no CLS token, so we do not need to exclude it before the global pooling.
 
         Parameters
         ----------

@@ -1,7 +1,7 @@
 r"""
-Clip implementation following [1]_. It allows to study specific layers and modules.
+CLIP implementation following [1]_. It allows to study specific layers and modules.
 
-Since Clip is a vision-language model, we also implement a method to recover the text embedding. This
+Since CLIP is a vision-language model, we also implement a method to recover the text embedding. This
 can be used to study the alignement between image and text embeddings depending on layers and modules.
 
 Comments abbreviations
@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ClipConfig:
     r"""
-    Clip configuration file.
+    CLIP configuration file.
 
     Parameters
     ----------
@@ -152,9 +152,9 @@ class ClipBlockAdapter(TransformerBlockAdapter):
 # -------------------------------------------------------------------
 class Clip(BaseVisionLanguageModel):
     r"""
-    Clip vision model implementation following [1]_.
+    CLIP vision model implementation following [1]_.
 
-    The vision encoder of Clip can be studied as a standalone vision model. Since Clip is a
+    The vision encoder of CLIP can be studied as a standalone vision model. Since CLIP is a
     vision-language model, we also implement a method that can be used to recover the text embeddings
     of the class labels to study the alignement between image and text embeddings.
 
@@ -279,7 +279,7 @@ class Clip(BaseVisionLanguageModel):
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
 
-        In Clip, there is a CLS token, so we need to exclude it before the global pooling.
+        In CLIP, there is a CLS token, so we need to exclude it before the global pooling.
 
         Parameters
         ----------
