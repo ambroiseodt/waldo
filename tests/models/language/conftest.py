@@ -212,9 +212,9 @@ def mock_gemma3_model(make_mock_language_model: Callable[..., tuple[MagicMock, n
     ):
         # Setup mock tokenizer with standard special tokens
         mock_tokenizer = MagicMock()
+        mock_tokenizer.pad_token_id = 0
         mock_tokenizer.bos_token_id = 1
         mock_tokenizer.eos_token_id = 2
-        mock_tokenizer.pad_token_id = 0
         mock_tok.return_value = mock_tokenizer
 
         config = Gemma3Config(model_size="1b", device="cpu")
@@ -241,9 +241,9 @@ def mock_gemma4_model(make_mock_language_model: Callable[..., tuple[MagicMock, n
     ):
         # Setup mock tokenizer with standard special tokens
         mock_tokenizer = MagicMock()
+        mock_tokenizer.pad_token_id = 0
         mock_tokenizer.bos_token_id = 1
         mock_tokenizer.eos_token_id = 2
-        mock_tokenizer.pad_token_id = 0
         mock_tok.return_value = mock_tokenizer
 
         config = Gemma4Config(model_size="E2B", device="cpu")
@@ -270,9 +270,9 @@ def mock_llama3_model(make_mock_language_model: Callable[..., tuple[MagicMock, n
     ):
         # Setup mock tokenizer with standard special tokens
         mock_tokenizer = MagicMock()
+        mock_tokenizer.pad_token_id = 0
         mock_tokenizer.bos_token_id = 1
         mock_tokenizer.eos_token_id = 2
-        mock_tokenizer.pad_token_id = 0
         mock_tok.return_value = mock_tokenizer
 
         config = Llama3Config(model_size="3.2-1B", device="cpu")
@@ -299,9 +299,9 @@ def mock_qwen3_model(make_mock_language_model: Callable[..., tuple[MagicMock, nn
     ):
         # Setup mock tokenizer with standard special tokens
         mock_tokenizer = MagicMock()
+        mock_tokenizer.pad_token_id = 0
         mock_tokenizer.bos_token_id = 1
         mock_tokenizer.eos_token_id = 2
-        mock_tokenizer.pad_token_id = 0
         mock_tok.return_value = mock_tokenizer
 
         config = Qwen3Config(model_size="0.6B", device="cpu")
