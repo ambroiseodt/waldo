@@ -1,108 +1,374 @@
-r"""Placeholder"""
+r"""
+Codebase to perform linear probing on vision transformers.
 
-import logging
+Notes
+-----
+Our implementation allows to conduct linear probing on pretrained and finetuned models,
+and the log_dir argument from the config file indicates the checkpoint to recover.
+In addition, probes can be taken over any transformer components across layers.
 
-logging.getLogger("waldo")
+License
+-------
+This source code is licensed under the MIT license found in the LICENSE file
+in the root directory of this source tree.
 
+@ 2026, Ambroise Odonnat
+"""
+
+# %% Imports
 
 import os
 
+os.environ["OMP_NUM_THREADS"] = "1"
+
+import json
+import logging
+from contextlib import ExitStack
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 import torch
-from cuml.linear_model import LogisticRegression
+import torch.distributed.checkpoint as dcp
+import torch.nn as nn
+from core.config import DEVICE, SAVING_DIR
+from core.data import build_loader, build_train_val_loader
+from core.model import build_model
+from core.monitor import Utility, build_eval_orchestrator
+from core.utils import get_numpy, json_serializable
+from omegaconf import OmegaConf
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import AutoModel
 
-# --- SETTINGS ---
-MODEL_NAME = "nomic-ai/nomic-embed-text-v1"  # Example VLM/Embedding model
-NUM_SAMPLES = 100000
-EMBED_DIM = 4096
-NUM_LAYERS = 640
-BATCH_SIZE = 32
-STORAGE_DIR = "./ssd_embeddings"
-os.makedirs(STORAGE_DIR, exist_ok=True)
+logger = logging.getLogger("core")
 
-# 1. INITIALIZE MODEL
-print("Loading model to H200...")
-# H200 has 141GB, so we keep the model on GPU for maximum speed
-model = AutoModel.from_pretrained(MODEL_NAME, trust_remote_code=True).cuda().eval()
-# Note: Ensure your model's forward pass is configured to return all hidden states
-# e.g., output_hidden_states=True
+# Paths
+PROBE_DIR = SAVING_DIR / "probes"
 
-# 2. PRE-ALLOCATE SSD FILES (Memory Mapping)
-# This creates 640 "virtual" arrays on your SSD.
-mmaps = {}
-for i in range(NUM_LAYERS):
-    filename = os.path.join(STORAGE_DIR, f"layer_{i}.npy")
-    # mode='w+' initializes a zero-filled file of the exact final size
-    mmaps[i] = np.memmap(filename, dtype="float32", mode="w+", shape=(NUM_SAMPLES, EMBED_DIM))
+# ------------------------------------------------------------------------------
+# Online linear probing
+# ------------------------------------------------------------------------------
 
 
-def extract_and_save(dataloader):
-    """Loop over dataloader and stream each batch to SSD."""
-    current_idx = 0
+@torch.inference_mode()
+def get_embeddings(model: nn.Module, loader: DataLoader, cls_pooling: bool, device: str) -> tuple:
+    """
+    Recover embeddings after each component of a ViT model accross its layers.
 
-    with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Inference & SSD Streaming"):
-            inputs = {k: v.cuda() for k, v in batch.items()}
+    Parameters
+    ----------
+    model: nn.Module
+        Model to evaluate.
+    loader: DataLoader
+        DataLoader to use for evaluation.
+    cls_pooling: bool
+        Whether to pool the CLS token or do average pooling before the linear probing.
+    device: str
+        Device.
 
-            # Forward pass: request all hidden states
-            outputs = model(**inputs, output_hidden_states=True)
+    Returns
+    -------
+    metrics: dict
+        Dictionary of metrics containing evaluation accuracy and loss.
+    """
+    embeddings = {}
+    labels = []
+    model.eval()
 
-            # outputs.hidden_states is usually a tuple of length 640
-            all_layers = outputs.hidden_states
+    for x_batch, y_batch in tqdm(loader):
+        # Move to device
+        x_batch = x_batch.to(device=device)
+        y_batch = y_batch.to(device=device)
 
-            b_size = inputs["input_ids"].size(0)
-            end_idx = current_idx + b_size
+        # Recover probes
+        probes = model.get_probes(x_batch)
 
-            for i, layer_tensor in enumerate(all_layers):
-                # layer_tensor shape: [batch, seq_len, dim] -> we take mean or [CLS]
-                # Assuming you want the [CLS] token (index 0)
-                embeddings = layer_tensor[:, 0, :].cpu().numpy()
+        # Loop over components
+        for key in probes.keys():
+            # Pool CLS token or mean pooling
+            if cls_pooling:
+                emb = probes[key][:, 0, :]
+            else:
+                emb = probes[key].mean(axis=1)
 
-                # Write directly to the SSD-backed array
-                mmaps[i][current_idx:end_idx] = embeddings
+            # Recover embeddings
+            if key in embeddings:
+                embeddings[key].append(get_numpy(emb))
+            else:
+                embeddings[key] = [get_numpy(emb)]
 
-            current_idx = end_idx
+        # Recover labels
+        labels.append(get_numpy(y_batch))
 
-            # Periodically force disk write to prevent RAM caching
-            if current_idx % 1000 == 0:
-                for m in mmaps.values():
-                    m.flush()
+    # Concatenate
+    for key, value in embeddings.items():
+        value = np.concatenate(value)
+        value /= np.linalg.norm(value, axis=-1, keepdims=True)
+        embeddings[key] = value
 
-    print("Finished streaming all layers to SSD.")
+    labels = np.concatenate(labels)
 
-
-# 3. RUN LOGISTIC REGRESSION (Using cuML on H200)
-def run_classification(y_labels):
-    """Reads one layer at a time from SSD and trains on H200."""
-    y_gpu = torch.tensor(y_labels).cuda()
-    layer_results = {}
-
-    for i in range(NUM_LAYERS):
-        print(f"Training Layer {i}/640...")
-
-        # Load from SSD (This is instant because it's only a pointer)
-        filename = os.path.join(STORAGE_DIR, f"layer_{i}.npy")
-        X_mmap = np.memmap(filename, dtype="float32", mode="r", shape=(NUM_SAMPLES, EMBED_DIM))
-
-        # Move ONLY this layer to the H200 (1.6 GB)
-        X_gpu = torch.from_numpy(X_mmap).cuda()
-
-        # cuML Logistic Regression
-        clf = LogisticRegression(max_iter=1000)
-        clf.fit(X_gpu, y_gpu)
-
-        # Save weights back to CPU/Dictionary
-        layer_results[i] = clf.coef_.get()  # .get() moves to CPU numpy
-
-        # CRITICAL: Clear VRAM for the next layer
-        del X_gpu, clf
-        torch.cuda.empty_cache()
-
-    return layer_results
+    return embeddings, labels
 
 
-# --- EXECUTION ---
-# extract_and_save(my_dataloader)
-# results = run_classification(my_labels)
+def run_linear_probing(
+    model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, cls_pooling: bool, device: str, seed: int
+) -> dict[str, Any]:
+    r"""
+    Run evaluation and return a dictionary of metrics.
+
+    We note that the random state of the logistic regression is used only when
+    solver is among  'sag', 'saga' or 'liblinear' to shuffle the data.
+
+    Parameters
+    ----------
+    model: nn.Module
+        Model to evaluate.
+    loader: DataLoader
+        DataLoader to use for evaluation.
+    cls_pooling: bool
+        Whether to pool the CLS token or do average pooling before the linear probing.
+    device: str
+        Device.
+
+    Returns
+    -------
+    metrics: dict
+        Dictionary of metrics containing evaluation accuracy and loss.
+    """
+
+    # Embeddings
+    train_embeddings, train_labels = get_embeddings(
+        model=model, loader=train_loader, cls_pooling=cls_pooling, device=device
+    )
+    test_embeddings, test_labels = get_embeddings(
+        model=model, loader=test_loader, cls_pooling=cls_pooling, device=device
+    )
+
+    # Linear classifier
+    clf = make_pipeline(
+        StandardScaler(),
+        LogisticRegression(max_iter=5000, random_state=seed),
+    )
+
+    # Train and test
+    metrics = {}
+    for key in train_embeddings:
+        print(key)
+        clf.fit(train_embeddings[key], train_labels.ravel())
+        acc_test = clf.score(test_embeddings[key], test_labels.ravel())
+        metrics[key] = acc_test
+    return metrics
+
+
+# ------------------------------------------------------------------------------
+# Linear probing configuration
+# ------------------------------------------------------------------------------
+
+
+@dataclass
+class LinearProbingConfig:
+    r"""Linear probing config."""
+
+    # Experiment
+    log_dir: str = ""
+    checkpoint_step: str | None = None
+    finetuned: bool = True
+    cls_pooling: bool = False
+
+    # Data
+    dataset_name: str = "cifar10"
+    train_size: float = 0.8
+    batch_size: int = 512
+    val_batch_size: int = 512
+    test_batch_size: int = 512
+
+    # Device
+    device: str = DEVICE
+
+    # Reproducibility
+    seed: int = 42
+
+    # Orchestrator
+    logging_level: str = "INFO"
+
+    def __init__(self, **kwargs):
+        self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
+        self.__post_init__()
+
+    def __post_init__(self):
+        r"""
+        Set up the seed.
+        """
+        # Logging directory
+        self.log_dir = Path(self.log_dir)
+
+        # Reproducibility
+        if self.seed is None:
+            self.seed = 42
+
+
+# ------------------------------------------------------------------------------
+# Main linear probing function
+# ------------------------------------------------------------------------------
+
+
+def linear_probing(config: LinearProbingConfig) -> None:
+    r"""
+    Run the linear probing from the config file.
+
+    Parameters
+    ----------
+    config: LinearProbingConfig
+        Configuration file to setup the model, the dataloaders and the linear classifier.
+    """
+
+    with ExitStack() as context_stack:
+        # ---------------------------------------------------------------------
+        # Set up orchestrator to handle logging and utility for reproducibility
+        # ---------------------------------------------------------------------
+
+        orchestrator_config = {
+            "log_dir": config.log_dir,
+            "checkpoint_step": config.checkpoint_step,
+            "logging_level": config.logging_level,
+            "seed": config.seed,
+        }
+        orchestrator = build_eval_orchestrator(config=orchestrator_config)
+        utils = Utility(config=orchestrator["utility"])
+        context_stack.enter_context(utils)
+
+        # Recover configurations and checkpoint directory
+        exp_config = orchestrator["exp_config"]
+        checkpoint_dir = orchestrator["checkpoint_dir"]
+        with open(checkpoint_dir / "params.json") as f:
+            model_config = json.load(f)
+
+        # Model only pretrained on ImageNet-21k
+        if not config.finetuned:
+            model_config["pretrained"] = True
+            model_config["in21k"] = True
+
+        # ---------------------------------------------------------------------
+        # Build model and recover checkpoints
+        # ---------------------------------------------------------------------
+        logger.info("Building model.")
+        model = build_model(config=model_config, device=config.device, return_config=False)
+        logger.info("Done building model.")
+
+        # Load weights from finetuned model
+        if config.finetuned:
+            state_dict = {"model": model.state_dict()}
+            dcp.load(state_dict=state_dict, checkpoint_id=checkpoint_dir)
+            model.load_state_dict(state_dict["model"])
+
+        # ---------------------------------------------------------------------
+        # Build dataloader
+        # ---------------------------------------------------------------------
+        logger.info("Building dataloaders.")
+        loader_config = {
+            "dataset_name": config.dataset_name,
+            "batch_size": config.batch_size,
+            "val_batch_size": config.val_batch_size,
+            "size": exp_config["image_dim"][-1],
+        }
+        train_loader, val_loader, n_classes = build_train_val_loader(
+            config=loader_config, train_size=config.train_size, return_n_classes=True
+        )
+
+        test_loader_config = {
+            "dataset_name": config.dataset_name,
+            "batch_size": config.test_batch_size,
+            "mode": "test",
+            "size": exp_config["image_dim"][-1],
+        }
+        test_loader = build_loader(config=test_loader_config, drop_last=False)
+        logger.info("Done building dataloaders.")
+
+        # ---------------------------------------------------------------------
+        # Saving config
+        # ---------------------------------------------------------------------
+        if config.cls_pooling:
+            if config.finetuned:
+                save_dir = PROBE_DIR / f"{config.log_dir}_cls_pooling"
+            else:
+                save_dir = PROBE_DIR / f"vit_{config.dataset_name}_seed_{exp_config['seed']}_pretrained_cls_pooling"
+        else:
+            if config.finetuned:
+                save_dir = PROBE_DIR / config.log_dir
+            else:
+                save_dir = PROBE_DIR / f"vit_{config.dataset_name}_seed_{exp_config['seed']}_pretrained"
+
+        save_dir.mkdir(exist_ok=True, parents=True)
+        with open(save_dir / "config.json", "w") as f:
+            # JSON serializable alias
+            exp_config = json_serializable(asdict(config))
+            json.dump(exp_config, f, indent=4)
+
+        # ---------------------------------------------------------------------
+        # Linear probing
+        # ---------------------------------------------------------------------
+        metrics = run_linear_probing(
+            model=model,
+            train_loader=train_loader,
+            test_loader=test_loader,
+            cls_pooling=config.cls_pooling,
+            device=config.device,
+            seed=config.seed,
+        )
+        with open(save_dir / "linear_probing.json", "w") as f:
+            json.dump(metrics, f, indent=4)
+
+    logger.info("Linear probing done.")
+
+
+# %% Main
+def main() -> None:
+    r"""
+    Launch a linear probing job from a configuration file specified by cli argument.
+
+    The command line interface here uses OmegaConf
+    (see https://omegaconf.readthedocs.io/en/2.3_branch/usage.html#from-command-line-arguments).
+
+    The behavior here is as follows:
+    1. We instantiate the config file with its default values,
+    2. We override those default values with the ones in the provided config file,
+    3. We override the result with the additional arguments provided through command line.
+
+    Usage:
+    To launch a training according to your_config.yaml file, run:
+
+    ```bash
+    python -m apps.vit.linear_probing config=apps/vit/configs/your_config.yaml
+    ``
+
+    To overwrite some arguments via the cli, e.g., to set the device to cuda:0, run:
+
+    ```bash
+    python -m apps.vit.linear_probing config=apps/vit/configs/your_config.yaml device=cuda:0
+    ```
+    """
+    # Recover config from CLI
+    cli_args = OmegaConf.from_cli()
+    file_config = OmegaConf.load(cli_args.config)
+
+    # Remove 'config' attribute from config as the underlying dataclass does not have it
+    del cli_args.config
+
+    # Recover default config and merge all of them
+    default_config = OmegaConf.structured(LinearProbingConfig())
+    config = OmegaConf.merge(default_config, file_config, cli_args)
+    config = OmegaConf.to_object(config)
+
+    # Launch linear probing
+    linear_probing(config)
+
+
+# %% CLI
+if __name__ == "__main__":
+    main()
+# %%
