@@ -9,10 +9,16 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+import json
 import logging
+import os
 import types
 from dataclasses import fields, is_dataclass
+from pathlib import PosixPath
 from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
+
+import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +26,6 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 # Configuration type
 # -----------------------------------------------------------------------------
-
-
 def _build_dataclass(object_type: type, data: dict[str, Any]) -> Any:
     hints = get_type_hints(object_type)
     remaining = dict(data)
@@ -108,3 +112,79 @@ def build_with_type_check(object_type: type, data: Any) -> Any:
         return data
 
     return _build_primitive(object_type, data)
+
+
+# ------------------------------------------------------------------------------
+# JSONL loading utilities
+# ------------------------------------------------------------------------------
+def get_jsonl_keys(path: str, readall: bool = True) -> list[str]:
+    r"""
+    Get keys from a jsonl file.
+
+    Parameters
+    ----------
+    path: str
+        Path to the jsonl file.
+    readall: bool, defaul=True
+        Whether to read all lines of the file or the first one only.
+
+    Returns
+    -------
+    keys: list
+        List of keys in the jsonl file.
+    """
+    keys = set()
+    with open(os.path.expandvars(path)) as f:
+        for lineno, line in enumerate(f, start=1):
+            try:
+                keys |= json.loads(line).keys()
+            except json.JSONDecodeError as e:
+                logger.warning(f"Error reading line {lineno}: {e}")
+            if not readall:
+                break
+    return list(keys)
+
+
+def load_jsonl_to_numpy(path: str, keys: list[str] | None = None) -> dict[str, np.ndarray]:
+    r"""
+    Convert a jsonl file to a dictionnary of numpy array.
+
+    Parameters
+    ----------
+    path: str
+        Path to the jsonl file.
+    keys: list[str] | None, default=None
+        List of keys in the jsonl file.
+
+    Returns
+    -------
+    result_dict: dict[str, np.ndarray]
+        Dictionnary of numpy arrays containing the data from the jsonl file.
+    """
+    if keys is None:
+        keys = get_jsonl_keys(path, readall=True)
+
+    data: dict[str, list] = {key: [] for key in keys}
+    with open(os.path.expandvars(path)) as f:
+        # read jsonl as a csv with missing values
+        for lineno, line in enumerate(f, start=1):
+            try:
+                values: dict[str, Any] = json.loads(line)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Error reading line {lineno}: {e}")
+                continue
+            for key in keys:
+                data[key].append(values.get(key, None))
+    result_dict = {k: np.array(v) for k, v in data.items()}
+    return result_dict
+
+
+# ------------------------------------------------------------------------------
+# Object type
+# ------------------------------------------------------------------------------
+def json_serializable(object_dict: dict) -> dict:
+    r"""Convert dictionnary values in JSON serializable objects."""
+    for key, value in object_dict.items():
+        invalid_type = type(value) in [PosixPath, torch.device]
+        object_dict[key] = str(value) if invalid_type else value
+    return object_dict
