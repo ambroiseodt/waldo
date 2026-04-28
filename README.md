@@ -60,10 +60,10 @@ install the package for both running experiments and contributing to the codebas
 
 ```bash
 # Run all experiments (requires NVIDIA GPU + CUDA)
-pip install -e ".[experiments]" --extra-index-url https://pypi.nvidia.com
+pip install -e ".[exps]" --extra-index-url https://pypi.nvidia.com
 
 # Run experiments and plot results
-pip install -e ".[experiments,figures]" --extra-index-url https://pypi.nvidia.com
+pip install -e ".[exps,figs]" --extra-index-url https://pypi.nvidia.com
 
 # Contribute to the codebase (no GPU needed)
 pip install -e ".[dev]"
