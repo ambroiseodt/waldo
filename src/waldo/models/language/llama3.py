@@ -176,6 +176,10 @@ class Llama3(BaseLanguageModel):
     r"""
     Llama3 language model following [1]_.
 
+    By default, the probing is done on the output of the final transformer block.
+    Set he layer and module to probe with set_probing(layer: int, module: str).
+    See base.py for more details.
+
     Parameters
     ----------
     config: configuration class with

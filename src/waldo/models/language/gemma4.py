@@ -176,6 +176,10 @@ class Gemma4(BaseLanguageModel):
     r"""
     Gemma4 language model following [1]_.
 
+    By default, the probing is done on the output of the final transformer block.
+    Set he layer and module to probe with set_probing(layer: int, module: str).
+    See base.py for more details.
+
     Parameters
     ----------
     config: Gemma4Config
