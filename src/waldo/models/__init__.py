@@ -51,7 +51,9 @@ _multimodal = [
     "Siglip2Config",
 ]
 
-__all__ = list(_vision) + list(_language) + list(_multimodal)  # type: ignore
+_utils = ["build_model"]
+
+__all__ = list(_vision) + list(_language) + list(_multimodal) + list(_utils)  # type: ignore
 
 
 def __dir__():
@@ -65,4 +67,6 @@ def __getattr__(name: str) -> Any:
         return getattr(importlib.import_module("waldo.models.language"), name)
     if name in _multimodal:
         return getattr(importlib.import_module("waldo.models.multimodal"), name)
+    if name in _utils:
+        return getattr(importlib.import_module("waldo.models.utils"), name)
     raise AttributeError(f"module 'waldo.models' has no attribute {name!r}")
