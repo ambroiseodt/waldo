@@ -25,11 +25,10 @@ from torchvision.transforms import (
 
 from ...utils import build_with_type_check
 
+
 # ------------------------------------------------------------------------------
 #   Dataset
 # ------------------------------------------------------------------------------
-
-
 def deterministic_split(data: np.ndarray, train_size: float = 0.8, train: bool = True) -> np.ndarray:
     r"""
     Create a deterministic split of the original data.
@@ -191,8 +190,6 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
 # ------------------------------------------------------------------------------
 # Data preprocessing
 # ------------------------------------------------------------------------------
-
-
 def build_transform(resolution: int, transform_type: str) -> Compose:
     r"""
     Image preprocessing following [1]_.
@@ -269,8 +266,6 @@ def build_transform(resolution: int, transform_type: str) -> Compose:
 # ------------------------------------------------------------------------------
 #   Dataloader
 # ------------------------------------------------------------------------------
-
-
 def _worker_init_fn(worker_id: int) -> None:
     r"""
     Fix the number of threads used by each worker to 1 to avoid unnecessary parallelization.
