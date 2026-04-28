@@ -176,7 +176,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         self.model: PreTrainedModel
         self.tokenizer: PreTrainedTokenizerBase
 
-        # Default probe on the final output
+        # Default probing done on the final output
         self.layer: int = -1
         self.module: str = "rc2"
 
@@ -500,7 +500,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
             embeddings2 = torch.from_numpy(embeddings2)
         return F.cosine_similarity(embeddings1, embeddings2, dim=-1)
 
-    def set_probe(self, layer: int | None, module: str | None) -> None:
+    def set_probing(self, layer: int | None, module: str | None) -> None:
         r"""
         Set the layer and module to probe for embedding extraction.
 
