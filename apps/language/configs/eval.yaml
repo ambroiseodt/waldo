@@ -4,7 +4,7 @@ model_size: "1b"
 
 # Probe
 layers: [-1]
-modules:  ["rc2"]
+modules:  ["all"] #["rc2"]
 
 # Data
 benchmark_name: "Multilingual"

@@ -18,6 +18,7 @@ from omegaconf import OmegaConf
 from waldo.config import DEVICE, SAVING_DIR, set_seed
 from waldo.data import build_mteb
 from waldo.models import build_model
+from waldo.models.transformer_block import TRANSFORMER_MODULES
 
 logger = logging.getLogger("waldo")
 
@@ -36,7 +37,7 @@ class EvaluationConfig:
     model_size: str = "1b"
 
     # Probing
-    layers: list[int] = field(default_factory=lambda: [-1])
+    layers: list[int | str] = field(default_factory=lambda: [-1])
     modules: list[str] = field(default_factory=lambda: ["rc2"])
 
     # Data
@@ -103,15 +104,24 @@ def eval(config: EvaluationConfig) -> None:
     )
 
     # ---------------------------------------------------------------------
-    # Run evaluation  and set probes to obtain the sentence embedding
+    # Run evaluation  with the defined probes to obtain the sentence embedding
     # ---------------------------------------------------------------------
     cache_path = RUN_DIR / "mteb" / model.model_name
 
+    # Recover layers and modules with a condition to select all of them
+    layers = config.layers
+    if layers == ["all"]:
+        layers = range(model.n_layers)
+    modules = config.modules
+    if modules == ["all"]:
+        modules = TRANSFORMER_MODULES
+
     # Loop over layers and modules to probe to embed sentences
-    for layer in config.layers:
-        for module in config.modules:
+    for layer in layers:
+        for module in modules:
             model.set_probing(layer=layer, module=module)
             mteb_benchmark.evaluate(model=model, cache_path=cache_path)
+
     logger.info("Evaluation done.")
 
 
