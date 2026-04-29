@@ -282,7 +282,7 @@ def _worker_init_fn(worker_id: int) -> None:
 
 def build_loader(
     config: dict[str, Any],
-    num_workers: int = 8,
+    n_workers: int = 8,
     return_n_classes: bool = False,
 ) -> DataLoader | tuple[DataLoader, int]:
     r"""
@@ -292,7 +292,7 @@ def build_loader(
     ----------
     config: dict
         Dictionary containing the configuration details.
-    num_workers: int, default=8
+    n_workers: int, default=8
         The number of workers to use for data loading.
     return_n_classes: bool, default=False
         Whether to return the number of classes in the dataset.
@@ -304,10 +304,10 @@ def build_loader(
 
     Notes
     -----
-    Loading data can be slow if the num_workers variable is not properly set. The default value is set to 8 based on
+    Loading data can be slow if the n_workers variable is not properly set. The default value is set to 8 based on
     empirical benchmarking on our datasets. Despite light augmentations, multiple workers improve throughput due to
     I/O parallelism when reading from disk. OMP_NUM_THREADS is set to 1 per worker via worker_init_fn to prevent thread
-    contention: if num_workers > 0, each worker spawns its own OpenMP threads, leading to num_workers x OMP_NUM_THREADS
+    contention: if n_workers > 0, each worker spawns its own OpenMP threads, leading to n_workers x OMP_NUM_THREADS
     competing threads. Restricting workers to a single thread avoids this while leaving the main process thread budget
     untouched for model training. This follows the protocol of https://github.com/facebookresearch/lingua.
     """
@@ -330,7 +330,7 @@ def build_loader(
         batch_size=batch_size,
         shuffle=shuffle,
         worker_init_fn=_worker_init_fn,
-        num_workers=num_workers,
+        num_workers=n_workers,
         pin_memory=True,
     )
 
