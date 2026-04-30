@@ -111,6 +111,37 @@ def eval(config: EvaluationConfig) -> None:
     # Run evaluation
     # ---------------------------------------------------------------------
 
+    # if config.cls_pooling:
+    #     if config.finetuned:
+    #         save_dir = PROBE_DIR / f"{config.log_dir}_cls_pooling"
+    #     else:
+    #         save_dir = PROBE_DIR / f"vit_{config.dataset_name}_seed_{exp_config['seed']}_pretrained_cls_pooling"
+    # else:
+    #     if config.finetuned:
+    #         save_dir = PROBE_DIR / config.log_dir
+    #     else:
+    #         save_dir = PROBE_DIR / f"vit_{config.dataset_name}_seed_{exp_config['seed']}_pretrained"
+
+    # save_dir.mkdir(exist_ok=True, parents=True)
+    # with open(save_dir / "config.json", "w") as f:
+    #     # JSON serializable alias
+    #     exp_config = json_serializable(asdict(config))
+    #     json.dump(exp_config, f, indent=4)
+
+    # # ---------------------------------------------------------------------
+    # # Linear probing
+    # # ---------------------------------------------------------------------
+    # metrics = run_linear_probing(
+    #     model=model,
+    #     train_loader=train_loader,
+    #     test_loader=test_loader,
+    #     cls_pooling=config.cls_pooling,
+    #     device=config.device,
+    #     seed=config.seed,
+    # )
+    # with open(save_dir / "linear_probing.json", "w") as f:
+    #     json.dump(metrics, f, indent=4)
+
     logger.info("Evaluation done.")
 
 
