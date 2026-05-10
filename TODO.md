@@ -133,4 +133,5 @@
     - https://arxiv.org/pdf/2505.22785 on the dynamics of neural networks latent space
 
 - Nice plots and organization:
-    - https://arxiv.org/pdf/2502.08606
+    - https://arxiv.org/pdf/2502.08606 (scaling laws)
+    - https://arxiv.org/pdf/2605.01188 (scaling laws)
