@@ -331,8 +331,6 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
             if self.module not in TRANSFORMER_MODULES:
                 raise ValueError(f"Invalid module '{self.module}'. Options are {TRANSFORMER_MODULES}.")
 
-        logging.info(f"Probing layer {self.layer} and module {self.module} for hidden state extraction.")
-
         # Recover embedding from the specified layer and module
         key = f"block_{self.layer}_{self.module}"
         adapter = self.block_adapter(self.blocks[self.layer])
