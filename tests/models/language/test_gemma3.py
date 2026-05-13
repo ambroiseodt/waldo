@@ -158,12 +158,12 @@ class TestGemma3Model:
         self, mock_gemma3_model: Gemma3, input_ids: torch.Tensor, attention_mask: torch.Tensor
     ) -> None:
         r"""Probing a pre-hook module (like 'rc1') should successfully return hidden states."""
-        mock_gemma3_model.set_probe(layer=0, module="rc1")
+        mock_gemma3_model.set_probing(layer=0, module="rc1")
         hidden_states = mock_gemma3_model._get_hidden_states(input_ids, attention_mask)
         assert hidden_states.shape == (BATCH_SIZE, SEQ_LEN, HIDDEN_SIZE)
 
     def test_mteb_meta_name_format(self, mock_gemma3_model: Gemma3) -> None:
         r"""MTEB metadata name should correctly reflect the current probe state."""
-        mock_gemma3_model.set_probe(layer=1, module="mha")
+        mock_gemma3_model.set_probing(layer=1, module="mha")
         meta = mock_gemma3_model.mteb_model_meta
         assert "layer_1_module_mha" in str(meta.name)
