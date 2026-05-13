@@ -10,7 +10,6 @@ in the root directory of this source tree.
 """
 
 import logging
-import sys
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -21,13 +20,9 @@ from waldo.data import build_mteb
 from waldo.models import build_model
 from waldo.models.transformer_block import TRANSFORMER_MODULES
 
+from ..utils import setup_logging
+
 # Logger setup
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-    force=True,
-)
 logger = logging.getLogger("waldo.eval")
 
 # Paths
@@ -190,6 +185,9 @@ def main() -> None:
     python -m apps.language.eval config=apps/language/configs/your_config.yaml device=cuda:0
     ```
     """
+    # Logger setup
+    setup_logging()
+
     # Recover config from CLI
     cli_args = OmegaConf.from_cli()
     file_config = OmegaConf.load(cli_args.config)

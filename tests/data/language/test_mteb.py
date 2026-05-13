@@ -13,7 +13,7 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
-from waldo.data.language.mteb import MTEB, MTEBConfig, build_mteb
+from waldo.data import MTEB, MTEBConfig, build_mteb
 
 
 def make_mock_task(
