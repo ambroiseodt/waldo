@@ -1,5 +1,5 @@
 r"""
-Utils functions to build dataloaders.
+Utils functions to build computer vision dataloaders.
 
 License
 -------
