@@ -15,13 +15,10 @@ in the root directory of this source tree.
 
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any
 
 import mteb
 from mteb.results import ModelResult
 from sentence_transformers import SentenceTransformer
-
-from ...utils import build_with_type_check
 
 
 # ------------------------------------------------------------------------------
@@ -155,6 +152,7 @@ class MTEB:
                         reduced_tasks.append(task)
             tasks = reduced_tasks
 
+        tasks = mteb.get_tasks(tasks=["ItaCaseholdClassification"])
         return tasks
 
     @property
@@ -168,29 +166,3 @@ class MTEB:
     @property
     def languages(self) -> set[str]:
         return {lang for task in self.tasks for lang in (task.metadata.languages or [])}
-
-
-# ------------------------------------------------------------------------------
-#   Build MTEB
-# ------------------------------------------------------------------------------
-def build_mteb(
-    config: dict[str, Any],
-) -> MTEB:
-    r"""
-    Build dataloader with optimized parallelism settings.
-
-    Parameters
-    ----------
-    config: dict
-        Dictionary containing the configuration details.
-
-    Returns
-    -------
-    benchmark: MTEB
-        An instance of the specified MTEB benchmark.
-    """
-
-    config_obj = build_with_type_check(MTEBConfig, config)
-    benchmark = MTEB(config_obj)
-
-    return benchmark

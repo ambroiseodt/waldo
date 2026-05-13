@@ -10,6 +10,7 @@ in the root directory of this source tree.
 """
 
 import logging
+import sys
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -20,8 +21,16 @@ from waldo.data import build_mteb
 from waldo.models import build_model
 from waldo.models.transformer_block import TRANSFORMER_MODULES
 
-logger = logging.getLogger("waldo")
+# Logger setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
+logger = logging.getLogger("waldo.eval")
 
+# Paths
 RUN_DIR = SAVING_DIR / "runs"
 
 
@@ -99,9 +108,38 @@ def eval(config: EvaluationConfig) -> None:
     }
     mteb_benchmark = build_mteb(config=mteb_config)
     logger.info(
-        f"Done building MTEB benchmark with {mteb_benchmark.n_tasks} tasks, {mteb_benchmark.domains} domains",
-        f" and {mteb_benchmark.languages} languages",
+        f"Done building MTEB benchmark with {mteb_benchmark.n_tasks} tasks, {len(mteb_benchmark.domains)} domains, "
+        f"and {len(mteb_benchmark.languages)} languages"
     )
+
+    # --- DIAGNOSTIC CHECK ---
+    print("\n" + "=" * 50)
+    print("RUNNING POST-PATCH DIAGNOSTICS")
+    print("=" * 50)
+
+    for task in mteb_benchmark.tasks:
+        # Use __class__.__name__ since 'description' attribute is missing
+        class_name = task.__class__.__name__
+
+        if "ItaCaseholdClassification" in class_name:
+            print(f"Checking Task: {class_name}")
+            try:
+                # Trigger the patched load_data
+                test_ds = task.load_data()
+                # Get first available split
+                s_name = list(test_ds.keys())[0]
+                cols = test_ds[s_name].column_names
+                print(f"  Split: {s_name}")
+                print(f"  Columns Found: {cols}")
+
+                if "summary" in cols and "materia" in cols:
+                    print("  RESULT: SUCCESS - Columns are mapped correctly.")
+                else:
+                    print("  RESULT: FAILED - Columns are still incorrect.")
+            except Exception as e:
+                print(f"  RESULT: ERROR during load - {e}")
+
+    print("=" * 50 + "\n")
 
     # ---------------------------------------------------------------------
     # Run evaluation  with the defined probes to obtain the sentence embedding
@@ -119,6 +157,7 @@ def eval(config: EvaluationConfig) -> None:
     # Loop over layers and modules to probe to embed sentences
     for layer in layers:
         for module in modules:
+            logging.info(f"Probing layer {layer} and module {module} for hidden state extraction.")
             model.set_probing(layer=layer, module=module)
             mteb_benchmark.evaluate(model=model, cache_path=cache_path)
 
