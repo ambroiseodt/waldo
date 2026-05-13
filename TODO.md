@@ -131,7 +131,7 @@
     - Thomas Fel [papers](https://scholar.google.com/citations?hl=en&user=_Rsjt9kAAAAJ&view_op=list_works&sortby=pubdate) on interpretability of vision-language models
     - [The platonic representation hypothesis](https://arxiv.org/pdf/2405.079870)
     - https://arxiv.org/pdf/2505.22785 on the dynamics of neural networks latent space
-
+    - https://arxiv.org/pdf/2604.09885 work on probing LLMs and VLMs to understand what they "know". Might be interesting in the writing
 - Nice plots and organization:
     - https://arxiv.org/pdf/2502.08606 (scaling laws)
     - https://arxiv.org/pdf/2605.01188 (scaling laws)
