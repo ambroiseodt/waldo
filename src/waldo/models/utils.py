@@ -20,6 +20,25 @@ from ..utils import build_with_type_check
 
 
 # -------------------------------------------------------------------
+#   Gated activation wrapper
+# -------------------------------------------------------------------
+class SwiGLUGateProjection(nn.Module):
+    r"""
+    Wraps a linear layer and returns only the first half of its output.
+    It can be used to recover the gate projection of the Dinov2 SwiGLU feedforward network.
+    """
+
+    def __init__(self, linear: nn.Linear):
+        super().__init__()
+        self.linear = linear
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.linear(x)
+        x1, _ = out.chunk(2, dim=-1)
+        return x1
+
+
+# -------------------------------------------------------------------
 #   Pooling
 # -------------------------------------------------------------------
 def mean_pooling(
