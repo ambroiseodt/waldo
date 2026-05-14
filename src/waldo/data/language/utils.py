@@ -42,7 +42,7 @@ def standardize_task_format(mteb_benchmark: MTEB) -> None:
 
     Notes
     -----
-    This patch is temporary and might become obsolete in newer versions of the MTEB library.
+    This patch solves an issue occuring with MTEB 2.10.4 and might become obsolete in future versions.
     """
     # Loop over tasks
     for task in mteb_benchmark.tasks:
@@ -97,7 +97,7 @@ def build_mteb(
     config: dict[str, Any],
 ) -> MTEB:
     r"""
-    Build dataloader with optimized parallelism settings.
+    Build MTEB benchmark.
 
     Parameters
     ----------
