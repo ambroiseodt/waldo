@@ -1,5 +1,5 @@
 r"""
-Utils functions to build the MTEb benchmark.
+Utils functions to build the MTEB benchmark.
 
 License
 -------
@@ -10,6 +10,7 @@ in the root directory of this source tree.
 """
 
 import logging
+from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
@@ -20,57 +21,70 @@ from .mteb import MTEB, MTEBConfig
 
 logger = logging.getLogger(__name__)
 
-import logging
 
-logger = logging.getLogger(__name__)
+# ------------------------------------------------------------------------------
+#   Standardize dataset format
+# ------------------------------------------------------------------------------
+def standardize_task_format(mteb_benchmark: MTEB) -> None:
+    r"""
+    Ensure standard dataset format for MTEB tasks.
 
+    There is a mismatch between the expected column names in MTEB evaluate function and the
+    actual column names in some datasets hosted on HuggingFace which causes the following error:
 
-def valid_task_format(mteb_benchmark):
+    ```
+    Original column names {'materia', 'summary'} not in the dataset.
+    Current columns in the dataset: ['text', 'label']
+    ```
+
+    We bypass this issue by checking for the expected format and if not found, we manually load data
+    from Hugging Face and forces the expected column schema (summary, materia, label).
+
+    Notes
+    -----
+    This patch is temporary and might become obsolete in newer versions of the MTEB library.
     """
-    Standardizes dataset format for MTEB tasks by bypassing broken load_data methods.
-
-    This function intercepts the 'load_data' call. Instead of letting the
-    broken MTEB task logic fail, it manually loads the dataset from Hugging Face
-    and forces the expected column schema (summary, materia, label).
-    """
+    # Loop over tasks
     for task in mteb_benchmark.tasks:
-        class_name = task.__class__.__name__
+        name = task.__class__.__name__
+        load_data = task.load_data
+        path = task.metadata.dataset.get("path")
 
-        # We wrap the load_data method
-        original_load_data = task.load_data
-
-        @wraps(original_load_data)
-        def patched_load_data(*args, **kwargs):
+        # Wrap the load_data method
+        @wraps(load_data)
+        def patched_load_data(
+            *args, _func: Callable[..., Any] = load_data, _name: str = name, _path: str = path, **kwargs
+        ):
+            # Try loading data
             try:
-                # First, try to load normally in case it's already fixed in library
-                return original_load_data(*args, **kwargs)
-            except ValueError as e:
-                # If we hit the specific column name error, we manually intervene
-                if "Original column names" in str(e):
-                    logger.info(f"Intervening on {class_name}: Manually loading and formatting dataset.")
+                return _func(*args, **kwargs)
 
-                    # 1. Get the dataset path from the task metadata
-                    # Most tasks store the path in self.metadata.dataset['path']
-                    # or it can be inferred from class name
-                    path = "mteb/ItaCaseholdClassification"  # Targeted fix for the known broken path
+            # If there is a column name error, load manually and fix the issue
+            except ValueError as error:
+                prefix = "Original column names {'materia', 'summary'} not in the dataset."
+                if prefix in str(error):
+                    logger.info(f"Manually loading and formatting dataset on task {_name}")
 
-                    # 2. Manual Load
-                    ds = datasets.load_dataset(path)
+                    # Load dataset from Hugging Face
+                    dataset = datasets.load_dataset(_path)
 
-                    # 3. Structural Fix
-                    for split in ds.keys():
-                        cols = ds[split].column_names
-                        # Map text -> summary
-                        if "text" in cols and "summary" not in cols:
-                            ds[split] = ds[split].rename_column("text", "summary")
-                        # Add dummy materia
-                        if "materia" not in ds[split].column_names:
-                            ds[split] = ds[split].add_column("materia", [""] * len(ds[split]))
+                    # Fix column names
+                    for split in dataset.keys():
+                        columns = dataset[split].column_names
 
-                    return ds
+                        # Map text column to summary column
+                        if "text" in columns and "summary" not in columns:
+                            dataset[split] = dataset[split].rename_column("text", "summary")
+
+                        # Add an empty materia column
+                        if "materia" not in dataset[split].column_names:
+                            dataset[split] = dataset[split].add_column("materia", [""] * len(dataset[split]))
+
+                    return dataset
+
+                # If it is an unrelated error, we raise it again
                 else:
-                    # Reraise if it's an unrelated error
-                    raise e
+                    raise error
 
         # Apply the patch to the instance
         task.load_data = patched_load_data
@@ -98,6 +112,6 @@ def build_mteb(
 
     config_obj = build_with_type_check(MTEBConfig, config)
     benchmark = MTEB(config_obj)
-    valid_task_format(benchmark)
+    standardize_task_format(benchmark)
 
     return benchmark
