@@ -7,69 +7,64 @@
 # $ bash <path_to_file_folder>/eval.sh
 # ```
 
-# Define layers and modules to probe
-layers="['all']"
-modules="['all']"
+# Gemma3
+model_name="gemma3"
+device="cuda:2"
 
+# Runs
+for model_size in \
+    "1b" \
+    # "4b" \
+    # "12b" \
+    # "27b" 
+do
+    session="eval_${model_name}_${model_size}"
+    tmux new-session -d -s ${session}
+    run="model_size=${model_size} device=${device}"
+    command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+    echo "Running command: ${command}"
+    tmux send-keys -t ${session} "${command}" C-m
+done
 
-# # Gemma3
-# model_name="gemma3"
-# device="cuda:2"
+# Gemma4
+model_name="gemma4"
+device="cuda:4"
 
-# # Runs
-# for model_size in \
-#     "1b" \
-#     # "4b" \
-#     # "12b" \
-#     # "27b" 
-# do
-#     session="eval_${model_name}_${model_size}"
-#     tmux new-session -d -s ${session}
-#     run="model_name=${model_name} model_size=${model_size} layers=${layers} modules=${modules} device=${device}"
-#     command="python -m apps.language.eval config=apps/language/configs/eval.yaml ${run}"
-#     echo "Running command: ${command}"
-#     tmux send-keys -t ${session} "${command}" C-m
-# done
+# Runs
+for model_size in \
+    "E2B"\
+    # "E4B" \
+    # "31B" 
+do
+    session="eval_${model_name}_${model_size}"
+    tmux new-session -d -s ${session}
+    run="model_size=${model_size} device=${device}"
+    command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+    echo "Running command: ${command}"
+    tmux send-keys -t ${session} "${command}" C-m
+done
 
-# # # Gemma4
-# # model_name="gemma4"
-# # device="cuda:4"
+# Llama3
+model_name="llama3"
+device="cuda:5"
 
-# # # Runs
-# # for model_size in \
-# #     "E2B"\
-# #     "E4B" \
-# #     "31B" 
-# # do
-# #     session="eval_${model_name}_${model_size}"
-# #     tmux new-session -d -s ${session}
-# #     run="model_name=${model_name} model_size=${model_size} layers=${layers} modules=${modules} device=${device}"
-# #     command="python -m apps.language.eval config=apps/language/configs/eval.yaml ${run}"
-# #     echo "Running command: ${command}"
-# #     tmux send-keys -t ${session} "${command}" C-m
-# # done
-
-# # Llama3
-# model_name="llama3"
-# device="cuda:4"
-
-# # Runs
-# for model_size in \
-#     "1B"\
-#     # "3B"\
-#     # "8B"
-# do
-#     session="eval_${model_name}_${model_size}"
-#     tmux new-session -d -s ${session}
-#     run="model_name=${model_name} model_size=${model_size} layers=${layers} modules=${modules} device=${device}"
-#     command="python -m apps.language.eval config=apps/language/configs/eval.yaml ${run}"
-#     echo "Running command: ${command}"
-#     tmux send-keys -t ${session} "${command}" C-m
-# done
+# Runs
+for model_size in \
+    "1B"\
+    # "3B"\
+    # "8B"
+do
+    session="eval_${model_name}_${model_size}"
+    tmux new-session -d -s ${session}
+    run="model_size=${model_size} device=${device}"
+    command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+    echo "Running command: ${command}"
+    tmux send-keys -t ${session} "${command}" C-m
+done
 
 # Qwen3
 model_name="qwen3"
-device="cuda:5"
+device="cuda:6"
 
 # Runs
 for model_size in \
@@ -84,8 +79,8 @@ do
     clean_size=$(echo ${model_size} | tr '.' '_')
     session="eval_${model_name}_${clean_size}"
     tmux new-session -d -s ${session}
-    run="model_name=${model_name} model_size=${model_size} layers=${layers} modules=${modules} device=${device}"
-    command="python -m apps.language.eval config=apps/language/configs/eval.yaml ${run}"
+    run="model_size=${model_size} device=${device}"
+    command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m
 done
