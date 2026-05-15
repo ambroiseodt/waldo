@@ -48,6 +48,7 @@ class EvaluationConfig:
     benchmark_name: str = "Multilingual"
     task_type: str = "Classification"
     max_n_docs: int | None = 8192
+    batch_size: int = 32
 
     # Device
     device: str = DEVICE
@@ -100,6 +101,7 @@ def eval(config: EvaluationConfig) -> None:
         "benchmark_name": config.benchmark_name,
         "task_type": config.task_type,
         "max_n_docs": config.max_n_docs,
+        "batch_size": config.batch_size,
     }
     mteb_benchmark = build_mteb(config=mteb_config)
     logger.info(
