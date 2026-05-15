@@ -1,0 +1,19 @@
+# Model
+model_name: "gemma4"
+model_size: "E2B"
+
+# Probe
+layers: ["all"]
+modules:  ["all"]
+
+# Data
+benchmark_name: "Multilingual"
+task_type: "Classification"
+max_n_docs: 8192
+batch_size: 32
+
+# Device
+device: "cuda:4"
+
+# Reproducibility
+seed: 42

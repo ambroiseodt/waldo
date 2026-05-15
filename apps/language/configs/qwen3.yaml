@@ -1,0 +1,19 @@
+# Model
+model_name: "qwen3"
+model_size: "0.6B"
+
+# Probe
+layers: ["all"]
+modules:  ["all"]
+
+# Data
+benchmark_name: "Multilingual"
+task_type: "Classification"
+max_n_docs: 8192
+batch_size: 4
+
+# Device
+device: "cuda:4"
+
+# Reproducibility
+seed: 42
