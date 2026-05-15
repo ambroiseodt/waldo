@@ -58,7 +58,7 @@ class Llama3Config:
     Parameters
     ----------
     model_size: str
-        Size of the model. Options are "3.2-1B", "3.2-3B", "3.1-8B", "3.1-70B".
+        Size of the model. Options are "1B", "3B", "8B", "70B".
     dtype: torch.dtype
         Dtype to load the model weights in. Defaults to bfloat16 since Llama3 was
         pretrained in bfloat16, which halves memory footprint vs float32 with no
@@ -68,7 +68,7 @@ class Llama3Config:
         Device to use.
     """
 
-    model_size: str = "3.2-1B"
+    model_size: str = "1B"
     dtype: torch.dtype = torch.bfloat16
     device: str = "cpu"
 
@@ -77,10 +77,8 @@ class Llama3Config:
         self.__post_init__()
 
     def __post_init__(self):
-        if self.model_size not in ["3.2-1B", "3.2-3B", "3.1-8B", "3.1-70B"]:
-            raise ValueError(
-                f"Invalid model size '{self.model_size}'. Options are '3.2-1B], '3.2-3B', '3.1-8B', '3.1-70B'."
-            )
+        if self.model_size not in ["1B", "3B", "8B", "70B"]:
+            raise ValueError(f"Invalid model size '{self.model_size}'. Options are '1B', '3B', '8B', '70B'.")
 
 
 # -------------------------------------------------------------------
@@ -184,7 +182,7 @@ class Llama3(BaseLanguageModel):
     ----------
     config: configuration class with
         model_size: str
-            Size of the model. Options are "3.2-1B", "3.2-3B", "3.1-8B", "3.1-70B".
+            Size of the model. Options are "1B", "3B", "8B", "70B".
         dtype: torch.dtype
             Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
             pretrained in bfloat16, which halves memory footprint vs float32 with no
@@ -208,7 +206,8 @@ class Llama3(BaseLanguageModel):
     def __init__(self, config: Llama3Config):
         super().__init__()
         self.device = config.device
-        self.model_name = f"meta-llama/Llama-{config.model_size.upper()}"
+        version = "3.2" if config.model_size in ["1B", "3B"] else "3.1"
+        self.model_name = f"meta-llama/Llama-{version}-{config.model_size.upper()}"
         self.dtype = config.dtype
         self.model = self._load_model(model_name=self.model_name, dtype=self.dtype, device=self.device)
         self.tokenizer = self._load_tokenizer(model_name=self.model_name)
