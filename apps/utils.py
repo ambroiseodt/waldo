@@ -1,5 +1,5 @@
 r"""
-Utils functions to launch linear probing experiments.
+Utils functions to launch experiments.
 
 License
 -------
