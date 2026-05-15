@@ -152,7 +152,6 @@ class MTEB:
                         reduced_tasks.append(task)
             tasks = reduced_tasks
 
-        # tasks = mteb.get_tasks(tasks=["ItaCaseholdClassification"])
         return tasks
 
     @property
