@@ -69,7 +69,7 @@ pip install -e ".[exps,figs]" --extra-index-url https://pypi.nvidia.com
 pip install -e ".[dev]"
 
 # Full setup
-pip install -e ".[experiments,figures,dev]" --extra-index-url https://pypi.nvidia.com
+pip install -e ".[exps,figs,dev]" --extra-index-url https://pypi.nvidia.com
 ```
 
 > [!NOTE]
