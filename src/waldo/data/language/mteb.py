@@ -13,12 +13,19 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, wraps
+from typing import Any
 
 import mteb
 from mteb.results import ModelResult
 from sentence_transformers import SentenceTransformer
+
+import datasets
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------------------
@@ -121,6 +128,75 @@ class MTEB:
         self.task_type = config.task_type
         self.max_n_docs = config.max_n_docs
 
+    def _standardize_task_format(self, tasks: list) -> list:
+        r"""
+        Ensure standard dataset format for MTEB tasks.
+
+        There is a mismatch between the expected column names in MTEB evaluate function and the
+        actual column names in some datasets hosted on HuggingFace which causes the following error:
+
+        ```
+        Original column names {'materia', 'summary'} not in the dataset.
+        Current columns in the dataset: ['text', 'label']
+        ```
+
+        This error occurs for the ItaCaseholdClassification tasks. We bypass this issue by manually loading
+        this dataset from Hugging Face and forcing the expected column schema (summary, materia, label).
+
+        Parameters
+        ----------
+        tasks: list
+            List of MTEB tasks.
+
+        Returns
+        -------
+        standardized_tasks: list
+            List of MTEB tasks with standardized format.
+
+        Notes
+        -----
+        This patch solves an issue occuring with MTEB 2.10.4 and might become obsolete in future versions.
+        """
+        # Loop over tasks
+        standardized_tasks = []
+        for task in tasks:
+            name = task.__class__.__name__
+            if name in ["ItaCaseholdClassification"]:
+                load_data = task.load_data
+                path = task.metadata.dataset.get("path")
+
+                # Wrap the load_data method
+                @wraps(load_data)
+                def patched_load_data(
+                    *args, _func: Callable[..., Any] = load_data, _name: str = name, _path: str = path, **kwargs
+                ):
+                    logger.info(f"Manually loading and formatting dataset on task {_name}")
+
+                    # Load dataset from Hugging Face
+                    dataset = datasets.load_dataset(_path)
+
+                    # Fix column names
+                    for split in dataset.keys():
+                        columns = dataset[split].column_names
+
+                        # Map text column to summary column
+                        if "text" in columns and "summary" not in columns:
+                            dataset[split] = dataset[split].rename_column("text", "summary")
+
+                        # Add an empty materia column
+                        if "materia" not in dataset[split].column_names:
+                            dataset[split] = dataset[split].add_column("materia", [""] * len(dataset[split]))
+
+                    return dataset
+
+                # Apply the patch to the instance
+                task.load_data = patched_load_data
+
+            # Add task to standardized tasks
+            standardized_tasks.append(task)
+
+        return standardized_tasks
+
     def evaluate(self, model: SentenceTransformer, cache_path: str) -> ModelResult:
         cache = mteb.ResultCache(cache_path=cache_path)
         return mteb.evaluate(model, tasks=self.tasks, cache=cache)
@@ -151,6 +227,9 @@ class MTEB:
                     if max(train_n_docs, test_n_docs) <= self.max_n_docs:
                         reduced_tasks.append(task)
             tasks = reduced_tasks
+
+        # Ensure valid task format
+        tasks = self._standardize_task_format(tasks)
 
         return tasks
 

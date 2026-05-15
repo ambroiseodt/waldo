@@ -223,6 +223,7 @@ class Qwen3(BaseLanguageModel):
         model_name: str
             Name of the model. Options are:
                 "Qwen/Qwen3-0.6B",
+                "Qwen/Qwen3-1.7B",
                 "Qwen/Qwen3-4B",
                 "Qwen/Qwen3-8B",
                 "Qwen/Qwen3-14B",
@@ -243,6 +244,7 @@ class Qwen3(BaseLanguageModel):
         """
         available_models = [
             "Qwen/Qwen3-0.6B",
+            "Qwen/Qwen3-1.7B",
             "Qwen/Qwen3-4B",
             "Qwen/Qwen3-8B",
             "Qwen/Qwen3-14B",
