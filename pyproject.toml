@@ -31,7 +31,7 @@ exps = [
     "accelerate==1.12.0",   
     "cuml-cu12==26.2.*",           
     "huggingface_hub[hf_xet]==1.5.0",  
-    "mteb[xet]==2.10.4",
+    "mteb[xet] @ git+https://github.com/embeddings-benchmark/mteb.git@2.13.2",
     "scikit-learn==1.8.0",
     "transformers==5.5.4",
 ]
