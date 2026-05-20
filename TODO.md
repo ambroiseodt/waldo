@@ -61,7 +61,7 @@
 
 
 
-- (**TEMP**) Add data preprocessing
+- Add data preprocessing
     - Vision
         - patch_size: 14 or 16 
         - resolution: 224 or 256?
@@ -122,7 +122,10 @@
         - iGPT paper in ICML 2020 (https://proceedings.mlr.press/v119/chen20s.html): the authors show that for pretrained generative models, middle layers give the best representation (in terms of linear probing accuracy), see Figure 2
 
 
-
+### Memory and efficienty
+- Language
+    - Interesting to see different memory consumption between models of the same size depending on the KV-cache (gemma3/4 consumes less while lama3 and Qwen3 requires a lot of resources, probably because of their higher context length (to check in the original paper/implementation)).
+    
 ### Related work
 - Interpretability:
     - https://arxiv.org/pdf/2510.08638
