@@ -99,6 +99,9 @@ To run the tests of a specific folder (or a file) located in tests/my_path, run
 pytest tests/my_path
 ```
 
+## Problem with proxy
+If issue with huggingface model download, pre-download them with scripts/download_models.py and set load_offline=True in build_model
+
 ## Acknowledgements
 
 ## Contact

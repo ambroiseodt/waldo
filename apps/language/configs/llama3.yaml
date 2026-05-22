@@ -12,6 +12,9 @@ task_type: "Classification"
 max_n_docs: 8192
 batch_size: 4
 
+# Loading
+load_offline: true
+
 # Device
 device: "cuda:4"
 

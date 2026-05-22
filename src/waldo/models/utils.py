@@ -9,13 +9,13 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+import os
 from dataclasses import asdict
 from typing import Any
 
 import torch
 import torch.nn as nn
 
-from ..config import DEVICE
 from ..utils import build_with_type_check
 
 
@@ -151,7 +151,7 @@ def mean_pooling(
 # Main function to build the model
 # ------------------------------------------------------------------------------
 def build_model(
-    config: dict[str, Any], device: str = DEVICE, return_config: bool = False
+    config: dict[str, Any], load_offline: bool = False, return_config: bool = False
 ) -> nn.Module | tuple[nn.Module, dict]:
     r"""
     Initialize model based on the specified implementation given in the config file.
@@ -160,8 +160,8 @@ def build_model(
     ----------
     config: dict
         Dictionary containing the configuration details.
-    device: str, default=DEVICE
-        Device on which to move the model.
+    load_offline: bool, default=False
+        If true, load from cache only. It requires no network but to pre-download models.
     return_config: bool, default=False
         Whether to return the model configuration.
 
@@ -171,6 +171,11 @@ def build_model(
         An instance of the specified model implementation.
         If return_config is True, the config file is also returned as a dictionnary.
     """
+
+    # Set offline mode for HuggingFace models
+    if load_offline:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
     # Argument parsing
     model_name = config.pop("model_name", "vit")
@@ -244,9 +249,6 @@ def build_model(
 
     # Initialize the model
     model = model_type(config_obj)
-
-    # Move to device
-    model = model.to(device=device)
 
     # Return model and config
     if return_config:
