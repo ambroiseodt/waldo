@@ -101,6 +101,7 @@ pytest tests/my_path
 
 ## Problem with proxy
 If issue with huggingface model download, pre-download them with scripts/download_models.py and set load_offline=True in build_model
+the previous issue seems to be resolved (alone, I don't know why it didn't work or why it works now). In all cases, you can download all models before-hand using download_models.sh
 
 ## Acknowledgements
 

@@ -87,22 +87,13 @@ def eval(config: EvaluationConfig) -> None:
     # ---------------------------------------------------------------------
     # Build model
     # ---------------------------------------------------------------------
-    model_config = {
-        "model_name": "gemma3",
-        "model_size": "1b",
-        "device": "cuda:4",
-    }
-    print("ok")
-    model = build_model(config=model_config, load_offline=True, return_config=False)
-    print("done")
-
     logger.info("Building model.")
     model_config = {
         "model_name": config.model_name,
         "model_size": config.model_size,
         "device": config.device,
     }
-    model = build_model(config=model_config, load_offline=config.load_offline, return_config=False)
+    model = build_model(config=model_config, return_config=False)
     logger.info("Done building model.")
 
     # ---------------------------------------------------------------------

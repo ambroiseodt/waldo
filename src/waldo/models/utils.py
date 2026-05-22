@@ -9,7 +9,6 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
-import os
 from dataclasses import asdict
 from typing import Any
 
@@ -160,8 +159,6 @@ def build_model(
     ----------
     config: dict
         Dictionary containing the configuration details.
-    load_offline: bool, default=False
-        If true, load from cache only. It requires no network but to pre-download models.
     return_config: bool, default=False
         Whether to return the model configuration.
 
@@ -171,11 +168,6 @@ def build_model(
         An instance of the specified model implementation.
         If return_config is True, the config file is also returned as a dictionnary.
     """
-
-    # Set offline mode for HuggingFace models
-    if load_offline:
-        os.environ["HF_HUB_OFFLINE"] = "1"
-        os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
     # Argument parsing
     model_name = config.pop("model_name", "vit")
