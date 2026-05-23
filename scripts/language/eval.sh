@@ -7,24 +7,23 @@
 # $ bash <path_to_file_folder>/eval.sh
 # ```
 
-# Gemma3
-model_name="gemma3"
-device="cuda:2"
+# # Gemma3
+# model_name="gemma3"
+# device="cuda:2"
 
-# Runs
-for model_size in \
-    "1b" \
-    # "4b" \
-    # "12b" \
-    # "27b" 
-do
-    session="eval_${model_name}_${model_size}"
-    tmux new-session -d -s ${session}
-    run="model_size=${model_size} device=${device}"
-    command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
-    echo "Running command: ${command}"
-    tmux send-keys -t ${session} "${command}" C-m
-done
+# # Runs
+# for model_size in \
+#     "1b" \
+#     # "12b" \
+#     # "27b" 
+# do
+#     session="eval_${model_name}_${model_size}"
+#     tmux new-session -d -s ${session}
+#     run="model_size=${model_size} device=${device}"
+#     command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+#     echo "Running command: ${command}"
+#     tmux send-keys -t ${session} "${command}" C-m
+# done
 
 # # Gemma3
 # model_name="gemma3"
@@ -65,7 +64,6 @@ done
 # for model_size in \
 #     "3B" \
 #     # "1B"\
-#     # "3B"
 
 # do
 #     session="eval_${model_name}_${model_size}"

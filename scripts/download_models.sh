@@ -18,17 +18,15 @@ MODELS=(
     "google/gemma-4-E2B"
     "google/gemma-4-E4B"
     "google/gemma-4-31B"
-    "meta-llama/Llama-3.2-1B
-    "meta-llama/Llama-3.2-3B
-    "meta-llama/Llama-3.1-8B
-    "meta-llama/Llama-3.1-70B
-    "Qwen/Qwen3-0.6B
-    "Qwen/Qwen3-1.7B
-    "Qwen/Qwen3-4B
-    "Qwen/Qwen3-8B
-    "Qwen/Qwen3-14B
-    "Qwen/Qwen3-32B  
-    "nonexistent-model-name"  
+    "meta-llama/Llama-3.2-1B"
+    "meta-llama/Llama-3.2-3B"
+    "meta-llama/Llama-3.1-8B"
+    "Qwen/Qwen3-0.6B"
+    "Qwen/Qwen3-1.7B"
+    "Qwen/Qwen3-4B"
+    "Qwen/Qwen3-8B"
+    "Qwen/Qwen3-14B"
+    "Qwen/Qwen3-32B"
 )
 
 SUCCESS_COUNT=0
