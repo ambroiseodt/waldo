@@ -127,6 +127,8 @@
     - Interesting to see different memory consumption between models of the same size depending on the KV-cache (gemma3/4 consumes less while lama3 and Qwen3 requires a lot of resources, probably because of their higher context length (to check in the original paper/implementation)).
     
 ### Related work
+- Choice of models and datasets: https://arxiv.org/pdf/2601.09322 (also connected to our methodology so very important to mention it)
+- Add a similar table to described datasets as Table 2 in https://arxiv.org/pdf/2601.09322 (nb train, nb test, nb classes, imbalance class ratio)
 - Interpretability:
     - https://arxiv.org/pdf/2510.08638
     - https://arxiv.org/pdf/2602.07050
