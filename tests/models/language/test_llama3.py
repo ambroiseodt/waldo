@@ -36,10 +36,10 @@ class TestLlama3Config:
     @pytest.mark.parametrize(
         "model_size",
         [
-            "3.2-1B",
-            "3.2-3B",
-            "3.1-8B",
-            "3.1-70B",
+            "1B",
+            "3B",
+            "8B",
+            "70B",
         ],
     )
     def test_valid_size_combinations_accepted(self, model_size: str) -> None:
@@ -50,12 +50,12 @@ class TestLlama3Config:
     def test_invalid_model_size_raises(self) -> None:
         r"""Invalid model size should raise a ValueError with an informative message."""
         with pytest.raises(ValueError, match="Invalid model size"):
-            Llama3Config(model_size="3.2-7B")
+            Llama3Config(model_size="7B")
 
     def test_defaults(self) -> None:
-        r"""Default config should be model_size as '3.2-1B' and device as 'cpu'."""
+        r"""Default config should be model_size as '1B' and device as 'cpu'."""
         cfg = Llama3Config()
-        assert cfg.model_size == "3.2-1B"
+        assert cfg.model_size == "1B"
         assert cfg.device == "cpu"
 
 

@@ -275,7 +275,7 @@ def mock_llama3_model(make_mock_language_model: Callable[..., tuple[MagicMock, n
         mock_tokenizer.eos_token_id = 2
         mock_tok.return_value = mock_tokenizer
 
-        config = Llama3Config(model_size="3.2-1B", device="cpu")
+        config = Llama3Config(model_size="1B", device="cpu")
         model = Llama3(config)
 
     model.model = mock_hf
