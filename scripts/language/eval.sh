@@ -38,6 +38,19 @@
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
 
+# Gemma3
+model_name="gemma3"
+device="cuda:2"
+model_size="12b"
+
+# Runs
+session="eval_${model_name}_${model_size}"
+tmux new-session -d -s ${session}
+run="model_size=${model_size} device=${device}"
+command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+echo "Running command: ${command}"
+tmux send-keys -t ${session} "${command}" C-m
+
 # # Gemma4
 # model_name="gemma4"
 # device="cuda:4"
@@ -135,3 +148,17 @@
 # command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
+
+# Qwen3
+model_name="qwen3"
+device="cuda:4"
+model_size="4B"
+
+# Clean model size for session creation (replace '.' with '_')
+clean_size=$(echo ${model_size} | tr '.' '_')
+session="eval_${model_name}_${clean_size}"
+tmux new-session -d -s ${session}
+run="model_size=${model_size} device=${device}"
+command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+echo "Running command: ${command}"
+tmux send-keys -t ${session} "${command}" C-m
