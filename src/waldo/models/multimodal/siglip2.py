@@ -53,8 +53,8 @@ from transformers.models.siglip2.modeling_siglip2 import (
 )
 from transformers.processing_utils import ProcessorMixin
 
+from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
-from ..utils import mean_pooling
 from .base import BaseVisionLanguageModel
 
 logger = logging.getLogger(__name__)

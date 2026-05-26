@@ -40,8 +40,8 @@ from torch.nn import ModuleList
 from transformers import AutoTokenizer, LlamaModel, PreTrainedModel, PreTrainedTokenizerBase
 from transformers.models.llama.modeling_llama import LlamaMLP
 
+from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
-from ..utils import mean_pooling
 from .base import BaseLanguageModel
 
 logger = logging.getLogger(__name__)

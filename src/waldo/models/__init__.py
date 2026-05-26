@@ -1,5 +1,5 @@
 r"""
-Codebase to load pretrained VFMs, VLMs and LLMs from HuggingFace.
+Codebase to study pretrained VFMs, VLMs and LLMs from HuggingFace.
 
 License
 -------
@@ -12,19 +12,8 @@ in the root directory of this source tree.
 import importlib
 from typing import Any
 
-_vision = [
-    "Aimv2",
-    "Aimv2BlockAdapter",
-    "Aimv2Config",
-    "Dinov2",
-    "Dinov2BlockAdapter",
-    "Dinov2Config",
-    "Dinov3",
-    "Dinov3BlockAdapter",
-    "Dinov3Config",
-    "ViT",
-    "ViTBlockAdapter",
-    "ViTConfig",
+_factory = [
+    "build_model",
 ]
 
 _language = [
@@ -51,9 +40,37 @@ _multimodal = [
     "Siglip2Config",
 ]
 
-_utils = ["build_model"]
+_pooling = [
+    "mean_pooling",
+]
 
-__all__ = list(_vision) + list(_language) + list(_multimodal) + list(_utils)  # type: ignore
+
+_transformer_blocks = [
+    "SwiGLUGateProjection",
+    "TransformerBlockAdapter",
+    "TRANSFORMER_MODULES",
+]
+
+
+_vision = [
+    "Aimv2",
+    "Aimv2BlockAdapter",
+    "Aimv2Config",
+    "Dinov2",
+    "Dinov2BlockAdapter",
+    "Dinov2Config",
+    "Dinov3",
+    "Dinov3BlockAdapter",
+    "Dinov3Config",
+    "ViT",
+    "ViTBlockAdapter",
+    "ViTConfig",
+]
+
+
+__all__ = (
+    list(_factory) + list(_language) + list(_multimodal) + list(_pooling) + list(_transformer_blocks) + list(_vision)
+)  # type: ignore
 
 
 def __dir__():
@@ -61,12 +78,16 @@ def __dir__():
 
 
 def __getattr__(name: str) -> Any:
-    if name in _vision:
-        return getattr(importlib.import_module("waldo.models.vision"), name)
+    if name in _factory:
+        return getattr(importlib.import_module("waldo.models.factory"), name)
     if name in _language:
         return getattr(importlib.import_module("waldo.models.language"), name)
     if name in _multimodal:
         return getattr(importlib.import_module("waldo.models.multimodal"), name)
-    if name in _utils:
-        return getattr(importlib.import_module("waldo.models.utils"), name)
+    if name in _pooling:
+        return getattr(importlib.import_module("waldo.models.pooling"), name)
+    if name in _transformer_blocks:
+        return getattr(importlib.import_module("waldo.models.transformer_blocks"), name)
+    if name in _vision:
+        return getattr(importlib.import_module("waldo.models.vision"), name)
     raise AttributeError(f"module 'waldo.models' has no attribute {name!r}")

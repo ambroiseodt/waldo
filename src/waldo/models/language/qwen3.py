@@ -40,8 +40,8 @@ from torch.nn import ModuleList
 from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase, Qwen3Model
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
 
+from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
-from ..utils import mean_pooling
 from .base import BaseLanguageModel
 
 logger = logging.getLogger(__name__)

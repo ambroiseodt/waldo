@@ -39,8 +39,8 @@ from torch.nn import ModuleList
 from transformers import DINOv3ViTModel, PreTrainedModel
 from transformers.models.dinov3_vit.modeling_dinov3_vit import DINOv3ViTGatedMLP, DINOv3ViTMLP
 
+from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
-from ..utils import mean_pooling
 from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)

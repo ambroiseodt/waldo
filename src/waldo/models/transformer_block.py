@@ -1,5 +1,5 @@
 r"""
-Transformer primitives shared across vision, language, and multimodal foundation models.
+Transformer primitives shared across VFMs, VLMs and LLMs.
 
 License
 -------
@@ -11,6 +11,7 @@ in the root directory of this source tree.
 
 from abc import ABC, abstractmethod
 
+import torch
 import torch.nn as nn
 
 TRANSFORMER_MODULES = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
@@ -137,3 +138,22 @@ class TransformerBlockAdapter(ABC):
             "fc2": self.fc2,
             "rc2": self.rc2,
         }
+
+
+# -------------------------------------------------------------------
+#   Gated activation wrapper
+# -------------------------------------------------------------------
+class SwiGLUGateProjection(nn.Module):
+    r"""
+    Wraps a linear layer and returns only the first half of its output.
+    It can be used to recover the gate projection of the Dinov2 SwiGLU feedforward network.
+    """
+
+    def __init__(self, linear: nn.Linear):
+        super().__init__()
+        self.linear = linear
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.linear(x)
+        x1, _ = out.chunk(2, dim=-1)
+        return x1

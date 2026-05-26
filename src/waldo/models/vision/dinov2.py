@@ -39,8 +39,8 @@ from torch.nn import ModuleList
 from transformers import Dinov2Model, PreTrainedModel
 from transformers.models.dinov2.modeling_dinov2 import Dinov2Encoder, Dinov2MLP, Dinov2SwiGLUFFN
 
-from ..transformer_block import TransformerBlockAdapter
-from ..utils import SwiGLUGateProjection, mean_pooling
+from ..pooling import mean_pooling
+from ..transformer_block import SwiGLUGateProjection, TransformerBlockAdapter
 from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)

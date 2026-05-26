@@ -46,8 +46,8 @@ from transformers import (
 from transformers.models.clip.modeling_clip import CLIPMLP, CLIPEncoder, CLIPVisionTransformer
 from transformers.processing_utils import ProcessorMixin
 
+from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
-from ..utils import mean_pooling
 from .base import BaseVisionLanguageModel
 
 logger = logging.getLogger(__name__)

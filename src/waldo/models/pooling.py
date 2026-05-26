@@ -1,5 +1,5 @@
 r"""
-Utils functions for VFMs, VLMs and LLMs.
+Pooling functions for VFMs, VLMs and LLMs.
 
 License
 -------
@@ -9,36 +9,11 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
-from dataclasses import asdict
-from typing import Any
-
 import torch
-import torch.nn as nn
-
-from ..utils import build_with_type_check
 
 
 # -------------------------------------------------------------------
-#   Gated activation wrapper
-# -------------------------------------------------------------------
-class SwiGLUGateProjection(nn.Module):
-    r"""
-    Wraps a linear layer and returns only the first half of its output.
-    It can be used to recover the gate projection of the Dinov2 SwiGLU feedforward network.
-    """
-
-    def __init__(self, linear: nn.Linear):
-        super().__init__()
-        self.linear = linear
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.linear(x)
-        x1, _ = out.chunk(2, dim=-1)
-        return x1
-
-
-# -------------------------------------------------------------------
-#   Pooling
+#   Mean pooling
 # -------------------------------------------------------------------
 def mean_pooling(
     hidden_states: torch.Tensor,
@@ -144,106 +119,3 @@ def mean_pooling(
     emb = (hidden_states * mask).sum(dim=1) / mask.sum(dim=1).float()
 
     return emb
-
-
-# ------------------------------------------------------------------------------
-# Main function to build the model
-# ------------------------------------------------------------------------------
-def build_model(
-    config: dict[str, Any], load_offline: bool = False, return_config: bool = False
-) -> nn.Module | tuple[nn.Module, dict]:
-    r"""
-    Initialize model based on the specified implementation given in the config file.
-
-    Parameters
-    ----------
-    config: dict
-        Dictionary containing the configuration details.
-    return_config: bool, default=False
-        Whether to return the model configuration.
-
-    Returns
-    -------
-    model: nn.Module | tuple[nn.Module, dict]
-        An instance of the specified model implementation.
-        If return_config is True, the config file is also returned as a dictionnary.
-    """
-
-    # Argument parsing
-    model_name = config.pop("model_name", "vit")
-
-    match model_name.lower():
-        # Vision Foundation Models (VFMs)
-        case "aimv2":
-            from waldo.models import Aimv2, Aimv2Config
-
-            model_type = Aimv2
-            config_obj = build_with_type_check(Aimv2Config, config)
-
-        case "dinov2":
-            from waldo.models import Dinov2, Dinov2Config
-
-            model_type = Dinov2
-            config_obj = build_with_type_check(Dinov2Config, config)
-
-        case "dinov3":
-            from waldo.models import Dinov3, Dinov3Config
-
-            model_type = Dinov3
-            config_obj = build_with_type_check(Dinov3Config, config)
-
-        case "vit":
-            from waldo.models import ViT, ViTConfig
-
-            model_type = ViT
-            config_obj = build_with_type_check(ViTConfig, config)
-
-        # Vision Language Models (VLMs)
-        case "clip":
-            from waldo.models import Clip, ClipConfig
-
-            model_type = Clip
-            config_obj = build_with_type_check(ClipConfig, config)
-
-        case "siglip2":
-            from waldo.models import Siglip2, Siglip2Config
-
-            model_type = Siglip2
-            config_obj = build_with_type_check(Siglip2Config, config)
-
-        # Large Language Models (LLMs)
-        case "gemma3":
-            from waldo.models import Gemma3, Gemma3Config
-
-            model_type = Gemma3
-            config_obj = build_with_type_check(Gemma3Config, config)
-
-        case "gemma4":
-            from waldo.models import Gemma4, Gemma4Config
-
-            model_type = Gemma4
-            config_obj = build_with_type_check(Gemma4Config, config)
-
-        case "llama3":
-            from waldo.models import Llama3, Llama3Config
-
-            model_type = Llama3
-            config_obj = build_with_type_check(Llama3Config, config)
-
-        case "qwen3":
-            from waldo.models import Qwen3, Qwen3Config
-
-            model_type = Qwen3
-            config_obj = build_with_type_check(Qwen3Config, config)
-
-        case _:
-            raise ValueError(f"Model {model_name} not found.")
-
-    # Initialize the model
-    model = model_type(config_obj)
-
-    # Return model and config
-    if return_config:
-        return model, asdict(config_obj)
-
-    return model

@@ -41,8 +41,8 @@ from torch.nn import ModuleList
 from transformers import PreTrainedModel, ViTModel
 from transformers.models.vit.modeling_vit import ViTEncoder, ViTIntermediate, ViTOutput
 
+from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
-from ..utils import mean_pooling
 from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)

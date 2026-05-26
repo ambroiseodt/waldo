@@ -39,8 +39,8 @@ from torch.nn import ModuleList
 from transformers import Aimv2VisionModel, PreTrainedModel
 from transformers.models.aimv2.modeling_aimv2 import Aimv2Encoder, Aimv2MLP
 
+from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
-from ..utils import mean_pooling
 from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)

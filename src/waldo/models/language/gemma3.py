@@ -40,8 +40,8 @@ from torch.nn import ModuleList
 from transformers import AutoTokenizer, Gemma3TextModel, PreTrainedModel, PreTrainedTokenizerBase
 from transformers.models.gemma3.modeling_gemma3 import Gemma3MLP
 
+from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
-from ..utils import mean_pooling
 from .base import BaseLanguageModel
 
 logger = logging.getLogger(__name__)
