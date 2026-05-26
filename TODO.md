@@ -126,6 +126,9 @@
 - Language
     - Interesting to see different memory consumption between models of the same size depending on the KV-cache (gemma3/4 consumes less while lama3 and Qwen3 requires a lot of resources, probably because of their higher context length (to check in the original paper/implementation)).
     
+### Alingment experiments on VLMs
+- LAION2B is a dataset typically used for VLMs like CLIP with visual and textual descriptions. It can be used to study whether text and vision embeddings are aligned and also which one is (textual embedding recover from the text tower and visual embeddings recovered across the layers and modules). Better to used a standard dataset from the literature than my own textual descriptions.
+
 ### Related work
 - Choice of models and datasets: https://arxiv.org/pdf/2601.09322 (also connected to our methodology so very important to mention it)
 - Add a similar table to described datasets as Table 2 in https://arxiv.org/pdf/2601.09322 (nb train, nb test, nb classes, imbalance class ratio)
@@ -140,3 +143,4 @@
 - Nice plots and organization:
     - https://arxiv.org/pdf/2502.08606 (scaling laws)
     - https://arxiv.org/pdf/2605.01188 (scaling laws)
+- Look at mechanistic interpretrability literature on VLMs, VFMs and LLMs with probing technics, SAE analysis. Some findings or design choices might be similar; our conclusions could also be read from the interpretability viewpoint.
