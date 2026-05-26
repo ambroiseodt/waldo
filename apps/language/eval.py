@@ -13,12 +13,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import cast
 
+import torch
 from omegaconf import OmegaConf
 
-from waldo.config import DEVICE, SAVING_DIR, set_seed
 from waldo.data import build_mteb
-from waldo.models import build_model
-from waldo.models.transformer_block import TRANSFORMER_MODULES
+from waldo.infra import DEVICE, SAVING_DIR, set_seed
+from waldo.models import TRANSFORMER_MODULES, build_model
 
 from ..utils import setup_logging
 
@@ -49,9 +49,6 @@ class EvaluationConfig:
     task_type: str = "Classification"
     max_n_docs: int | None = 8192
     batch_size: int = 32
-
-    # Loading
-    load_offline: bool = False
 
     # Device
     device: str = DEVICE
@@ -113,7 +110,7 @@ def eval(config: EvaluationConfig) -> None:
     )
 
     # ---------------------------------------------------------------------
-    # Run evaluation  with the defined probes to obtain the sentence embedding
+    # Run evaluation with the defined probes to obtain the sentence embedding
     # ---------------------------------------------------------------------
     cache_path = RUN_DIR / "mteb" / model.model_name
 
@@ -131,6 +128,10 @@ def eval(config: EvaluationConfig) -> None:
             logging.info(f"Probing layer {layer} and module {module} for hidden state extraction.")
             model.set_probing(layer=layer, module=module)
             mteb_benchmark.evaluate(model=model, cache_path=cache_path)
+
+            # Clear cache to optimize VRAM after each evaluation loop
+            if "cuda" in str(config.device) and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     logger.info("Evaluation done.")
 
