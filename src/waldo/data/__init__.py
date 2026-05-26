@@ -12,6 +12,12 @@ in the root directory of this source tree.
 import importlib
 from typing import Any
 
+_language = [
+    "MTEB",
+    "MTEBConfig",
+    "build_mteb",
+]
+
 _vision = [
     "AircraftDataset",
     "AircraftDatasetConfig",
@@ -41,15 +47,11 @@ _vision = [
     "PetDatasetConfig",
     "build_loader",
     "build_transform",
+    "build_dataset",
+    "deterministic_split",
 ]
 
-_language = [
-    "MTEB",
-    "MTEBConfig",
-    "build_mteb",
-]
-
-__all__ = list(_vision) + list(_language)  # type: ignore
+__all__ = list(_language) + list(_vision)  # type: ignore
 
 
 def __dir__():
@@ -57,8 +59,8 @@ def __dir__():
 
 
 def __getattr__(name: str) -> Any:
-    if name in _vision:
-        return getattr(importlib.import_module("waldo.data.vision"), name)
     if name in _language:
         return getattr(importlib.import_module("waldo.data.language"), name)
+    if name in _vision:
+        return getattr(importlib.import_module("waldo.data.vision"), name)
     raise AttributeError(f"module 'waldo.data' has no attribute {name!r}")

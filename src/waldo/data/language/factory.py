@@ -12,7 +12,7 @@ in the root directory of this source tree.
 import logging
 from typing import Any
 
-from ...utils import build_with_type_check
+from ...infra import build_with_type_check
 from .mteb import MTEB, MTEBConfig
 
 logger = logging.getLogger(__name__)

@@ -9,8 +9,8 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+from .factory import build_mteb
 from .mteb import MTEB, MTEBConfig
-from .utils import build_mteb
 
 __all__ = [
     "MTEB",
