@@ -17,7 +17,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose
 
-from ...config import DATASET_DIR
+from ...infra import DATASET_DIR
 
 
 # ------------------------------------------------------------------------------

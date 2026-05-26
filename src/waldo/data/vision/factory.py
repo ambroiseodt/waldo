@@ -1,5 +1,5 @@
 r"""
-Utils functions to build computer vision dataloaders.
+Dataloaders instantiation factory.
 
 License
 -------
@@ -23,7 +23,7 @@ from torchvision.transforms import (
     ToTensor,
 )
 
-from ...utils import build_with_type_check
+from ...infra import build_with_type_check
 
 
 # ------------------------------------------------------------------------------

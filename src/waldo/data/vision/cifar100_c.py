@@ -17,8 +17,8 @@ import torchvision.transforms.functional as F
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose
 
-from ...config import DATASET_DIR
-from .utils import deterministic_split
+from ...infra import DATASET_DIR
+from .factory import deterministic_split
 
 
 # ------------------------------------------------------------------------------

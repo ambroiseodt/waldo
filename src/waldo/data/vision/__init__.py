@@ -17,12 +17,12 @@ from .cifar100_c import Cifar100CDataset, Cifar100CDatasetConfig
 from .domainnet import DomainNetDataset, DomainNetDatasetConfig
 from .dtd import DTDDataset, DTDDatasetConfig
 from .eurosat import EuroSATDataset, EuroSATDatasetConfig
+from .factory import build_dataset, build_loader, build_transform, deterministic_split
 from .flowers102 import Flowers102Dataset, Flowers102DatasetConfig
 from .food101 import Food101Dataset, Food101DatasetConfig
 from .imagenet import ImageNetDataset, ImageNetDatasetConfig
 from .imagenet_c import ImageNetCDataset, ImageNetCDatasetConfig
 from .pet import PetDataset, PetDatasetConfig
-from .utils import build_loader, build_transform
 
 __all__ = [
     "AircraftDataset",
@@ -53,4 +53,6 @@ __all__ = [
     "PetDataset",
     "build_loader",
     "build_transform",
+    "build_dataset",
+    "deterministic_split",
 ]
