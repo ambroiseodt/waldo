@@ -14,7 +14,7 @@ from typing import Any, Literal, get_origin
 
 import pytest
 
-from waldo.utils import _is_union, build_with_type_check
+from waldo.infra.parser import _is_union, build_with_type_check
 
 
 # -------------------------------------------------------------------

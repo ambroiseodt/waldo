@@ -12,7 +12,7 @@ in the root directory of this source tree.
 import numpy as np
 import torch
 
-from waldo.config import set_seed
+from waldo.infra.config import set_seed
 
 
 # -------------------------------------------------------------------

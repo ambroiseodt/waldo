@@ -19,7 +19,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import CenterCrop, Compose, RandomHorizontalFlip, RandomResizedCrop, Resize
 
-from waldo.data.vision.utils import _worker_init_fn, build_dataset, build_loader, build_transform, deterministic_split
+from waldo.data.vision.factory import _worker_init_fn, build_dataset, build_loader, build_transform, deterministic_split
 
 
 # -------------------------------------------------------------------

@@ -16,8 +16,7 @@ import torch
 from torch.nn import ModuleList
 
 from waldo.models import Dinov2, Dinov2BlockAdapter, Dinov2Config
-from waldo.models.transformer_block import TRANSFORMER_MODULES
-from waldo.models.utils import SwiGLUGateProjection
+from waldo.models.transformer_block import TRANSFORMER_MODULES, SwiGLUGateProjection
 
 from .conftest import (
     BATCH_SIZE,
