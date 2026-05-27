@@ -16,11 +16,11 @@ from typing import cast
 from omegaconf import OmegaConf
 
 from waldo.data import build_loader
-from waldo.eval.linear import linear_probing
-from waldo.infra.config import DEVICE, SAVING_DIR, set_seed
+from waldo.eval import run_linear_probing
+from waldo.infra import DEVICE, SAVING_DIR, set_seed
 from waldo.models import build_model
 
-from ..utils import setup_logging
+from ..setup import setup_logging
 
 # Logger setup
 logger = logging.getLogger("waldo.eval")
@@ -114,8 +114,8 @@ def eval(config: EvaluationConfig) -> None:
     # ---------------------------------------------------------------------
     # Run evaluation
     # ---------------------------------------------------------------------
-    metrics = linear_probing()
-
+    cache_path = RUN_DIR / config.dataset_name / model.model_name
+    run_linear_probing(model=model, train_loader=train_loader, test_loader=test_loader, cache_path=cache_path)
     logger.info("Evaluation done.")
 
 

@@ -1,5 +1,5 @@
 r"""
-Utils functions to launch experiments.
+Setup functions to launch experiments.
 
 License
 -------

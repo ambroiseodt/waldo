@@ -8,3 +8,9 @@ in the root directory of this source tree.
 
 @ 2026, Ambroise Odonnat
 """
+
+from .linear import run_linear_probing
+
+__all__ = [
+    "run_linear_probing",
+]

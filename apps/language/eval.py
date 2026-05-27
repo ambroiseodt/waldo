@@ -20,7 +20,7 @@ from waldo.data import build_mteb
 from waldo.infra import DEVICE, SAVING_DIR, set_seed
 from waldo.models import TRANSFORMER_MODULES, build_model
 
-from ..utils import setup_logging
+from ..setup import setup_logging
 
 # Logger setup
 logger = logging.getLogger("waldo.eval")

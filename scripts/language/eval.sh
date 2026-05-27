@@ -124,12 +124,13 @@
 # model_name="qwen3"
 # device="cuda:7"
 # model_size="32B"
+# batch_size=1
 
 # # Clean model size for session creation (replace '.' with '_')
 # clean_size=$(echo ${model_size} | tr '.' '_')
 # session="eval_${model_name}_${clean_size}"
 # tmux new-session -d -s ${session}
-# run="model_size=${model_size} device=${device}"
+# run="model_size=${model_size} batch_size=${batch_size} device=${device}"
 # command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
@@ -152,26 +153,28 @@
 # model_name="qwen3"
 # device="cuda:4"
 # model_size="4B"
+# batch_size=1
 
 # # Clean model size for session creation (replace '.' with '_')
 # clean_size=$(echo ${model_size} | tr '.' '_')
 # session="eval_${model_name}_${clean_size}"
 # tmux new-session -d -s ${session}
-# run="model_size=${model_size} device=${device}"
+# run="model_size=${model_size} batch_size=${batch_size} device=${device}"
 # command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
 
 # # Qwen3
 # model_name="qwen3"
-# device="cuda:2"
+# device="cuda:4"
 # model_size="8B"
+# batch_size=1
 
 # # Clean model size for session creation (replace '.' with '_')
 # clean_size=$(echo ${model_size} | tr '.' '_')
 # session="eval_${model_name}_${clean_size}"
 # tmux new-session -d -s ${session}
-# run="model_size=${model_size} device=${device}"
+# run="model_size=${model_size} batch_size=${batch_size} device=${device}"
 # command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m

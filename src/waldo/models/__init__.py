@@ -45,7 +45,7 @@ _pooling = [
 ]
 
 
-_transformer_blocks = [
+_transformer_block = [
     "SwiGLUGateProjection",
     "TransformerBlockAdapter",
     "TRANSFORMER_MODULES",
@@ -69,7 +69,7 @@ _vision = [
 
 
 __all__ = (
-    list(_factory) + list(_language) + list(_multimodal) + list(_pooling) + list(_transformer_blocks) + list(_vision)
+    list(_factory) + list(_language) + list(_multimodal) + list(_pooling) + list(_transformer_block) + list(_vision)
 )  # type: ignore
 
 
@@ -86,8 +86,8 @@ def __getattr__(name: str) -> Any:
         return getattr(importlib.import_module("waldo.models.multimodal"), name)
     if name in _pooling:
         return getattr(importlib.import_module("waldo.models.pooling"), name)
-    if name in _transformer_blocks:
-        return getattr(importlib.import_module("waldo.models.transformer_blocks"), name)
+    if name in _transformer_block:
+        return getattr(importlib.import_module("waldo.models.transformer_block"), name)
     if name in _vision:
         return getattr(importlib.import_module("waldo.models.vision"), name)
     raise AttributeError(f"module 'waldo.models' has no attribute {name!r}")
