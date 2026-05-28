@@ -9,15 +9,16 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import cast
 
 from omegaconf import OmegaConf
 
 from waldo.data import build_loader
 from waldo.eval import run_linear_probing
-from waldo.infra import DEVICE, SAVING_DIR, set_seed
+from waldo.infra import DEVICE, SAVING_DIR, json_serializable, set_seed
 from waldo.models import build_model
 
 from ..setup import setup_logging
@@ -115,6 +116,10 @@ def eval(config: EvaluationConfig) -> None:
     # Run evaluation
     # ---------------------------------------------------------------------
     cache_path = RUN_DIR / config.dataset_name / model.model_name
+
+    # Save config
+    with open(cache_path / "config.json", "w") as f:
+        json.dump(json_serializable(asdict(config)), f, indent=4)
     run_linear_probing(model=model, train_loader=train_loader, test_loader=test_loader, cache_path=cache_path)
     logger.info("Evaluation done.")
 

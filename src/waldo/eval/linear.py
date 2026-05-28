@@ -18,7 +18,9 @@ in the root directory of this source tree.
 """
 
 import gc
+import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,10 +32,10 @@ from cuml.preprocessing import StandardScaler as cuMLStandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sympy import re
 from torch.utils.data import DataLoader
 
 from waldo.infra import DEVICE, SAVING_DIR
+from waldo.models import BaseVisionModel
 
 logger = logging.getLogger(__name__)
 
@@ -127,10 +129,14 @@ class LinearProbing:
         self.seed = config.seed
         self.temp_dir = config.temp_dir
 
+    @staticmethod
+    def _get_index(path: Path) -> int:
+        """Extracts the numerical index from a filename in format "batch_X"."""
+        return int(path.stem.split("_")[1])
+
     @torch.inference_mode()
-    def _extract_embeddings(self, model: nn.Module, loader: DataLoader, split: str) -> None:
+    def _extract_embeddings(self, model: BaseVisionModel, loader: DataLoader, split: str) -> None:
         model.eval()
-        exposed_keys = []
         label_buffer = []
 
         logger.info(f"Extract embeddings for split: {split}")
@@ -142,10 +148,14 @@ class LinearProbing:
             # Recover features
             embeddings = model.get_embeddings(x_batch)
 
-            for key, embedding in embeddings.item():
+            for key, embedding in embeddings.items():
                 # Recover layer index and module
                 match = re.match(r"block_(\d+)_(.+)", key)
-                layer, module = int(match.group(1)), str(match.group(2))
+                if not match:
+                    logger.warning(f"Skipping key '{key}' as it does not match the 'block_X_Y' format.")
+                    continue
+                else:
+                    layer, module = int(match.group(1)), str(match.group(2))
 
                 # Move embedding to numpy (output of get_embeddings are expected to be on cpu)
                 embedding = embeddings[key].numpy()
@@ -172,7 +182,7 @@ class LinearProbing:
         del labels
         gc.collect()
 
-        logger.info(f"Extraction done. {len(exposed_keys)} keys were exposed.")
+        logger.info("Extraction done.")
 
     def _pipeline(self) -> Pipeline:
         # GPU-friendly logistic regression
@@ -197,47 +207,9 @@ class LinearProbing:
         clf = self._pipeline()
         clf.fit(train_embeddings, train_labels.ravel())
         acc_test = clf.score(test_embeddings, test_labels.ravel())
-        return acc_test
+        return float(acc_test)
 
-    def _save(
-        self, metrics: dict[int, dict[str, float]], config: LinearProbingConfig, dataset_name: str, model_name: str
-    ) -> None:
-        r"""
-        Directly saves results and the configuration file to the simple flat layout.
-
-        Saves paths matching:
-        savings/runs/{dataset_name}/{model_name}/config.json
-        savings/runs/{dataset_name}/{model_name}/layer_{id}_module_{name}/eval.json
-        """
-        from dataclasses import asdict
-
-        from waldo.infra.parser import json_serializable
-
-        # 1. Target the absolute directory root: e.g., savings/runs/cifar10/google/dinov3-7b
-        model_dir = SAVING_DIR / "runs" / dataset_name / model_name
-        model_dir.mkdir(exist_ok=True, parents=True)
-
-        # 2. Restore the missing config.json file right at the model root folder level
-        with open(model_dir / "config.json", "w") as f:
-            json.dump(json_serializable(asdict(config)), f, indent=4)
-
-        # 3. Iterate cleanly over our nested metrics map for the individual modules
-        for layer_idx, modules in metrics.items():
-            for module_name, score in modules.items():
-                # Construct directory path matching your exact spec: layer_1_module_mha
-                subfolder_name = f"layer_{layer_idx}_module_{module_name}"
-                target_dir = model_dir / subfolder_name
-                target_dir.mkdir(exist_ok=True, parents=True)
-
-                # Write out the target evaluation payload dictionary
-                eval_payload = {"test_accuracy": round(score, 5)}
-
-                with open(target_dir / "eval.json", "w") as f:
-                    json.dump(eval_payload, f, indent=4)
-
-        logger.info(f"Configuration and evaluation payloads safely checkpointed under: {model_dir}")
-
-    def evaluate(self, model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, cache_path: str) -> None:
+    def evaluate(self, model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, cache_path: Path) -> None:
         # Extract train and test embeddings
         self._extract_embeddings(model=model, loader=train_loader, split="train")
         self._extract_embeddings(model=model, loader=test_loader, split="test")
@@ -245,7 +217,6 @@ class LinearProbing:
         # Run linear probing over each layer and module
         train_path = self.temp_dir / "train"
         test_path = self.temp_dir / "test"
-        regex = re.compile(r"batch_(\d+)")
 
         # Recover labels
         train_labels = np.load(train_path / "labels.npy").ravel()
@@ -262,13 +233,12 @@ class LinearProbing:
                 module = module_folder.split("_")[1]
 
                 # Train and test folder names
-                train_path = train_path / layer_folder / module_folder
-                test_path = test_path / layer_folder / module_folder
+                train_emb_path = train_path / layer_folder / module_folder
+                test_emb_path = test_path / layer_folder / module_folder
 
                 # Sort batch files in numerical order to remain consistent with labels
-                sort_key = lambda p: int(p.stem.split("_")[1])
-                train_files = sorted(train_path.glob("batch_*.npy"), key=sort_key)
-                test_files = sorted(test_path.glob("batch_*.npy"), key=sort_key)
+                train_files = sorted(train_emb_path.glob("batch_*.npy"), key=self._get_index)
+                test_files = sorted(test_emb_path.glob("batch_*.npy"), key=self._get_index)
 
                 # Recover train and test embeddings
                 train_embeddings = np.concatenate([np.load(f) for f in train_files], axis=0)
@@ -276,14 +246,17 @@ class LinearProbing:
 
                 # Run linear probing
                 logging.info(f"Linear probing on layer {layer} and module {module}.")
-                metrics = self._run(
+                acc_test = self._run(
                     train_embeddings=train_embeddings,
                     train_labels=train_labels,
                     test_embeddings=test_embeddings,
                     test_labels=test_labels,
                 )
 
-        logger.info("Linear probing done.")
+                # Save result
+                metric_path = cache_path / f"layer_{layer}_module_{module}.json"
+                metric_path.parent.mkdir(exist_ok=True, parents=True)
+                with open(metric_path, "w") as f:
+                    json.dump({"acc_test": acc_test}, f, indent=4)
 
-        # Save results
-        self._save(metrics=metrics, cache_path=cache_path)
+        logger.info("Linear probing done.")

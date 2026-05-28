@@ -9,7 +9,8 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
-from .linear import run_linear_probing
+from .factory import build_linear_probing
+from .linear import LinearProbingConfig, LinearProbingEvaluator
 
 __all__ = [
     "run_linear_probing",
