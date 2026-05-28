@@ -40,7 +40,7 @@
 
 # # Gemma3
 # model_name="gemma3"
-# device="cuda:1"
+# device="cuda:4"
 # model_size="12b"
 # batch_size=4
 
@@ -72,13 +72,13 @@
 
 # # Llama3
 # model_name="llama3"
-# device="cuda:5"
+# device="cuda:0"
 
 # # Runs
 # for model_size in \
-#     "3B" \
-#     # "1B"\
-
+#     "1B"\
+#     # "3B"\
+#     # "8B"
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
@@ -87,6 +87,20 @@
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
+
+# # Llama3
+# model_name="llama3"
+# device="cuda:4"
+# model_size="3B"
+# batch_size=1
+
+# # Runs
+# session="eval_${model_name}_${model_size}"
+# tmux new-session -d -s ${session}
+# run="model_size=${model_size} batch_size=${batch_size} device=${device}"
+# command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+# echo "Running command: ${command}"
+# tmux send-keys -t ${session} "${command}" C-m
 
 # # Llama3
 # model_name="llama3"
