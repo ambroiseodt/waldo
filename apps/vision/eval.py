@@ -17,7 +17,7 @@ from typing import cast
 from omegaconf import OmegaConf
 
 from waldo.data import build_loader
-from waldo.eval import run_linear_probing
+from waldo.eval import build_linear_probing
 from waldo.infra import DEVICE, SAVING_DIR, json_serializable, set_seed
 from waldo.models import build_model
 
@@ -40,12 +40,19 @@ class EvaluationConfig:
     # Model
     model_name: str = "vit"
     model_size: str = "base"
-    patch_suze: int = 16
+    patch_size: int = 16
     resolution: int = 224
 
     # Data
     dataset_name: str = "cifar10"
     batch_size: int = 512
+
+    # Linear probing
+    tol: float = 1e-4
+    max_iter: int = 1000
+
+    # Logger
+    overwrite: bool = False
 
     # Device
     device: str = DEVICE
@@ -94,34 +101,44 @@ def eval(config: EvaluationConfig) -> None:
     # Build dataloaders
     # ---------------------------------------------------------------------
     logger.info("Building train and test dataloaders")
-    train_loader_config = {
+    loader_config = {
         "dataset_name": config.dataset_name,
         "batch_size": config.batch_size,
-        "mode": "train",
         "resolution": config.resolution,
         "transform_type": "static",
     }
+    train_loader_config = loader_config | {"mode": "train"}
     train_loader, n_classes = build_loader(config=train_loader_config, return_n_classes=True)
-    test_loader_config = {
-        "dataset_name": config.dataset_name,
-        "batch_size": config.batch_size,
-        "mode": "train",
-        "resolution": config.resolution,
-        "transform_type": "static",
-    }
+    test_loader_config = loader_config | {"mode": "test"}
     test_loader = build_loader(config=test_loader_config)
     logger.info(f"Done building dataloaders for {config.dataset_name} with {n_classes} classes.")
 
     # ---------------------------------------------------------------------
     # Run evaluation
     # ---------------------------------------------------------------------
+    logger.info(f"Running linear probing on {config.dataset_name}.")
+    linear_probing_config = {
+        "tol": config.tol,
+        "max_iter": config.max_iter,
+        "device": config.device,
+        "seed": config.seed,
+    }
+    linear_probing = build_linear_probing(config=linear_probing_config)
     cache_path = RUN_DIR / config.dataset_name / model.model_name
+    linear_probing.evaluate(
+        model=model,
+        train_loader=train_loader,
+        test_loader=test_loader,
+        cache_path=cache_path,
+        overwrite=config.overwrite,
+    )
 
     # Save config
+    logger.info("Saving experiment config.")
     with open(cache_path / "config.json", "w") as f:
         json.dump(json_serializable(asdict(config)), f, indent=4)
-    run_linear_probing(model=model, train_loader=train_loader, test_loader=test_loader, cache_path=cache_path)
-    logger.info("Evaluation done.")
+
+    logger.info(f"Finished evaluation on {config.dataset_name}.")
 
 
 # %% Main
@@ -173,59 +190,3 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 # %%
-
-
-# ------------------------------------------------------------------------------
-# Main Orchestration Loop
-# ------------------------------------------------------------------------------
-def linear_probing(config: LinearProbingConfig) -> None:
-    r"""Main execution loop for model tracking, feature collection, and metric packaging."""
-
-    # Set execution seed explicitly
-    torch.manual_seed(config.seed)
-    np.random.seed(config.seed)
-
-    # Setup hardware allocation dummy params (simulate internal project dictionary)
-    model_config = {
-        "model_name": config.model_name,
-        "model_size": config.model_size,
-        "pretrained": not config.finetuned,
-    }
-
-    # 1. Instantiate the foundation model
-    logger.info("Initializing Large Vision Foundation Model...")
-    model = build_model(config=model_config, device=config.device, return_config=False)
-
-    # 2. Build explicit dataloaders passing the worker configurations
-    logger.info("Assembling dataset streams...")
-    loader_config = {
-        "dataset_name": config.dataset_name,
-        "batch_size": config.batch_size,
-        "val_batch_size": config.val_batch_size,
-        "num_workers": config.num_workers,
-        "pin_memory": True,
-        "persistent_workers": True,
-    }
-
-    train_loader, _, _ = build_train_val_loader(
-        config=loader_config, train_size=config.train_size, return_n_classes=True
-    )
-
-    test_loader_config = {
-        "dataset_name": config.dataset_name,
-        "batch_size": config.test_batch_size,
-        "mode": "test",
-        "num_workers": config.num_workers,
-        "pin_memory": True,
-    }
-    test_loader = build_loader(config=test_loader_config, drop_last=False)
-
-    # 3. Execute probing script with microsecond tracking
-    start_time = time.perf_counter()
-
-    metrics = run_linear_probing(model=model, train_loader=train_loader, test_loader=test_loader, config=config)
-
-    elapsed_time = time.perf_counter() - start_time
-
-    # 4. Save results to the MTEB structured folder hierarchy
-    save_mteb_results(metrics=metrics, config=config, elapsed_time=elapsed_time)

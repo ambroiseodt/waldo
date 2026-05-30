@@ -10,8 +10,10 @@ in the root directory of this source tree.
 """
 
 from .factory import build_linear_probing
-from .linear import LinearProbingConfig, LinearProbingEvaluator
+from .linear import LinearProbing, LinearProbingConfig
 
 __all__ = [
-    "run_linear_probing",
+    "LinearProbingConfig",
+    "LinearProbing",
+    "build_linear_probing",
 ]

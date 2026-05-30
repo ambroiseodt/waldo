@@ -1,9 +1,9 @@
 r"""
-Linear probing to evaluate VFMs and VLMs.
+Linear probing to evaluate VFMs and VLMs on image classification tasks.
 
 Notes
 -----
-We follow DINOv2 [1]_ exprimental setup to define the default parameters of logistic regression solver.
+We follow DINOv2 [1]_ exprimental setup to define the default parameters of the logistic regression.
 
 References
 ----------
@@ -21,6 +21,7 @@ import gc
 import json
 import logging
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -34,13 +35,10 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 
-from waldo.infra import DEVICE, SAVING_DIR
-from waldo.models import BaseVisionModel
+from ..infra import DEVICE
+from ..models import BaseVisionLanguageModel, BaseVisionModel
 
 logger = logging.getLogger(__name__)
-
-# Paths
-TEMP_DIR = SAVING_DIR / "temp"
 
 
 # ------------------------------------------------------------------------------
@@ -50,17 +48,22 @@ TEMP_DIR = SAVING_DIR / "temp"
 class LinearProbingConfig:
     r"""
     Linear probing configuration file with Logistic Regression.
+    The default logistic regression parameters follow DINOv2 [1]_.
 
     Parameters
     ----------
-    tol: float, default=1e-4
+    tol: float, default=1e-12
        Tolerance for stopping criteria.
-    max_iter: int, default=100
+    max_iter: int, default=1000
         Maximum number of iterations to converge.
     device: str, default=DEVICE
         Device to use.
     seed: int, default=42
         Random seed for reproducibility.
+
+    References
+    ----------
+    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
 
     See also
     --------
@@ -69,11 +72,8 @@ class LinearProbingConfig:
     """
 
     # Classifier
-    tol: float = 1e-4
-    max_iter: int = 100
-
-    # Temporary path
-    temp_path: Path = TEMP_DIR / "temp"
+    tol: float = 1e-12
+    max_iter: int = 1000
 
     # Device
     device: str = DEVICE
@@ -89,10 +89,6 @@ class LinearProbingConfig:
         # Valid tolerance
         assert self.tol >= 0, f"Invalid tolerance {self.tol}. This should be a nonnegative number."
 
-        # Create temporary path
-        self.temp_dir = TEMP_DIR / "embeddings"
-        self.temp_dir.mkdir(exist_ok=True, parents=True)
-
 
 # ------------------------------------------------------------------------------
 #   Linear probing
@@ -107,9 +103,9 @@ class LinearProbing:
     Parameters
     ----------
     config: configuration class with
-        tol: float, default=1e-4
+        tol: float, default=1e-12
         Tolerance for stopping criteria.
-        max_iter: int, default=100
+        max_iter: int, default=1000
             Maximum number of iterations to converge.
         device: str, default=DEVICE
             Device to use.
@@ -127,15 +123,36 @@ class LinearProbing:
         self.max_iter = config.max_iter
         self.device = config.device
         self.seed = config.seed
-        self.temp_dir = config.temp_dir
 
     @staticmethod
     def _get_index(path: Path) -> int:
-        """Extracts the numerical index from a filename in format "batch_X"."""
-        return int(path.stem.split("_")[1])
+        r"""Extract the index from a path by splitting the stem string."""
+        # This was the line causing the IndexError when used on folder names like "layer_x"
+        return int(path.stem.split("batch_")[1])
 
     @torch.inference_mode()
-    def _extract_embeddings(self, model: BaseVisionModel, loader: DataLoader, split: str) -> None:
+    def _extract_embeddings(
+        self, model: BaseVisionModel | BaseVisionLanguageModel, loader: DataLoader, split: str, temp_path: Path
+    ) -> None:
+        r"""
+        Extract embeddings of a model accross its layers and modules.
+        The model is expected to be on the device defined in the config.
+
+        Parameters
+        ----------
+        model: BaseVisionModel | BaseVisionLanguageModel
+            Model to evaluate.
+        loader: DataLoader
+            DataLoader to use for evaluation.
+        split: str
+            Split to evaluate on. Options are "train" and "test".
+            This is used to save the embeddings temporarily on the disk.
+
+        See also
+        --------
+        BaseVisionModel
+        BaseVisionLanguageModel
+        """
         model.eval()
         label_buffer = []
 
@@ -158,11 +175,12 @@ class LinearProbing:
                     layer, module = int(match.group(1)), str(match.group(2))
 
                 # Move embedding to numpy (output of get_embeddings are expected to be on cpu)
-                embedding = embeddings[key].numpy()
+                embedding = embedding.numpy()
 
                 # Save batch of embedding to disk
-                data_path = self.temp_dir / f"{split}" / f"layer_{layer}" / f"module_{module}" / f"batch_{idx}.npy"
-                np.save(data_path, embedding)
+                data_path = temp_path / f"{split}" / f"layer_{layer}" / f"module_{module}"
+                data_path.mkdir(parents=True, exist_ok=True)
+                np.save(data_path / f"batch_{idx}.npy", embedding)
 
             # Recover labels
             label_buffer.append(y_batch.cpu())
@@ -175,7 +193,7 @@ class LinearProbing:
 
         # Save labels to disk
         labels = torch.cat(label_buffer, dim=0).numpy()
-        label_path = self.temp_dir / f"{split}" / "labels.npy"
+        label_path = temp_path / f"{split}" / "labels.npy"
         np.save(label_path, labels)
 
         # Clear memory
@@ -185,15 +203,31 @@ class LinearProbing:
         logger.info("Extraction done.")
 
     def _pipeline(self) -> Pipeline:
+        r"""
+        Return a sklearn Pipeline with StandardScaler and LogisticRegression.
+        If GPU is available, use cuML implementation for faster training.
+        """
         # GPU-friendly logistic regression
         if torch.cuda.is_available():
             scaler = cuMLStandardScaler()
-            solver = cuMLLogisticRegression(tol=self.tol, max_iter=self.max_iter)
+            solver = cuMLLogisticRegression(
+                penalty="l2",
+                tol=self.tol,
+                C=1.0,
+                max_iter=self.max_iter,
+                linesearch_max_iter=50,
+            )
 
         # Sklearn logistic regression
         else:
             scaler = StandardScaler()
-            solver = LogisticRegression(tol=self.tol, max_iter=self.max_iter, random_state=self.seed)
+            solver = LogisticRegression(
+                penalty="l2",
+                tol=self.tol,
+                C=1.0,
+                max_iter=self.max_iter,
+                random_state=self.seed,
+            )
 
         return make_pipeline(scaler, solver)
 
@@ -204,59 +238,123 @@ class LinearProbing:
         test_embeddings: np.ndarray,
         test_labels: np.ndarray,
     ) -> float:
+        r"""Run linear probing with logistic regression and return the test accuracy.
+
+        Parameters
+        ----------
+        train_embeddings: np.ndarray
+            Train embeddings of shape (n_samples, n_features).
+        train_labels: np.ndarray
+            Train labels of shape (n_samples,).
+        test_embeddings: np.ndarray
+            Test embeddings of shape (n_samples, n_features).
+        test_labels: np.ndarray
+            Test labels of shape (n_samples,).
+
+        Returns
+        -------
+        float:
+            Test accuracy of the linear probe.
+        """
+
         clf = self._pipeline()
         clf.fit(train_embeddings, train_labels.ravel())
         acc_test = clf.score(test_embeddings, test_labels.ravel())
         return float(acc_test)
 
-    def evaluate(self, model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, cache_path: Path) -> None:
-        # Extract train and test embeddings
-        self._extract_embeddings(model=model, loader=train_loader, split="train")
-        self._extract_embeddings(model=model, loader=test_loader, split="test")
+    def evaluate(
+        self, model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, cache_path: Path, overwrite: bool
+    ) -> None:
+        r"""
+        Evaluate the model with linear probing on the given train and test dataloaders.
+        Embeddings are saved temporarily on disk to reduce memory usage and delete after evaluation.
+        Results are saved to the specified cache path.
+        """
+        # Overwrite existing results
+        if overwrite:
+            if cache_path.exists():
+                logger.info(f"Overwriting enabled. Deleting existing cache folder at: '{cache_path}'")
+                shutil.rmtree(cache_path)
+                cache_path.mkdir(parents=True, exist_ok=True)
 
-        # Run linear probing over each layer and module
-        train_path = self.temp_dir / "train"
-        test_path = self.temp_dir / "test"
-
-        # Recover labels
-        train_labels = np.load(train_path / "labels.npy").ravel()
-        test_labels = np.load(test_path / "labels.npy").ravel()
-
-        # Loop over layers
-        layer_folders = [f.name for f in (train_path).iterdir() if f.is_dir()]
-        for layer_folder in layer_folders:
-            layer = int(layer_folder.split("_")[1])
-
-            # Loop over modules
-            module_folders = [f.name for f in (train_path / layer_folder).iterdir() if f.is_dir()]
-            for module_folder in module_folders:
-                module = module_folder.split("_")[1]
-
-                # Train and test folder names
-                train_emb_path = train_path / layer_folder / module_folder
-                test_emb_path = test_path / layer_folder / module_folder
-
-                # Sort batch files in numerical order to remain consistent with labels
-                train_files = sorted(train_emb_path.glob("batch_*.npy"), key=self._get_index)
-                test_files = sorted(test_emb_path.glob("batch_*.npy"), key=self._get_index)
-
-                # Recover train and test embeddings
-                train_embeddings = np.concatenate([np.load(f) for f in train_files], axis=0)
-                test_embeddings = np.concatenate([np.load(f) for f in test_files], axis=0)
-
-                # Run linear probing
-                logging.info(f"Linear probing on layer {layer} and module {module}.")
-                acc_test = self._run(
-                    train_embeddings=train_embeddings,
-                    train_labels=train_labels,
-                    test_embeddings=test_embeddings,
-                    test_labels=test_labels,
+        # Do not overwrite existing results and skip evaluation loop
+        else:
+            if cache_path.exists():
+                logger.info(
+                    f"The entire evaluation loop is skipped: found existing results folder at: '{cache_path}'."
+                    f"Please, verify the completeness and viability of these files."
+                    f"If this behavior is not expected, set overwrite=True to force a clean rerun."
                 )
+                return
 
-                # Save result
-                metric_path = cache_path / f"layer_{layer}_module_{module}.json"
-                metric_path.parent.mkdir(exist_ok=True, parents=True)
-                with open(metric_path, "w") as f:
-                    json.dump({"acc_test": acc_test}, f, indent=4)
+        # Create temporary path
+        temp_path = cache_path / "temp_embeddings"
+        temp_path.mkdir(exist_ok=True, parents=True)
 
-        logger.info("Linear probing done.")
+        try:
+            # Extract train and test embeddings
+            self._extract_embeddings(model=model, loader=train_loader, split="train", temp_path=temp_path)
+            self._extract_embeddings(model=model, loader=test_loader, split="test", temp_path=temp_path)
+
+            # Run linear probing over each layer and module
+            train_path = temp_path / "train"
+            test_path = temp_path / "test"
+
+            # Recover labels
+            train_labels = np.load(train_path / "labels.npy").ravel()
+            test_labels = np.load(test_path / "labels.npy").ravel()
+
+            # Loop over layers
+            layer_folders = [f.name for f in train_path.iterdir() if f.is_dir()]
+            print("folders", layer_folders)
+            for layer_folder in layer_folders:
+                layer = int((layer_folder).split("_")[1])
+
+                # Loop over modules
+                module_folders = [f.name for f in (train_path / layer_folder).iterdir() if f.is_dir()]
+                for module_folder in module_folders:
+                    print("module", module_folder)
+                    module = module_folder.split("_")[1]
+
+                    # Train and test folder names
+                    train_emb_path = train_path / layer_folder / module_folder
+                    test_emb_path = test_path / layer_folder / module_folder
+
+                    # Sort batch files in numerical order to remain consistent with labels
+                    train_files = sorted(train_emb_path.glob("batch_*.npy"), key=self._get_index)
+                    test_files = sorted(test_emb_path.glob("batch_*.npy"), key=self._get_index)
+                    print("batch", [f.name for f in train_files])
+                    # Recover train and test embeddings
+                    train_embeddings = np.concatenate([np.load(f) for f in train_files], axis=0)
+                    test_embeddings = np.concatenate([np.load(f) for f in test_files], axis=0)
+
+                    # Run linear probing
+                    logging.info(f"Linear probing of layer {layer} and module {module}.")
+                    acc_test = self._run(
+                        train_embeddings=train_embeddings,
+                        train_labels=train_labels,
+                        test_embeddings=test_embeddings,
+                        test_labels=test_labels,
+                    )
+
+                    # Save result
+                    metric_path = cache_path / f"layer_{layer}_module_{module}.json"
+                    metric_path.parent.mkdir(exist_ok=True, parents=True)
+                    with open(metric_path, "w") as f:
+                        json.dump({"acc_test": acc_test}, f, indent=4)
+
+                    # Delete temporary files
+                    shutil.rmtree(train_emb_path, ignore_errors=True)
+                    shutil.rmtree(test_emb_path, ignore_errors=True)
+
+                    # Clean memory
+                    del train_embeddings, test_embeddings
+                    gc.collect()
+                    if "cuda" in self.device and torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+
+        finally:
+            # Delete temporary files
+            if temp_path.exists():
+                shutil.rmtree(temp_path)
+                logger.info("Delete temporary files.")
