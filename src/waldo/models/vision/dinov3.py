@@ -37,7 +37,7 @@ import torch
 import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import DINOv3ViTModel, PreTrainedModel
-from transformers.models.dinov3_vit.modeling_dinov3_vit import DINOv3ViTGatedMLP, DINOv3ViTMLP
+from transformers.models.dinov3_vit.modeling_dinov3_vit import DINOv3ViTEncoder, DINOv3ViTGatedMLP, DINOv3ViTMLP
 
 from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
@@ -282,4 +282,5 @@ class Dinov3(BaseVisionModel):
     @property
     def blocks(self) -> ModuleList:
         r"""Return the list of transformer blocks."""
-        return cast(ModuleList, self.model.layer)
+        encoder = cast(DINOv3ViTEncoder, self.model.model)
+        return cast(ModuleList, encoder.layer)
