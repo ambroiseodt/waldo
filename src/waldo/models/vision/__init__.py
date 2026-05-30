@@ -10,11 +10,13 @@ in the root directory of this source tree.
 """
 
 from .aimv2 import Aimv2, Aimv2BlockAdapter, Aimv2Config
+from .base import BaseVisionModel
 from .dinov2 import Dinov2, Dinov2BlockAdapter, Dinov2Config
 from .dinov3 import Dinov3, Dinov3BlockAdapter, Dinov3Config
 from .vit import ViT, ViTBlockAdapter, ViTConfig
 
 __all__ = [
+    "BaseVisionModel",
     "Aimv2",
     "Aimv2BlockAdapter",
     "Aimv2Config",

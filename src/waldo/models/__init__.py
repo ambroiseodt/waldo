@@ -17,6 +17,7 @@ _factory = [
 ]
 
 _language = [
+    "BaseLanguageModel",
     "Gemma3",
     "Gemma3BlockAdapter",
     "Gemma3Config",
@@ -32,6 +33,7 @@ _language = [
 ]
 
 _multimodal = [
+    "BaseVisionLanguageModel",
     "Clip",
     "ClipBlockAdapter",
     "ClipConfig",
@@ -53,6 +55,7 @@ _transformer_block = [
 
 
 _vision = [
+    "BaseVisionModel",
     "Aimv2",
     "Aimv2BlockAdapter",
     "Aimv2Config",

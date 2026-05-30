@@ -9,6 +9,7 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+from .base import BaseLanguageModel
 from .gemma3 import Gemma3, Gemma3BlockAdapter, Gemma3Config
 from .gemma4 import Gemma4, Gemma4BlockAdapter, Gemma4Config
 from .llama3 import Llama3, Llama3BlockAdapter, Llama3Config

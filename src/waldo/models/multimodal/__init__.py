@@ -9,10 +9,12 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+from .base import BaseVisionLanguageModel
 from .clip import Clip, ClipBlockAdapter, ClipConfig
 from .siglip2 import Siglip2, Siglip2BlockAdapter, Siglip2Config
 
 __all__ = [
+    "BaseVisionLanguageModel",
     "Clip",
     "ClipBlockAdapter",
     "ClipConfig",
