@@ -129,6 +129,9 @@
 ### Alingment experiments on VLMs
 - LAION2B is a dataset typically used for VLMs like CLIP with visual and textual descriptions. It can be used to study whether text and vision embeddings are aligned and also which one is (textual embedding recover from the text tower and visual embeddings recovered across the layers and modules). Better to used a standard dataset from the literature than my own textual descriptions.
 
+### Results tables
+- highlight the literature baseline of probing the output of the last transformer block
+
 ### Related work
 - Choice of models and datasets: https://arxiv.org/pdf/2601.09322 (also connected to our methodology so very important to mention it)
 - Add a similar table to described datasets as Table 2 in https://arxiv.org/pdf/2601.09322 (nb train, nb test, nb classes, imbalance class ratio)
