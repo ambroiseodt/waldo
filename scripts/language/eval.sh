@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-# This file is useful to evalute LLMs on the MTEB benchmark. It will create 
+# This file is useful to evaluate LLMs on the MTEB benchmark. It will create 
 # a dedicated tmux session on the specified device. To do so, run the following
 # command in the terminal from the root directory of the project.
 # ```bash

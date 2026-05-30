@@ -1,5 +1,5 @@
 r"""
-Utils functions to build the MTEB benchmark.
+MTEB benchmark instantiation factory.
 
 License
 -------

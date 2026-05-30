@@ -131,6 +131,14 @@ class MTEB:
         self.batch_size = config.batch_size
 
     def evaluate(self, model: SentenceTransformer, cache_path: str) -> ModelResult:
+        r"""
+        Evaluate the model on MTEB benchmark. Results are saved to the cache path.
+
+        Returns
+        -------
+        ModelResult
+            Results of the evaluation.
+        """
         cache = mteb.ResultCache(cache_path=cache_path)
         return mteb.evaluate(
             model,
@@ -170,12 +178,15 @@ class MTEB:
 
     @property
     def n_tasks(self) -> int:
+        r"""Return the number of tasks."""
         return len(self.tasks)
 
     @property
     def domains(self) -> set[str]:
+        r"""Return the domains covered by the tasks."""
         return {domain for task in self.tasks for domain in (task.metadata.domains or [])}
 
     @property
     def languages(self) -> set[str]:
+        r"""Return the languages covered by the tasks."""
         return {lang for task in self.tasks for lang in (task.metadata.languages or [])}
