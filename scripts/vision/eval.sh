@@ -7,38 +7,37 @@
 # $ bash <path_to_file_folder>/eval.sh
 # ```
 
-# # ViT
-# model_name="vit"
-# device="cuda:2"
+# DATASETS
+datasets=(
+    "aircraft"
+    "cifar10"
+    "cifar100"
+    "domainnet-sketch"
+    "dtd"
+    "eurosat"
+    "flowers102"
+    "food101"
+    "imagenetc-corruption-motion_blur-severity-3"
+    "pet"
+)
 
-# # Runs
-# for model_size in \
-#     "base" \
-#     # "large" \
-#     # "huge" 
-# do
-#     session="eval_${model_name}_${model_size}"
-#     tmux new-session -d -s ${session}
-#     run="model_size=${model_size} device=${device}"
-#     command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
-#     echo "Running command: ${command}"
-#     tmux send-keys -t ${session} "${command}" C-m
-# done
-
-# DINOv3
-model_name="dinov3"
-device="cuda:2"
+# ViT
+model_name="vit"
+device="cuda:4"
 
 # Runs
 for model_size in \
-    "vits16" \
-    # "vitb16" \
-    # "vit7b16" 
+    "base" \
+    # "large" \
+    # "huge" 
 do
     session="eval_${model_name}_${model_size}"
     tmux new-session -d -s ${session}
-    run="model_size=${model_size} device=${device}"
-    command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
-    echo "Running command: ${command}"
-    tmux send-keys -t ${session} "${command}" C-m
+    for dataset_name in ${datasets[@]}
+    do
+        run="model_size=${model_size} dataset_name=${dataset_name} device=${device}"
+        command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+        echo "Running command: ${command}"
+        tmux send-keys -t ${session} "${command}" C-m
+    done
 done

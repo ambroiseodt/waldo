@@ -79,6 +79,11 @@ def eval(config: EvaluationConfig) -> None:
     ----------
     config: EvaluationConfig
         Configuration file to setup the model and the benchmark.
+
+    Returns
+    -------
+    cache_path: Path
+        Path where the results are saved.
     """
     # ---------------------------------------------------------------------
     # Set seed for reproducibility
@@ -116,6 +121,14 @@ def eval(config: EvaluationConfig) -> None:
     # ---------------------------------------------------------------------
     # Run evaluation
     # ---------------------------------------------------------------------
+    cache_path = RUN_DIR / config.dataset_name / model.model_name
+    cache_path.mkdir(parents=True, exist_ok=True)
+
+    # Save experiment config
+    with open(cache_path / "config.json", "w") as f:
+        json.dump(json_serializable(asdict(config)), f, indent=4)
+
+    # Launch linear probing
     logger.info(f"Running linear probing on {config.dataset_name}.")
     linear_probing_config = {
         "tol": config.tol,
@@ -124,7 +137,6 @@ def eval(config: EvaluationConfig) -> None:
         "seed": config.seed,
     }
     linear_probing = build_linear_probing(config=linear_probing_config)
-    cache_path = RUN_DIR / config.dataset_name / model.model_name
     linear_probing.evaluate(
         model=model,
         train_loader=train_loader,
@@ -132,13 +144,6 @@ def eval(config: EvaluationConfig) -> None:
         cache_path=cache_path,
         overwrite=config.overwrite,
     )
-
-    # Save config
-    logger.info("Saving experiment config.")
-    with open(cache_path / "config.json", "w") as f:
-        json.dump(json_serializable(asdict(config)), f, indent=4)
-
-    logger.info(f"Finished evaluation on {config.dataset_name}.")
 
 
 # %% Main
@@ -164,7 +169,7 @@ def main() -> None:
     To overwrite some arguments via the cli, e.g., to set the device to cuda:0, run:
 
     ```bash
-    python -m apps.vision.eval config=apps/language/configs/your_config.yaml device=cuda:0
+    python -m apps.vision.eval config=apps/vision/configs/your_config.yaml device=cuda:0
     ```vision
     """
     # Logger setup

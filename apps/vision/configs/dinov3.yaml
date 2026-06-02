@@ -1,9 +1,9 @@
 # Model
 model_name: "dinov3"
-model_size: "vit7b16"
+model_size: "vitb16"
 
 # Data
-dataset_name: "pet" #"cifar10"
+dataset_name: "cifar10"
 batch_size: 512
 
 # Linear probing
@@ -11,7 +11,7 @@ tol: 1e-4
 max_iter: 1000
 
 # Logger
-overwrite: true #false
+overwrite: false
 
 # Device
 device: "cuda:0"

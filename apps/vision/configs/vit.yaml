@@ -2,7 +2,6 @@
 model_name: "vit"
 model_size: "base"
 patch_size: 16
-resolution: 224
 
 # Data
 dataset_name: "pet" #"cifar10"
