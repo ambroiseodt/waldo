@@ -137,6 +137,7 @@
 - The impact of embedding dimension is studied in the paper above and they provide a solution to efficiently have less or more layers in an adaptable fashion
 - The proposed method ensures that all representations is useful and rich across layers
 - Might be connected to our goal and our study could maybe help improve the approach, think about it
+- Also inspire from this paper MRL for flops and efficiency comparison (see fig 8)
 
 ### Related work
 - Choice of models and datasets: https://arxiv.org/pdf/2601.09322 (also connected to our methodology so very important to mention it)
