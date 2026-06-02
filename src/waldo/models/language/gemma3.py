@@ -177,7 +177,7 @@ class Gemma3(BaseLanguageModel):
     Gemma3 language model following [1]_.
 
     By default, the probing is done on the output of the final transformer block.
-    Set he layer and module to probe with set_probing(layer: int, module: str).
+    Set the layer and module to probe with set_probing(layer: int, module: str).
     See base.py for more details.
 
     Parameters
@@ -316,7 +316,15 @@ class Gemma3(BaseLanguageModel):
 
     @property
     def special_token_ids(self) -> list[Any]:
-        r"""Return BOS, EOS and padding token ids to exclude from pooling."""
+        r"""
+        Return BOS, EOS and padding token ids to exclude from pooling.
+
+        Notes
+        -----
+        Since we consider pretrained models and not instruction-tuned variants,
+        we do not expect special tokens related to multi-turn or thinking. As such,
+        we only excluse separation and padding tokens.
+        """
         return [
             self.tokenizer.bos_token_id,
             self.tokenizer.eos_token_id,
