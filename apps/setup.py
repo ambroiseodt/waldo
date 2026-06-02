@@ -10,7 +10,9 @@ in the root directory of this source tree.
 """
 
 import logging
+import os
 import sys
+import warnings
 
 
 def setup_logging() -> None:
@@ -29,4 +31,13 @@ def setup_logging() -> None:
         force=True,
     )
 
+    # Silence sklearn built-in warnings
+    warnings.filterwarnings("ignore", category=FutureWarning)
 
+    # Set noisy library logger level to ERROR
+    noisy_loggers = ["transformers", "datasets", "httpx", "filelock"]
+    for logger_name in noisy_loggers:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
+
+    # Silence Tokenizer parallelism warning if using many CPUs
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
