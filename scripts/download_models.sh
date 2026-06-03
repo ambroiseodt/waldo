@@ -1,7 +1,6 @@
 #!/usr/bin/bash
 
-# This file is useful to download models from HuggingFace. It will create 
-# a dedicated tmux session on the specified device and save the weights on
+# This file is useful to download models from HuggingFace and save the weights on
 # the default cache.  To do so, run the following command in the terminal
 # from the root directory of the project.
 # ```bash
@@ -27,6 +26,27 @@ MODELS=(
     "Qwen/Qwen3-8B"
     "Qwen/Qwen3-14B"
     "Qwen/Qwen3-32B"
+    "apple/aimv2-large-patch14-224"
+    "apple/aimv2-huge-patch14-224"
+    "apple/aimv2-1B-patch14-224"
+    "apple/aimv2-3B-patch14-224"
+    "facebook/dinov2-small"
+    "facebook/dinov2-base"
+    "facebook/dinov2-large"
+    "facebook/dinov2-giant"
+    "facebook/dinov3-vits16-pretrain-lvd1689m"
+    "facebook/dinov3-vitb16-pretrain-lvd1689m"
+    "facebook/dinov3-vitl16-pretrain-lvd1689m"
+    "facebook/dinov3-vit7b16-pretrain-lvd1689m"
+    "google/vit-base-patch16-224-in21k"
+    "google/vit-large-patch16-224-in21k"
+    "google/vit-huge-patch14-224-in21k"
+    "google/siglip2-base-patch16-224"
+    "google/siglip2-large-patch16-224",
+    "google/siglip2-giant-opt-patch16-256"
+    "google/siglip2-so400m-patch16-256"
+    "openai/clip-vit-base-patch16"
+    "openai/clip-vit-large-patch14"
 )
 
 SUCCESS_COUNT=0
@@ -39,10 +59,15 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 for model in "${MODELS[@]}"; do
-    printf "📥 %-55s" "$model"
+
+    printf "📥 %s\n" "$model" >/dev/tty
     
+    # Local path for logs
+    TMP_LOG="./hf_download_temp.log"
+
     # Capture both stdout and stderr to check for errors
-    if output=$(hf download "$model" 2>&1); then
+    # if output=$(hf download "$model" 2>&1); then
+    if hf download "$model" 2>&1 | tee "$TMP_LOG"; then
         echo " ✅ SUCCESS"
         ((SUCCESS_COUNT++))
     else
@@ -67,6 +92,9 @@ for model in "${MODELS[@]}"; do
             echo "   ⚠️  Download failed: $output"
         fi
     fi
+
+    # Delete log file  
+    rm -f "$TMP_LOG"
     echo ""
 done
 
