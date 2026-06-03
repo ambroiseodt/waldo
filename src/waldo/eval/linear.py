@@ -230,14 +230,13 @@ class LinearProbing:
             )
         return make_pipeline(scaler, solver)
 
-    def _run(
+    def _fit(
         self,
         train_embeddings: np.ndarray,
         train_labels: np.ndarray,
-        test_embeddings: np.ndarray,
-        test_labels: np.ndarray,
-    ) -> float:
-        r"""Run linear probing with logistic regression and return the test accuracy.
+    ) -> Pipeline:
+        r"""
+        Train a linear classifier.
 
         Parameters
         ----------
@@ -245,6 +244,28 @@ class LinearProbing:
             Train embeddings of shape (n_samples, n_features).
         train_labels: np.ndarray
             Train labels of shape (n_samples,).
+
+        Returns
+        -------
+        clf: Pipeline
+             Fitted sklearn Pipeline.
+        """
+
+        clf = self._pipeline()
+        clf.fit(train_embeddings, train_labels.ravel())
+        return clf
+
+    def _score(
+        self,
+        clf: Pipeline,
+        test_embeddings: np.ndarray,
+        test_labels: np.ndarray,
+    ) -> float:
+        r"""
+        Evaluate a linear classifier.
+
+        Parameters
+        ----------
         test_embeddings: np.ndarray
             Test embeddings of shape (n_samples, n_features).
         test_labels: np.ndarray
@@ -255,20 +276,36 @@ class LinearProbing:
         float:
             Test accuracy of the linear probe.
         """
-
-        clf = self._pipeline()
-        clf.fit(train_embeddings, train_labels.ravel())
         acc_test = clf.score(test_embeddings, test_labels.ravel())
         return float(acc_test)
 
-    def evaluate(
-        self, model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, cache_path: Path, overwrite: bool
+    def _evaluate_single(
+        self,
+        model: nn.Module,
+        train_loader: DataLoader,
+        test_loader: DataLoader,
+        cache_path: Path,
+        overwrite: bool,
     ) -> None:
         r"""
-        Evaluate the model with linear probing on the given train and test dataloaders.
-        Embeddings are saved temporarily on disk to reduce memory usage and delete after evaluation.
-        Results are saved to the specified cache path.
+        Evaluate the model with linear probing on a pair of train and test dataloaders.
+        Embeddings are saved temporarily on disk to reduce memory usage and deleted
+        after evaluation. Results are saved to the specified cache path.
+
+        Parameters
+        ----------
+        model: nn.Module
+            Model to evaluate. It is expected to be on the device defined in the config.
+        train_loader: DataLoader
+            Train dataloader.
+        test_loader: DataLoader
+            Test dataloader.
+        cache_path: Path
+            Path where the results are saved.
+        overwrite: bool
+            Whether to overwrite existing results.
         """
+        # Check whether results already exists
         results_path = cache_path / "results"
         if results_path.exists():
             # Overwrite result folder
@@ -278,6 +315,7 @@ class LinearProbing:
                     f"If this behavior is not expected, set overwrite=False to keep results and skip evaluation."
                 )
                 shutil.rmtree(results_path)
+
             # Skip evaluation
             else:
                 logger.info(
@@ -287,28 +325,24 @@ class LinearProbing:
                 )
                 return
 
-        # Create results folder
-        results_path.mkdir(parents=True, exist_ok=True)
-
         # Create temporary path
         temp_path = results_path / "temp_embeddings"
-        temp_path.mkdir(exist_ok=True, parents=True)
 
         try:
-            # Extract train and test embeddings
+            # Extract train embeddings and recover label
             info = {}
             start = time.time()
             self._extract_embeddings(model=model, loader=train_loader, split="train", temp_path=temp_path)
-            self._extract_embeddings(model=model, loader=test_loader, split="test", temp_path=temp_path)
-            info["extraction_time"] = time.time() - start
-
-            # Run linear probing over each layer and module
             train_path = temp_path / "train"
-            test_path = temp_path / "test"
-
-            # Recover labels
             train_labels = np.load(train_path / "labels.npy").ravel()
+            info["train_extraction_time"] = time.time() - start
+
+            # Extract test embeddings and recover label
+            start = time.time()
+            self._extract_embeddings(model=model, loader=test_loader, split="test", temp_path=temp_path)
+            test_path = temp_path / "test"
             test_labels = np.load(test_path / "labels.npy").ravel()
+            info["test_extraction_time"] = time.time() - start
 
             # Loop over layers
             logger.info("Start evaluation.")
@@ -324,29 +358,29 @@ class LinearProbing:
                     for module_folder in module_folders:
                         module = module_folder.split("_")[1]
 
-                        # Train and test folder names
+                        # Fit classifier on train embeddings
+                        # Batch files are sorted numerically to remain consistent with labels
                         train_emb_path = train_path / layer_folder / module_folder
-                        test_emb_path = test_path / layer_folder / module_folder
-
-                        # Sort batch files in numerical order to remain consistent with labels
                         train_files = sorted(train_emb_path.glob("batch_*.npy"), key=self._get_index)
-                        test_files = sorted(test_emb_path.glob("batch_*.npy"), key=self._get_index)
-
-                        # Recover train and test embeddings
                         train_embeddings = np.concatenate([np.load(f) for f in train_files], axis=0)
-                        test_embeddings = np.concatenate([np.load(f) for f in test_files], axis=0)
-
-                        # Run linear probing
-                        acc_test = self._run(
+                        clf = self._fit(
                             train_embeddings=train_embeddings,
                             train_labels=train_labels,
+                        )
+
+                        # Evaluate classifier on test embeddings
+                        test_emb_path = test_path / layer_folder / module_folder
+                        test_files = sorted(test_emb_path.glob("batch_*.npy"), key=self._get_index)
+                        test_embeddings = np.concatenate([np.load(f) for f in test_files], axis=0)
+                        acc_test = self._score(
+                            clf=clf,
                             test_embeddings=test_embeddings,
                             test_labels=test_labels,
                         )
 
                         # Save result
                         metric_path = results_path / f"layer_{layer}_module_{module}.json"
-                        metric_path.parent.mkdir(exist_ok=True, parents=True)
+                        # metric_path.parent.mkdir(exist_ok=True, parents=True)
                         with open(metric_path, "w") as f:
                             json.dump({"acc_test": acc_test}, f, indent=4)
 
@@ -367,7 +401,6 @@ class LinearProbing:
             info["eval_time"] = time.time() - start
             with open(cache_path / "info.json", "w") as f:
                 json.dump(info, f, indent=4)
-
             logger.info("Evaluation done.")
 
         finally:
@@ -375,3 +408,197 @@ class LinearProbing:
             if temp_path.exists():
                 shutil.rmtree(temp_path)
                 logger.info("Delete temporary files.")
+
+    def _evaluate_multiple(
+        self,
+        model: nn.Module,
+        train_loader: DataLoader,
+        test_loader: dict[str, DataLoader],
+        cache_path: Path,
+        overwrite: bool,
+    ) -> None:
+        r"""
+        Evaluate the model with linear probing on a train dataloader and several test dataloaders.
+        Evaluation is done independently on each test loader. Embeddings are saved temporarily on
+        disk to reduce memory usage and deleted after evaluation.
+        Results are saved to the specified cache path.
+
+        Parameters
+        ----------
+        model: nn.Module
+            Model to evaluate. It is expected to be on the device defined in the config.
+        train_loader: DataLoader
+            Train dataloader.
+        test_loader: dict[str, DataLoader]
+            Dictionary of test dataloaders where the keys specify which dataset they correspond to.
+        cache_path: Path
+            Path where the results are saved.
+        overwrite: bool
+            Whether to overwrite existing results.
+        """
+        # Check whether results already exists
+        results_path = cache_path / "results"
+        all_keys = set(test_loader.keys())
+        for key in test_loader:
+            path = results_path / key
+            if path.exists():
+                # Overwrite result folder
+                if overwrite:
+                    logger.info(
+                        f"Deleting cached results found at '{path}'. "
+                        f"If this behavior is not expected, set overwrite=False to keep results and skip evaluation."
+                    )
+                    shutil.rmtree(path)
+                # Skip evaluation
+                else:
+                    logger.info(
+                        f"Skipping evaluation for {key}: results already exists at '{path}'. "
+                        f"Please make sure these files are complete and viable. "
+                        f"If this behavior is not expected, set overwrite=True to force a clean rerun."
+                    )
+                    all_keys.discard(key)
+
+        # If overwrite is False andall results already exists, skip the evaluation
+        if not all_keys:
+            logger.info(
+                "Skipping the entire evaluation loop: all results already exists and overwrite is set to False."
+            )
+            return
+
+        # Create temporary path
+        temp_path = results_path / "temp_embeddings"
+
+        try:
+            # Extract train embeddings and recover label
+            info = {}
+            start = time.time()
+            self._extract_embeddings(model=model, loader=train_loader, split="train", temp_path=temp_path)
+            train_path = temp_path / "train"
+            train_labels = np.load(train_path / "labels.npy").ravel()
+            info["train_extraction_time"] = time.time() - start
+
+            # Extract test embeddings and recover label
+            test_path = {}
+            test_labels = {}
+            start = time.time()
+            for key in test_loader:
+                split = f"test/{key}"
+                self._extract_embeddings(model=model, loader=test_loader[key], split=split, temp_path=temp_path)
+                test_path[key] = temp_path / split
+                test_labels[key] = np.load(test_path[key] / "labels.npy").ravel()
+            info["test_extraction_time"] = time.time() - start
+
+            # Loop over layers
+            logger.info("Start evaluation.")
+            start = time.time()
+            total_runs = sum(1 for root, dirs, files in os.walk(train_path) if not dirs)
+            with tqdm(total=total_runs, desc="Evaluation", unit="run") as pbar:
+                layer_folders = [f.name for f in train_path.iterdir() if f.is_dir()]
+                for layer_folder in layer_folders:
+                    layer = int((layer_folder).split("_")[1])
+
+                    # Loop over modules
+                    module_folders = [f.name for f in (train_path / layer_folder).iterdir() if f.is_dir()]
+                    for module_folder in module_folders:
+                        module = module_folder.split("_")[1]
+
+                        # Fit classifier on train embeddings
+                        # Batch files are sorted numerically to remain consistent with labels
+                        train_emb_path = train_path / layer_folder / module_folder
+                        train_files = sorted(train_emb_path.glob("batch_*.npy"), key=self._get_index)
+                        train_embeddings = np.concatenate([np.load(f) for f in train_files], axis=0)
+                        clf = self._fit(
+                            train_embeddings=train_embeddings,
+                            train_labels=train_labels,
+                        )
+
+                        # Evaluate classifier on test embeddings
+                        for key in test_loader:
+                            test_emb_path = test_path[key] / layer_folder / module_folder
+                            test_files = sorted(test_emb_path.glob("batch_*.npy"), key=self._get_index)
+                            test_embeddings = np.concatenate([np.load(f) for f in test_files], axis=0)
+                            acc_test = self._score(
+                                clf=clf,
+                                test_embeddings=test_embeddings,
+                                test_labels=test_labels[key],
+                            )
+
+                            # Save result
+                            metric_path = results_path / key / f"layer_{layer}_module_{module}.json"
+                            metric_path.parent.mkdir(exist_ok=True, parents=True)
+                            with open(metric_path, "w") as f:
+                                json.dump({"acc_test": acc_test}, f, indent=4)
+
+                            # Delete temporary files
+                            shutil.rmtree(train_emb_path, ignore_errors=True)
+                            shutil.rmtree(test_emb_path, ignore_errors=True)
+
+                            # Clean memory
+                            del test_embeddings
+
+                            # Update progress bar
+                            pbar.update(1)
+
+                        # Clean memory
+                        del train_embeddings
+                        gc.collect()
+                        if "cuda" in self.device and torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+
+            # Save evaluation time
+            info["eval_time"] = time.time() - start
+            with open(cache_path / "info.json", "w") as f:
+                json.dump(info, f, indent=4)
+            logger.info("Evaluation done.")
+
+        finally:
+            # Delete temporary files
+            if temp_path.exists():
+                shutil.rmtree(temp_path)
+                logger.info("Delete temporary files.")
+
+    def evaluate(
+        self,
+        model: nn.Module,
+        train_loader: DataLoader,
+        test_loader: DataLoader | dict[str, DataLoader],
+        cache_path: Path,
+        overwrite: bool,
+    ) -> None:
+        r"""
+        Evaluate the model with linear probing on a pair of train and test dataloaders.
+        Embeddings are saved temporarily on disk to reduce memory usage and deleted
+        after evaluation. Results are saved to the specified cache path.
+
+        Parameters
+        ----------
+        model: nn.Module
+            Model to evaluate. It is expected to be on the device defined in the config.
+        train_loader: DataLoader
+            Train dataloader.
+        test_loader: DataLoader | dict[str, DataLoader]
+            Test dataloader(s). If test_loader is a dict, the evaluation is done on each
+            dataloader independently and results are saved in
+        cache_path: Path
+            Path where the results are saved.
+        overwrite: bool
+            Whether to overwrite existing results.
+        """
+        # Evaluation on multiple test loaders (independently)
+        if isinstance(test_loader, dict):
+            self._evaluate_multiple(
+                model=model,
+                train_loader=train_loader,
+                test_loader=test_loader,
+                cache_path=cache_path,
+                overwrite=overwrite,
+            )
+        # Evaluation on a single test loader
+        else:
+            self._evaluate_single(
+                model=model,
+                train_loader=train_loader,
+                test_loader=test_loader,
+                cache_path=cache_path,
+                overwrite=overwrite,
+            )
