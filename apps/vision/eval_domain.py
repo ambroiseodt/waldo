@@ -97,6 +97,8 @@ def eval(config: EvaluationConfig) -> None:
     model_config = {
         "model_name": config.model_name,
         "model_size": config.model_size,
+        "patch_size": config.patch_size,
+        "resolution": config.resolution,
         "device": config.device,
     }
     model = build_model(config=model_config, return_config=False)

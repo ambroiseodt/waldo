@@ -226,7 +226,6 @@ class Siglip2(BaseVisionLanguageModel):
                 "google/siglip2-base-patch16-512",
                 "google/siglip2-base-patch16-naflex",
                 "google/siglip2-base-patch32-224",
-                "google/siglip2-large-patch16-224",
                 "google/siglip2-large-patch16-256",
                 "google/siglip2-large-patch16-384",
                 "google/siglip2-large-patch16-512",

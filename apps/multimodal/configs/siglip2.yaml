@@ -1,0 +1,22 @@
+# Model
+model_name: "siglip2"
+model_size: "base"
+patch_size: 16
+resolution: 224
+
+# Data
+dataset_name: "cifar10"
+batch_size: 512
+
+# Linear probing
+tol: 1e-4
+max_iter: 1000
+
+# Logger
+overwrite: false
+
+# Device
+device: "cuda:0"
+
+# Reproducibility
+seed: 42

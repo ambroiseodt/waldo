@@ -20,12 +20,12 @@ severities="[1,3,5]"
 
 # # Runs
 # for model_size in \
-#     "base" \
-#     # "large" 
+#     large \
+#     # "base" 
 # do
 #     session="eval_corruption_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
-#     run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=$corruptions severities=${severities} device=${device}"
+#     run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} device=${device}"
 #     command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
@@ -41,7 +41,7 @@ severities="[1,3,5]"
 # # Runs
 # session="eval_corruption_${model_name}_${model_size}"
 # tmux new-session -d -s ${session}
-# run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=$corruptions severities=${severities} batch_size=${batch_size} device=${device}"
+# run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
 # command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
@@ -53,14 +53,14 @@ severities="[1,3,5]"
 
 # # Runs
 # for model_size in \
-#     "small" \
-#     # "base" \
+#     base \
+#     # "small" \
 #     # "large" \
-#     # "huge" 
+#     # "giant" 
 # do
 #     session="eval_corruption_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
-#     run="model_name=${model_name} model_size=${model_size}  corruptions=$corruptions severities=${severities} batch_size=${batch_size} device=${device}"
+#     run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
 #     command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
@@ -73,14 +73,14 @@ severities="[1,3,5]"
 
 # # Runs
 # for model_size in \
-#     "vits16" \
-#     # "vitb16" \
+#     "vitb16" \
+#     # "vits16" \
 #     # "vitl16" \
 #     # "vit7b16" 
 # do
 #     session="eval_corruption_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
-#     run="model_name=${model_name} model_size=${model_size}  corruptions=$corruptions severities=${severities} batch_size=${batch_size} device=${device}"
+#     run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
 #     command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
@@ -93,14 +93,14 @@ severities="[1,3,5]"
 
 # # Runs
 # for model_size in \
-#     "large" \
-#     # "huge" \
+#     "huge" \
+#     # "large" \
 #     # "1B" \
 #     # "3B" 
 # do
 #     session="eval_corruption_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
-#     run="model_name=${model_name} model_size=${model_size}  corruptions=$corruptions severities=${severities} batch_size=${batch_size} device=${device}"
+#     run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
 #     command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m

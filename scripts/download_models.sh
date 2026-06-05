@@ -42,7 +42,7 @@ MODELS=(
     "google/vit-large-patch16-224-in21k"
     "google/vit-huge-patch14-224-in21k"
     "google/siglip2-base-patch16-224"
-    "google/siglip2-large-patch16-224",
+    "google/siglip2-large-patch16-256",
     "google/siglip2-giant-opt-patch16-256"
     "google/siglip2-so400m-patch16-256"
     "openai/clip-vit-base-patch16"

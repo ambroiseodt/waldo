@@ -63,21 +63,21 @@ datasets=(
 # # DINOv2
 # model_name="dinov2"
 # device="cuda:0"
-# batch_size=128
+# batch_size=32
 
 # # Runs
 # for model_size in \
-#     "large" \
+#     "giant" \
 #     # "small" \
 #     # "base" \
-#     # "huge" 
+#     # "large" 
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     for dataset_name in ${datasets[@]}
 #     do
 #         run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
-#         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+#         command="OMP_NUM_THREADS=56 MKL_NUM_THREADS=56 taskset -c 56-111 python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
 #         echo "Running command: ${command}"
 #         tmux send-keys -t ${session} "${command}" C-m
 #     done
@@ -85,22 +85,22 @@ datasets=(
 
 # # DINOv3
 # model_name="dinov3"
-# device="cuda:0"
-# batch_size=128
+# device="cuda:5"
+# batch_size=8
 
 # # Runs
 # for model_size in \
-#     "vitl16" \
+#     "vit7b16" \
 #     # "vits16" \
 #     # "vitb16" \
-#     # "vit7b16"
+#     # "vitl16" 
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     for dataset_name in ${datasets[@]}
 #     do
 #         run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
-#         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+#         command="OMP_NUM_THREADS=56 MKL_NUM_THREADS=56 taskset -c 56-111 python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
 #         echo "Running command: ${command}"
 #         tmux send-keys -t ${session} "${command}" C-m
 #     done
@@ -108,22 +108,22 @@ datasets=(
 
 # # AIMv2
 # model_name="aimv2"
-# device="cuda:0"
-# batch_size=64
+# device="cuda:7"
+# batch_size=8
 
 # # Runs
 # for model_size in \
-#     "1B" \
+#     "3B" \
 #     # "large" \
 #     # "huge" \
-#     # "3B"
+#     # "1B" 
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     for dataset_name in ${datasets[@]}
 #     do
 #         run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
-#         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+#         command="OMP_NUM_THREADS=56 MKL_NUM_THREADS=56 taskset -c 56-111 python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
 #         echo "Running command: ${command}"
 #         tmux send-keys -t ${session} "${command}" C-m
 #     done

@@ -14,15 +14,16 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 # model_name="vit"
 # device="cuda:0"
 # patch_size=16
+# batch_size=16
 
 # # Runs
 # for model_size in \
-#     "base" \
-#     # "large" 
+#     "large" \
+#     # "base" 
 # do
 #     session="eval_domain_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
-#     run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} domains=${domains} device=${device}"
+#     run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} domains=${domains} batch_size=${batch_size} device=${device}"
 #     command="python -m apps.vision.eval_domain config=apps/vision/configs/domain.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
@@ -33,7 +34,7 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 # device="cuda:0"
 # patch_size=14
 # model_size="huge"
-# batch_size=128
+# batch_size=16
 
 # # Runs
 # session="eval_domain_${model_name}_${model_size}"
@@ -46,14 +47,14 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 # # DINOv2
 # model_name="dinov2"
 # device="cuda:0"
-# batch_size=128
+# batch_size=16
 
 # # Runs
 # for model_size in \
-#     "small" \
-#     # "base" \
+#     "base" 
+#     # "small" \
 #     # "large" \
-#     # "huge" 
+#     # "giant" 
 # do
 #     session="eval_domain_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
@@ -66,12 +67,12 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 # # DINOv3
 # model_name="dinov3"
 # device="cuda:0"
-# batch_size=128
+# batch_size=16
 
 # # Runs
 # for model_size in \
-#     "vits16" \
-#     # "vitb16" \
+#     "vitb16" 
+#     # "vits16" \
 #     # "vitl16" \
 #     # "vit7b16" 
 # do
@@ -86,12 +87,12 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 # # AIMv2
 # model_name="aimv2"
 # device="cuda:0"
-# batch_size=128
+# batch_size=8
 
 # # Runs
 # for model_size in \
-#     "large" \
-#     # "huge" \
+#     "huge" 
+#     # "large" \
 #     # "1B" \
 #     # "3B" 
 # do
