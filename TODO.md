@@ -139,6 +139,12 @@
 - Might be connected to our goal and our study could maybe help improve the approach, think about it
 - Also inspire from this paper MRL for flops and efficiency comparison (see fig 8)
 
+### methodological idea
+- it would be interesting to see how I can merge representations for the best improvement (might be too close to other works like zeynep akata on merginf intermeidate and final layer representations)
+
+### other works on intermediate representation
+- merging intermeidate and final representation for geo-spatial localization https://openaccess.thecvf.com/content/CVPR2026/papers/Lee_Beyond_Whats_Shared_Recovering_Lost_Unique_Information_from_Intermediate_Layers_CVPR_2026_paper.pdf (interesting because good study of how different modality, task benefit from intermeidate / final representations)
+
 ### Related work
 - Choice of models and datasets: https://arxiv.org/pdf/2601.09322 (also connected to our methodology so very important to mention it)
 - Add a similar table to described datasets as Table 2 in https://arxiv.org/pdf/2601.09322 (nb train, nb test, nb classes, imbalance class ratio)
@@ -159,3 +165,4 @@
     - look at those papres for alignement metrics and ideas
     - https://arxiv.org/pdf/2506.16895 for VLM alignement
     - https://arxiv.org/pdf/2409.19425v2 for VLM alignement too 
+    - alignement of LLM representation with vision in VLMs https://openaccess.thecvf.com/content/CVPR2026F/papers/Gan_Seeing_Helps_Reasoning_in_Language_Models_CVPRF_2026_paper.pdf
