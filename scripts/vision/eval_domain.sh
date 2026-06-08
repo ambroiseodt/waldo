@@ -51,9 +51,9 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 
 # # Runs
 # for model_size in \
-#     "base" 
+#     "large" 
 #     # "small" \
-#     # "large" \
+#     # "base" \
 #     # "giant" 
 # do
 #     session="eval_domain_${model_name}_${model_size}"
@@ -71,9 +71,9 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 
 # # Runs
 # for model_size in \
-#     "vitb16" 
+#     "vitl16" 
 #     # "vits16" \
-#     # "vitl16" \
+#     # "vitb16" \
 #     # "vit7b16" 
 # do
 #     session="eval_domain_${model_name}_${model_size}"
@@ -91,9 +91,9 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 
 # # Runs
 # for model_size in \
-#     "huge" 
+#     "1B" 
 #     # "large" \
-#     # "1B" \
+#     # "huge" \
 #     # "3B" 
 # do
 #     session="eval_domain_${model_name}_${model_size}"

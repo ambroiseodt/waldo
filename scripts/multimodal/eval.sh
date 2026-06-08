@@ -91,3 +91,21 @@ datasets=(
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
+
+# # SigLip2
+# model_name="siglip2"
+# device="cuda:0"
+# model_size="giant-opt"
+# resolution=256
+# batch_size=16
+
+# # Runs
+# session="eval_${model_name}_${model_size}"
+# tmux new-session -d -s ${session}
+# for dataset_name in ${datasets[@]}
+# do
+#     run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} resolution=${resolution} device=${device}"
+#     command="python -m apps.multimodal.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
+#     echo "Running command: ${command}"
+#     tmux send-keys -t ${session} "${command}" C-m
+# done

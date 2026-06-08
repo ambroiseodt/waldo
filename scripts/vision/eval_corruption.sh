@@ -49,13 +49,13 @@ severities="[1,3,5]"
 # # DINOv2
 # model_name="dinov2"
 # device="cuda:4"
-# batch_size=128
+# batch_size=16
 
 # # Runs
 # for model_size in \
-#     base \
+#     large \
 #     # "small" \
-#     # "large" \
+#     # "base" \
 #     # "giant" 
 # do
 #     session="eval_corruption_${model_name}_${model_size}"
@@ -69,13 +69,13 @@ severities="[1,3,5]"
 # # DINOv3
 # model_name="dinov3"
 # device="cuda:4"
-# batch_size=128
+# batch_size=16
 
 # # Runs
 # for model_size in \
-#     "vitb16" \
+#     "vitl16" \
 #     # "vits16" \
-#     # "vitl16" \
+#     # "vitb16" \
 #     # "vit7b16" 
 # do
 #     session="eval_corruption_${model_name}_${model_size}"
@@ -89,13 +89,13 @@ severities="[1,3,5]"
 # # AIMv2
 # model_name="aimv2"
 # device="cuda:4"
-# batch_size=128
+# batch_size=8
 
 # # Runs
 # for model_size in \
-#     "huge" \
+#     "1B" \
 #     # "large" \
-#     # "1B" \
+#     # "huge" \
 #     # "3B" 
 # do
 #     session="eval_corruption_${model_name}_${model_size}"
