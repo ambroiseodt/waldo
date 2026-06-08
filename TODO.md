@@ -145,6 +145,10 @@
 ### other works on intermediate representation
 - merging intermeidate and final representation for geo-spatial localization https://openaccess.thecvf.com/content/CVPR2026/papers/Lee_Beyond_Whats_Shared_Recovering_Lost_Unique_Information_from_Intermediate_Layers_CVPR_2026_paper.pdf (interesting because good study of how different modality, task benefit from intermeidate / final representations)
 
+### LLM probing and mechanistic interpretavility
+- nice paper with interesting ideas regarding inermediate probes and depth https://arxiv.org/pdf/2605.31220
+- use it to get related work + ideas + analysis from the LLM community
+
 ### Related work
 - Choice of models and datasets: https://arxiv.org/pdf/2601.09322 (also connected to our methodology so very important to mention it)
 - Add a similar table to described datasets as Table 2 in https://arxiv.org/pdf/2601.09322 (nb train, nb test, nb classes, imbalance class ratio)
