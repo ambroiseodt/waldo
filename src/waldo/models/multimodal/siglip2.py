@@ -71,7 +71,7 @@ class Siglip2Config:
     Parameters
     ----------
     model_size: str
-        Type of model to use. Options are "base", "large", "giant-opt", and "so400m".
+        Type of model to use. Options are "base", "large", "so400m" and "giant-opt".
     patch_size: int
         Size of the patches to be extracted from the image. Options are 14, 16, and 32.
     resolution: int | str
@@ -87,9 +87,9 @@ class Siglip2Config:
 
     def __post_init__(self):
         # Valid model size
-        if self.model_size not in ["base", "large", "giant-opt", "so400m"]:
+        if self.model_size not in ["base", "large", "so400m", "giant-opt"]:
             raise ValueError(
-                f"Invalid model size {self.model_size}. Options are 'base', 'large', 'giant-opt' and 'so400m'."
+                f"Invalid model size {self.model_size}. Options are 'base', 'large', 'so400m' and 'giant-opt'."
             )
 
         # Valid patch size
@@ -178,7 +178,7 @@ class Siglip2(BaseVisionLanguageModel):
     ----------
     config: configuration class with
         model_size: str
-            Type of model to use. Options are "base", "large", "giant-opt", and "so400m".
+            Type of model to use. Options are "base", "large", "so400m" and "giant-opt".
         patch_size: int
             Size of the patches to be extracted from the image. Options are 14, 16, and 32.
         resolution: int | str
@@ -229,13 +229,14 @@ class Siglip2(BaseVisionLanguageModel):
                 "google/siglip2-large-patch16-256",
                 "google/siglip2-large-patch16-384",
                 "google/siglip2-large-patch16-512",
-                "google/siglip2-giant-opt-patch16-256",
-                "google/siglip2-giant-opt-patch16-384",
                 "google/siglip2-so400m-patch14-384",
                 "google/siglip2-so400m-patch16-256",
                 "google/siglip2-so400m-patch16-384",
                 "google/siglip2-so400m-patch16-512",
-                "google/siglip2-so400m-patch16-naflex".
+                "google/siglip2-so400m-patch16-naflex",
+                "google/siglip2-giant-opt-patch16-256",
+                "google/siglip2-giant-opt-patch16-384".
+
         device: str
             Device to use.
 
@@ -258,17 +259,16 @@ class Siglip2(BaseVisionLanguageModel):
             "google/siglip2-base-patch16-512",
             "google/siglip2-base-patch16-naflex",
             "google/siglip2-base-patch32-224",
-            "google/siglip2-large-patch16-224",
             "google/siglip2-large-patch16-256",
             "google/siglip2-large-patch16-384",
             "google/siglip2-large-patch16-512",
-            "google/siglip2-giant-opt-patch16-256",
-            "google/siglip2-giant-opt-patch16-384",
             "google/siglip2-so400m-patch14-384",
             "google/siglip2-so400m-patch16-256",
             "google/siglip2-so400m-patch16-384",
             "google/siglip2-so400m-patch16-512",
             "google/siglip2-so400m-patch16-naflex",
+            "google/siglip2-giant-opt-patch16-256",
+            "google/siglip2-giant-opt-patch16-384",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
@@ -293,17 +293,16 @@ class Siglip2(BaseVisionLanguageModel):
                 "google/siglip2-base-patch16-512",
                 "google/siglip2-base-patch16-naflex",
                 "google/siglip2-base-patch32-224",
-                "google/siglip2-large-patch16-224",
                 "google/siglip2-large-patch16-256",
                 "google/siglip2-large-patch16-384",
                 "google/siglip2-large-patch16-512",
-                "google/siglip2-giant-opt-patch16-256",
-                "google/siglip2-giant-opt-patch16-384",
                 "google/siglip2-so400m-patch14-384",
                 "google/siglip2-so400m-patch16-256",
                 "google/siglip2-so400m-patch16-384",
                 "google/siglip2-so400m-patch16-512",
-                "google/siglip2-so400m-patch16-naflex".
+                "google/siglip2-so400m-patch16-naflex",
+                "google/siglip2-giant-opt-patch16-256",
+                "google/siglip2-giant-opt-patch16-384".
         device: str
             Device to use.
 
@@ -325,17 +324,16 @@ class Siglip2(BaseVisionLanguageModel):
             "google/siglip2-base-patch16-512",
             "google/siglip2-base-patch16-naflex",
             "google/siglip2-base-patch32-224",
-            "google/siglip2-large-patch16-224",
             "google/siglip2-large-patch16-256",
             "google/siglip2-large-patch16-384",
             "google/siglip2-large-patch16-512",
-            "google/siglip2-giant-opt-patch16-256",
-            "google/siglip2-giant-opt-patch16-384",
             "google/siglip2-so400m-patch14-384",
             "google/siglip2-so400m-patch16-256",
             "google/siglip2-so400m-patch16-384",
             "google/siglip2-so400m-patch16-512",
             "google/siglip2-so400m-patch16-naflex",
+            "google/siglip2-giant-opt-patch16-256",
+            "google/siglip2-giant-opt-patch16-384",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
