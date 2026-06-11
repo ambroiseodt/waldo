@@ -165,13 +165,13 @@ def main() -> None:
     To launch a training according to your_config.yaml file, run:
 
     ```bash
-    python -m apps.multimodal.eval config=apps/vision/configs/your_config.yaml
+    python -m apps.multimodal.eval config=apps/multimodal/configs/your_config.yaml
     ``
 
     To overwrite some arguments via the cli, e.g., to set the device to cuda:0, run:
 
     ```bash
-    python -m apps.multimodal.eval config=apps/vision/configs/your_config.yaml device=cuda:0
+    python -m apps.multimodal.eval config=apps/multimodal/configs/your_config.yaml device=cuda:0
     ```
     """
     # Logger setup
