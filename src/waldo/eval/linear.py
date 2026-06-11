@@ -314,7 +314,7 @@ class LinearProbing:
                     f"Deleting cached results found at '{results_path}'. "
                     f"If this behavior is not expected, set overwrite=False to keep results and skip evaluation."
                 )
-                shutil.rmtree(results_path)
+                shutil.rmtree(results_path, ignore_errors=True)
 
             # Skip evaluation
             else:
@@ -406,7 +406,7 @@ class LinearProbing:
         finally:
             # Delete temporary files
             if temp_path.exists():
-                shutil.rmtree(temp_path)
+                shutil.rmtree(temp_path, ignore_errors=True)
                 logger.info("Delete temporary files.")
 
     def _evaluate_multiple(
@@ -448,7 +448,7 @@ class LinearProbing:
                         f"Deleting cached results found at '{path}'. "
                         f"If this behavior is not expected, set overwrite=False to keep results and skip evaluation."
                     )
-                    shutil.rmtree(path)
+                    shutil.rmtree(path, ignore_errors=True)
                 # Skip evaluation
                 else:
                     logger.info(
@@ -554,7 +554,7 @@ class LinearProbing:
         finally:
             # Delete temporary files
             if temp_path.exists():
-                shutil.rmtree(temp_path)
+                shutil.rmtree(temp_path, ignore_errors=True)
                 logger.info("Delete temporary files.")
 
     def evaluate(
