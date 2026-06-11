@@ -125,7 +125,7 @@ def eval(config: EvaluationConfig) -> None:
             dataset_name = f"cifar10_c-corruption-{corruption}-severity-{severity}"
             test_loader_config = loader_config | {"dataset_name": dataset_name, "mode": "test"}
             test_loader[dataset_name] = build_loader(config=test_loader_config)
-    logger.info(f"Done building dataloaders for Cifar10-C variants with {n_classes} classes.")
+    logger.info(f"Done building dataloaders for {len(test_loader)} Cifar10-C variants with {n_classes} classes.")
 
     # ---------------------------------------------------------------------
     # Run evaluation
