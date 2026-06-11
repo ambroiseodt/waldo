@@ -47,14 +47,14 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 # # DINOv2
 # model_name="dinov2"
 # device="cuda:0"
-# batch_size=16
+# batch_size=8
 
 # # Runs
 # for model_size in \
-#     "large" 
+#     "giant" 
 #     # "small" \
 #     # "base" \
-#     # "giant" 
+#     # "large" 
 # do
 #     session="eval_domain_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
@@ -67,14 +67,14 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 # # DINOv3
 # model_name="dinov3"
 # device="cuda:0"
-# batch_size=16
+# batch_size=8
 
 # # Runs
 # for model_size in \
-#     "vitl16" 
+#     "vit7b16" 
 #     # "vits16" \
 #     # "vitb16" \
-#     # "vit7b16" 
+#     # "vitl16" 
 # do
 #     session="eval_domain_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
@@ -91,10 +91,10 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 
 # # Runs
 # for model_size in \
-#     "1B" 
+#     "3B" 
 #     # "large" \
 #     # "huge" \
-#     # "3B" 
+#     # "1B" 
 # do
 #     session="eval_domain_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
