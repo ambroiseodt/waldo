@@ -1,6 +1,10 @@
 r"""
 Codebase to evaluate vision foundation models via linear probing on image classification tasks.
 
+Notes
+-----
+This file can be used straightforwadly to evaluate vision language models seen as purely vision models.
+
 License
 -------
 This source code is licensed under the MIT license found in the LICENSE file

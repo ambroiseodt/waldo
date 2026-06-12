@@ -1,5 +1,9 @@
 r"""
-Codebase to evaluate vision foundation models via linear probing on corrupted data.
+Codebase to evaluate vision foundation models via linear probing on DomainNet.
+
+Notes
+-----
+This file can be used straightforwadly to evaluate vision language models seen as purely vision models.
 
 License
 -------
@@ -24,7 +28,7 @@ from waldo.models import build_model
 from ..setup import setup_logging
 
 # Logger setup
-logger = logging.getLogger("waldo.eval")
+logger = logging.getLogger("waldo.eval_domainnet")
 
 # Paths
 RUN_DIR = SAVING_DIR / "runs"
@@ -44,10 +48,7 @@ class EvaluationConfig:
     resolution: int = 224
 
     # Data
-    corruptions: list[str] = field(
-        default_factory=lambda: ["contrast", "gaussian_noise", "motion_blur", "snow", "speckle_noise"]
-    )
-    severities: list[int] = field(default_factory=lambda: [1, 3, 5])
+    domains: list = field(default_factory=lambda: ["clipart", "infograph", "painting", "quickdraw", "sketch"])
     batch_size: int = 512
 
     # Linear probing
@@ -108,7 +109,7 @@ def eval(config: EvaluationConfig) -> None:
     logger.info("Done building model.")
 
     # ---------------------------------------------------------------------
-    # Build dataloaders: train on Cifar10 and test on corrupted versions
+    # Build dataloaders: train on DomainNet-Real and test on another domain
     # ---------------------------------------------------------------------
     logger.info("Building train and test dataloaders")
     loader_config = {
@@ -116,21 +117,19 @@ def eval(config: EvaluationConfig) -> None:
         "resolution": config.resolution,
         "transform_type": "static",
     }
-    train_loader_config = loader_config | {"dataset_name": "cifar10", "mode": "train"}
+    train_loader_config = loader_config | {"dataset_name": "domainnet-real", "mode": "train"}
     train_loader, n_classes = build_loader(config=train_loader_config, return_n_classes=True)
     test_loader = {}
-
-    for corruption in config.corruptions:
-        for severity in config.severities:
-            dataset_name = f"cifar10_c-corruption-{corruption}-severity-{severity}"
-            test_loader_config = loader_config | {"dataset_name": dataset_name, "mode": "test"}
-            test_loader[dataset_name] = build_loader(config=test_loader_config)
-    logger.info(f"Done building dataloaders for {len(test_loader)} Cifar10-C variants with {n_classes} classes.")
+    for domain in config.domains:
+        dataset_name = f"domainnet-{domain}"
+        test_loader_config = loader_config | {"dataset_name": dataset_name, "mode": "test"}
+        test_loader[dataset_name] = build_loader(config=test_loader_config)
+    logger.info(f"Done building dataloaders for {len(test_loader)} DomainNet variants {n_classes} classes.")
 
     # ---------------------------------------------------------------------
     # Run evaluation
     # ---------------------------------------------------------------------
-    cache_path = RUN_DIR / "cifar10_c" / model.model_name
+    cache_path = RUN_DIR / "domainnet" / model.model_name
     cache_path.mkdir(parents=True, exist_ok=True)
 
     # Save experiment config
@@ -138,7 +137,7 @@ def eval(config: EvaluationConfig) -> None:
         json.dump(json_serializable(asdict(config)), f, indent=4)
 
     # Launch linear probing
-    logger.info("Running linear probing on Cifar10-C.")
+    logger.info("Running linear probing on DomainNet.")
     linear_probing_config = {
         "tol": config.tol,
         "max_iter": config.max_iter,
@@ -172,13 +171,13 @@ def main() -> None:
     To launch a training according to your_config.yaml file, run:
 
     ```bash
-    python -m apps.vision.eval_corruption config=apps/vision/configs/your_config.yaml
-    ```
+    python -m apps.vision.eval_domainnet config=apps/vision/configs/your_config.yaml
+    ``
 
     To overwrite some arguments via the cli, e.g., to set the device to cuda:0, run:
 
     ```bash
-    python -m apps.vision.eval_corruption config=apps/vision/configs/your_config.yaml device=cuda:0
+    python -m apps.vision.eval_domainnet config=apps/vision/configs/your_config.yaml device=cuda:0
     ```
     """
     # Logger setup
