@@ -1,10 +1,10 @@
 #!/usr/bin/bash
 
-# This file is useful to evaluate VFMs on domain generalization benchmarks. It will create 
+# This file is useful to evaluate VFMs on DomainNet. It will create 
 # a dedicated tmux session on the specified device. To do so, run the following
 # command in the terminal from the root directory of the project.
 # ```bash
-# $ bash <path_to_file_folder>/eval_domain.sh
+# $ bash <path_to_file_folder>/eval_domainnet.sh
 # ```
 
 # DOMAINS
@@ -21,10 +21,10 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 #     "large" \
 #     # "base" 
 # do
-#     session="eval_domain_${model_name}_${model_size}"
+#     session="eval_domainnet_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} domains=${domains} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.vision.eval_domain config=apps/vision/configs/domain.yaml ${run}"
+#     command="python -m apps.vision.eval_domainnet config=apps/vision/configs/domainnet.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -37,10 +37,10 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 # batch_size=16
 
 # # Runs
-# session="eval_domain_${model_name}_${model_size}"
+# session="eval_domainnet_${model_name}_${model_size}"
 # tmux new-session -d -s ${session}
 # run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} domains=${domains} batch_size=${batch_size} device=${device}"
-# command="python -m apps.vision.eval_domain config=apps/vision/configs/domain.yaml ${run}"
+# command="python -m apps.vision.eval_domainnet config=apps/vision/configs/domainnet.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
 
@@ -56,10 +56,10 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 #     # "base" \
 #     # "large" 
 # do
-#     session="eval_domain_${model_name}_${model_size}"
+#     session="eval_domainnet_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     run="model_name=${model_name} model_size=${model_size}  domains=${domains} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.vision.eval_domain config=apps/vision/configs/domain.yaml ${run}"
+#     command="python -m apps.vision.eval_domainnet config=apps/vision/configs/domainnet.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -76,10 +76,10 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 #     # "vitb16" \
 #     # "vitl16" 
 # do
-#     session="eval_domain_${model_name}_${model_size}"
+#     session="eval_domainnet_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     run="model_name=${model_name} model_size=${model_size}  domains=${domains} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.vision.eval_domain config=apps/vision/configs/domain.yaml ${run}"
+#     command="python -m apps.vision.eval_domainnet config=apps/vision/configs/domainnet.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -96,10 +96,10 @@ domains="[clipart,infograph,painting,quickdraw,sketch]"
 #     # "huge" \
 #     # "1B" 
 # do
-#     session="eval_domain_${model_name}_${model_size}"
+#     session="eval_domainnet_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     run="model_name=${model_name} model_size=${model_size}  domains=${domains} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.vision.eval_domain config=apps/vision/configs/domain.yaml ${run}"
+#     command="python -m apps.vision.eval_domainnet config=apps/vision/configs/domainnet.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done

@@ -1,10 +1,10 @@
 #!/usr/bin/bash
 
-# This file is useful to evaluate VFMs on domain generalization benchmarks. It will create 
+# This file is useful to evaluate VFMs on Cifar10-C. It will create 
 # a dedicated tmux session on the specified device. To do so, run the following
 # command in the terminal from the root directory of the project.
 # ```bash
-# $ bash <path_to_file_folder>/eval_domain.sh
+# $ bash <path_to_file_folder>/eval_domainnet.sh
 # ```
 
 # CORRUPTIONS
@@ -21,10 +21,10 @@ severities="[1,3,5]"
 # batch_size=16
 
 # # Runs
-# session="eval_corruption_${model_name}_${model_size}"
+# session="eval_cifar10_c_${model_name}_${model_size}"
 # tmux new-session -d -s ${session}
 # run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-# command="python -m apps.multimodal.eval_corruption config=apps/multimodal/configs/corruption.yaml ${run}"
+# command="python -m apps.vision.eval_cifar10_c config=apps/multimodal/configs/cifar10_c.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
 
@@ -37,10 +37,10 @@ severities="[1,3,5]"
 # batch_size=16
 
 # # Runs
-# session="eval_corruption_${model_name}_${model_size}"
+# session="eval_cifar10_c_${model_name}_${model_size}"
 # tmux new-session -d -s ${session}
 # run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-# command="python -m apps.multimodal.eval_corruption config=apps/multimodal/configs/corruption.yaml ${run}"
+# command="python -m apps.vision.eval_cifar10_c config=apps/multimodal/configs/cifar10_c.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
 
@@ -52,10 +52,10 @@ severities="[1,3,5]"
 # batch_size=16
 
 # # Runs
-# session="eval_corruption_${model_name}_${model_size}"
+# session="eval_cifar10_c_${model_name}_${model_size}"
 # tmux new-session -d -s ${session}
 # run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-# command="python -m apps.multimodal.eval_corruption config=apps/multimodal/configs/corruption.yaml ${run}"
+# command="python -m apps.vision.eval_cifar10_c config=apps/multimodal/configs/cifar10_c.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
 
@@ -68,10 +68,10 @@ severities="[1,3,5]"
 # batch_size=16
 
 # # Runs
-# session="eval_corruption_${model_name}_${model_size}"
+# session="eval_cifar10_c_${model_name}_${model_size}"
 # tmux new-session -d -s ${session}
 # run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} resolution=${resolution} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-# command="python -m apps.multimodal.eval_corruption config=apps/multimodal/configs/corruption.yaml ${run}"
+# command="python -m apps.vision.eval_cifar10_c config=apps/multimodal/configs/cifar10_c.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
 
@@ -84,9 +84,9 @@ severities="[1,3,5]"
 # batch_size=16
 
 # # Runs
-# session="eval_corruption_${model_name}_${model_size}"
+# session="eval_cifar10_c_${model_name}_${model_size}"
 # tmux new-session -d -s ${session}
 # run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} resolution=${resolution} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-# command="python -m apps.multimodal.eval_corruption config=apps/multimodal/configs/corruption.yaml ${run}"
+# command="python -m apps.vision.eval_cifar10_c config=apps/multimodal/configs/cifar10_c.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m

@@ -34,7 +34,7 @@ datasets=(
 # for dataset_name in ${datasets[@]}
 # do
 #     run="model_size=${model_size} patch_size=${patch_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.multimodal.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
+#     command="python -m apps.vision.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -52,7 +52,7 @@ datasets=(
 # for dataset_name in ${datasets[@]}
 # do
 #     run="model_size=${model_size} patch_size=${patch_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.multimodal.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
+#     command="python -m apps.vision.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -69,7 +69,7 @@ datasets=(
 # for dataset_name in ${datasets[@]}
 # do
 #     run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.multimodal.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
+#     command="python -m apps.vision.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -87,7 +87,7 @@ datasets=(
 # for dataset_name in ${datasets[@]}
 # do
 #     run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} resolution=${resolution} device=${device}"
-#     command="python -m apps.multimodal.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
+#     command="python -m apps.vision.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -105,7 +105,7 @@ datasets=(
 # for dataset_name in ${datasets[@]}
 # do
 #     run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} resolution=${resolution} device=${device}"
-#     command="python -m apps.multimodal.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
+#     command="python -m apps.vision.eval config=apps/multimodal/configs/${model_name}.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done

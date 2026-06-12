@@ -1,10 +1,10 @@
 #!/usr/bin/bash
 
-# This file is useful to evaluate VFMs on domain generalization benchmarks. It will create 
+# This file is useful to evaluate VFMs on Cifar10-C. It will create 
 # a dedicated tmux session on the specified device. To do so, run the following
 # command in the terminal from the root directory of the project.
 # ```bash
-# $ bash <path_to_file_folder>/eval_corruption.sh
+# $ bash <path_to_file_folder>/eval_cifar10_c.sh
 # ```
 
 # CORRUPTIONS
@@ -23,10 +23,10 @@ severities="[1,3,5]"
 #     large \
 #     # "base" 
 # do
-#     session="eval_corruption_${model_name}_${model_size}"
+#     session="eval_cifar10_c_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} device=${device}"
-#     command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
+#     command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -39,10 +39,10 @@ severities="[1,3,5]"
 # batch_size=128
 
 # # Runs
-# session="eval_corruption_${model_name}_${model_size}"
+# session="eval_cifar10_c_${model_name}_${model_size}"
 # tmux new-session -d -s ${session}
 # run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-# command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
+# command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
 # echo "Running command: ${command}"
 # tmux send-keys -t ${session} "${command}" C-m
 
@@ -58,10 +58,10 @@ severities="[1,3,5]"
 #     # "base" \
 #     # "large" 
 # do
-#     session="eval_corruption_${model_name}_${model_size}"
+#     session="eval_cifar10_c_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
+#     command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -78,10 +78,10 @@ severities="[1,3,5]"
 #     # "vitb16" \
 #     # "vitl16" 
 # do
-#     session="eval_corruption_${model_name}_${model_size}"
+#     session="eval_cifar10_c_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
+#     command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
@@ -98,10 +98,10 @@ severities="[1,3,5]"
 #     # "huge" \
 #     # "1B" 
 # do
-#     session="eval_corruption_${model_name}_${model_size}"
+#     session="eval_cifar10_c_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
-#     command="python -m apps.vision.eval_corruption config=apps/vision/configs/corruption.yaml ${run}"
+#     command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
 #     echo "Running command: ${command}"
 #     tmux send-keys -t ${session} "${command}" C-m
 # done
