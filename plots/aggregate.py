@@ -13,8 +13,8 @@ import json
 import logging
 
 import fire
-
-from waldo.infra import SAVING_DIR
+import pandas as pd
+from waldo.infra import SAVING_DIR, RESULT_DIR
 
 # Logger setup
 logger = logging.getLogger("waldo.aggregate")
@@ -27,9 +27,16 @@ RUN_DIR = SAVING_DIR / "runs"
 # MTEB results
 # ------------------------------------------------------------------------------
 def get_mteb_results() -> None:
-    """Dynamically sweeps the MTEB directory tree and builds a single master CSV
+    r"""
+    Sweep over MTEB json files and aggregate results in a single csv.
 
-    by parsing files directly within a unified execution loop.
+    Notes
+    -----
+    MTEB does not modify the datasets structure is contains. As such,
+    the evaluation is done on a test split when available. If only a train
+    split is available, the logistic regression is fit and evaluated on independent
+    samples to avoid data leakage. For more information, check out the official MTEB
+    documentation.
     """
 
     # Check that path exists
@@ -40,84 +47,66 @@ def get_mteb_results() -> None:
 
     # Compile results by looping over json files
     logger.info(f"Starting dynamic sweep of: {results_path.resolve()}")
-    for json_path in results_path.glob("**/*.json"):
-        with open(json_path, encoding="utf-8") as f:
-            content = f.read().replace("NaN", "null")
-            data = json.loads(content)
-            task_name = data
-            print(json_path)
-            print(data.keys())
-            return
+    results = []
+    for config_path in results_path.glob("**/model_config.json"):
+        folder_path = config_path.parent
 
-    #     # Ignore metadata/config files
-    #     if json_path.name in ["config.json", "metadata.json"]:
-    #         continue
+        # Recover model config
+        with open(config_path, encoding="utf-8") as f:
+            config = json.loads(config_path)
+            # TODO: recover layer and module
+            model_name = config["model_name"]
+            model_size = ""
+            layer = 0
+            module = ""
 
-    #     try:
-    #         # 1. Decompose the path to recover structural configuration traits
-    #         # Example: ../results/language/bert/large/layer_12/encoder/results/main/task.json
-    #         relative_parts = json_path.relative_to(MTEB_ROOT_DIR).parts
+        # Recover results
+        results_files = [f for f in folder_path.glob("*.json") if f.name != "model_config.json"]
+        for json_path in results_files:
+            with open(json_path, encoding="utf-8") as f:
+                content = f.read().replace("NaN", "null")
+                data = json.loads(content)
+                task_name = data["task_name"]
+                evaluation_time = data["evaluation_time"]
+                scores = data["scores"]
+                if "test" in scores:
+                    scores = scores["test"][0]
+                else:
+                    scores = scores["train"][0]
+                accuracies = [value["accuracy"] for value in scores["score_per_experiment"]]
 
-    #         model_name = relative_parts[0] if len(relative_parts) > 0 else "unknown"
-    #         model_size = relative_parts[1] if len(relative_parts) > 1 else "unknown"
-    #         layer = relative_parts[2] if len(relative_parts) > 2 else "unknown"
-    #         module = relative_parts[3] if len(relative_parts) > 3 else "unknown"
+                # Sweep over experiments
+                for idx, accuracy in accuracies:
+                    results.append(
+                        {
+                            "model_name": model_name,
+                            "model_size": model_size,
+                            "layer": layer,
+                            "module": module,
+                            "task_name": task_name,
+                            "experiment_index": idx,
+                            "accuracy": accuracy,
+                            "evaluation_time": evaluation_time,
+                        }
+                    )
 
-    #         # 2. Open and load the JSON payload directly
-    #         with open(json_path, encoding="utf-8") as f:
-    #             content = f.read().replace("NaN", "null")
-    #             data = json.loads(content)
-
-    #         task_name = data.get("task_name")
-    #         eval_time = data.get("evaluation_time")
-
-    #         test_scores = data.get("scores", {}).get("test", [])
-    #         if not test_scores:
-    #             continue
-
-    #         experiments = test_scores[0].get("scores_per_experiment", [])
-
-    #         # 3. Dynamic online loop over the multiple runs
-    #         for idx, exp in enumerate(experiments):
-    #             compiled_rows.append(
-    #                 {
-    #                     "model_name": model_name,
-    #                     "model_size": model_size,
-    #                     "layer": layer,
-    #                     "module": module,
-    #                     "task": task_name,
-    #                     "experiment_index": idx,
-    #                     "accuracy": exp.get("accuracy"),
-    #                     "evaluation_time": eval_time,
-    #                 }
-    #             )
-
-    #     except (json.JSONDecodeError, KeyError, IndexError, FileNotFoundError) as e:
-    #         # Skip corrupt or half-written log checkpoints without crashing the loop
-    #         print(f"  [Warning] Skipping unreadable file {json_path.name}: {e}")
-    #         continue
-
-    # # 4. Save compiled dataset to a single flat CSV
-    # if compiled_rows:
-    #     df = pd.DataFrame(compiled_rows)
-
-    #     column_order = [
-    #         "model_name",
-    #         "model_size",
-    #         "layer",
-    #         "module",
-    #         "task",
-    #         "experiment_index",
-    #         "accuracy",
-    #         "evaluation_time",
-    #     ]
-    #     df = df[column_order]
-
-    #     OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
-    #     df.to_csv(OUTPUT_CSV, index=False)
-    #     print(f"Success! Captured {len(df)} lines inside -> {OUTPUT_CSV}")
-    # else:
-    #     print("Aggregation finished: No valid MTEB target JSON records found.")
+    # Aggregate results
+    df = pd.DataFrame(results)
+    column_order = [
+        "model_name",
+        "model_size",
+        "layer",
+        "module",
+        "task",
+        "experiment_index",
+        "accuracy",
+        "evaluation_time",
+    ]
+    df = df[column_order]
+    save_path = RESULT_DIR / "mteb.csv"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(save_path)
+    logger.info(f"Results saved at {save_path}.")
 
 
 # %% Main
