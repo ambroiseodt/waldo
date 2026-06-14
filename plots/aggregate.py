@@ -46,7 +46,7 @@ def parse_model_config(name: str) -> tuple[str, int, str] | None:
         r"[^/]+"  # company name
         r"/"
         r"(.+?)"  # model_name
-        r"layer_"
+        r"_layer_"
         r"(\d+)"  # layer
         r"_module_"
         r"(.+)"  # module name
@@ -80,7 +80,7 @@ def parse_result_config(name: str) -> tuple[int, str] | None:
         r"layer_"
         r"(\d+)"  # layer
         r"_module_"
-        r"(.+)"  # module name
+        r"(.+?)"  # module name
         r".json"
     )
     match = pattern.match(name)
