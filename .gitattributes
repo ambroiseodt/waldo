@@ -1,1 +1,2 @@
 mteb.csv filter=lfs diff=lfs merge=lfs -text
+image_classification.csv filter=lfs diff=lfs merge=lfs -text
