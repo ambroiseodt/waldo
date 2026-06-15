@@ -91,7 +91,7 @@ def parse_result_config(name: str) -> tuple[int, str]:
 
 
 # ------------------------------------------------------------------------------
-# MTEB results
+# Save results
 # ------------------------------------------------------------------------------
 def get_mteb_results() -> None:
     r"""
@@ -168,9 +168,6 @@ def get_mteb_results() -> None:
     logger.info(f"Results saved at {save_path}.")
 
 
-# ------------------------------------------------------------------------------
-# Image classification results
-# ------------------------------------------------------------------------------
 def get_image_classification_results() -> None:
     r"""Sweep over image classification benchmarks json files and aggregate results in a single csv."""
 
@@ -248,6 +245,422 @@ def get_image_classification_results() -> None:
     logger.info(f"Results saved at {save_path}.")
 
 
+def get_cifar10_c_results() -> None:
+    r"""Sweep over Cifar10-C json files and aggregate results in a single csv."""
+
+    # Check that path exists
+    results_path = RUN_DIR / "cifar10_c"
+    if not results_path.exists():
+        logger.info(f"Result directory '{results_path}' does not exist.")
+        return
+
+    # Compile results by looping over datasets json files
+    results = []
+    logger.info(f"Start recovering results from {results_path}.")
+    config_files = [f for f in results_path.glob("**/config.json")]
+    for config_path in tqdm(config_files, desc="Writing results", unit="runs"):
+        # Recover model config
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        model_name = config["model_name"]
+        model_size = config["model_size"]
+        patch_size = config["patch_size"]
+        resolution = config["resolution"]
+        corruptions = config["corruptions"]
+        severities = config["severities"]
+
+        # Recover results
+        folder_path = config_path.parent / "results"
+        for corruption in corruptions:
+            for severity in severities:
+                path = folder_path / f"cifar10_c-corruption-{corruption}-severity-{severity}"
+                results_files = [f for f in path.glob("*.json")]
+                for json_path in results_files:
+                    # Recover layer index and module name
+                    layer, module = parse_result_config(name=json_path.name)
+                    with open(json_path, encoding="utf-8") as f:
+                        content = f.read().replace("NaN", "null")
+                        data = json.loads(content)
+                        accuracy = data["acc_test"]
+                        results.append(
+                            {
+                                "corruption": corruption,
+                                "severity": severity,
+                                "model_name": model_name,
+                                "model_size": model_size,
+                                "patch_size": patch_size,
+                                "resolution": resolution,
+                                "layer": layer,
+                                "module": module,
+                                "accuracy": accuracy,
+                            }
+                        )
+
+    # Aggregate results
+    df = pd.DataFrame(results)
+    column_order = ["corruption", "severity", "model_name", "model_size", "patch_size", "resolution", "layer", "module"]
+    df = df.sort_values(by=column_order, ascending=True)
+    columns = [
+        "corruption",
+        "severity",
+        "model_name",
+        "model_size",
+        "patch_size",
+        "resolution",
+        "layer",
+        "module",
+        "accuracy",
+    ]
+    RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = RESULT_DIR / "cifar10_c.csv"
+    df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
+    logger.info(f"Results saved at {save_path}.")
+
+
+def get_domainnet_results() -> None:
+    r"""Sweep over DomainNets json files and aggregate results in a single csv."""
+
+    # Check that path exists
+    results_path = RUN_DIR / "domainnet"
+    if not results_path.exists():
+        logger.info(f"Result directory '{results_path}' does not exist.")
+        return
+
+    # Compile results by looping over datasets json files
+    results = []
+    logger.info(f"Start recovering results from {results_path}.")
+    config_files = [f for f in results_path.glob("**/config.json")]
+    for config_path in tqdm(config_files, desc="Writing results", unit="runs"):
+        # Recover model config
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        model_name = config["model_name"]
+        model_size = config["model_size"]
+        patch_size = config["patch_size"]
+        resolution = config["resolution"]
+        domains = config["domains"]
+
+        # Recover results
+        folder_path = config_path.parent / "results"
+        for domain in domains:
+            path = folder_path / f"domainnet-{domain}"
+            results_files = [f for f in path.glob("*.json")]
+            for json_path in results_files:
+                # Recover layer index and module name
+                layer, module = parse_result_config(name=json_path.name)
+                with open(json_path, encoding="utf-8") as f:
+                    content = f.read().replace("NaN", "null")
+                    data = json.loads(content)
+                    accuracy = data["acc_test"]
+                    results.append(
+                        {
+                            "domain": domain,
+                            "model_name": model_name,
+                            "model_size": model_size,
+                            "patch_size": patch_size,
+                            "resolution": resolution,
+                            "layer": layer,
+                            "module": module,
+                            "accuracy": accuracy,
+                        }
+                    )
+
+    # Aggregate results
+    df = pd.DataFrame(results)
+    column_order = ["domain", "model_name", "model_size", "patch_size", "resolution", "layer", "module"]
+    df = df.sort_values(by=column_order, ascending=True)
+    columns = [
+        "domain",
+        "model_name",
+        "model_size",
+        "patch_size",
+        "resolution",
+        "layer",
+        "module",
+        "accuracy",
+    ]
+    RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = RESULT_DIR / "domainnet.csv"
+    df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
+    logger.info(f"Results saved at {save_path}.")
+
+
+# ------------------------------------------------------------------------------
+# Aggregate results
+# ------------------------------------------------------------------------------
+def aggregate_mteb_results() -> None:
+    r"""
+    Aggregate MTEB results by recovering the best probing location,
+    the corresponding accuracy, the baseline accuracy, defined as the probing accuracy of the rc2 module
+    at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
+    of the baseline probing.
+    """
+    path = RESULT_DIR / "mteb.csv"
+    df = pd.read_csv(path)
+    grouping_cols = [
+        "task_name",
+        "model_name",
+    ]
+
+    # Recover resoluts
+    results = []
+    for keys, group in tqdm(
+        df.groupby(grouping_cols),
+        desc="Building analysis table",
+    ):
+        dataset_name, model_name, model_size, patch_size, resolution = keys
+        num_layers = int(group["layer"].max()) + 1
+
+        # Best probe
+        best_idx = group["accuracy"].idxmax()
+        best_row = group.loc[best_idx]
+        best_accuracy = best_row["accuracy"]
+        best_layer = best_row["layer"]
+        best_module = best_row["module"]
+
+        # Baseline probe
+        last_layer = int(group["layer"].max())
+        baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
+        baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
+
+        # Gains
+        gap = best_accuracy - baseline_accuracy
+        gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
+        gain = gain * 100
+
+        # Update results
+        results.append(
+            {
+                "dataset_name": dataset_name,
+                "model_name": model_name,
+                "model_size": model_size,
+                "patch_size": patch_size,
+                "resolution": resolution,
+                "num_layers": num_layers,
+                "baseline_accuracy": baseline_accuracy,
+                "best_accuracy": best_accuracy,
+                "best_layer": best_layer,
+                "best_module": best_module,
+                "gap": gap,
+                "gain": gain,
+            }
+        )
+
+    df_out = pd.DataFrame(results)
+    df_out = df_out.sort_values(by=["dataset_name", "model_name", "model_size"])
+    save_path = RESULT_DIR / "analysis" / "image_classification.csv"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    df_out.to_csv(save_path, index=False, encoding="utf-8")
+    logger.info(f"Saved table to {save_path}")
+
+
+def aggregate_image_classification_results() -> None:
+    r"""
+    Aggregate image classification results by recovering the best probing location,
+    the corresponding accuracy, the baseline accuracy, defined as the probing accuracy of the rc2 module
+    at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
+    of the baseline probing.
+    """
+    path = RESULT_DIR / "image_classification.csv"
+    df = pd.read_csv(path)
+    grouping_cols = [
+        "dataset_name",
+        "model_name",
+        "model_size",
+        "patch_size",
+        "resolution",
+    ]
+
+    # Recover resoluts
+    results = []
+    for keys, group in tqdm(
+        df.groupby(grouping_cols),
+        desc="Building analysis table",
+    ):
+        dataset_name, model_name, model_size, patch_size, resolution = keys
+        num_layers = int(group["layer"].max()) + 1
+
+        # Best probe
+        best_idx = group["accuracy"].idxmax()
+        best_row = group.loc[best_idx]
+        best_accuracy = best_row["accuracy"]
+        best_layer = best_row["layer"]
+        best_module = best_row["module"]
+
+        # Baseline probe
+        last_layer = int(group["layer"].max())
+        baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
+        baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
+
+        # Gains
+        gap = best_accuracy - baseline_accuracy
+        gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
+        gain = gain * 100
+
+        # Update results
+        results.append(
+            {
+                "dataset_name": dataset_name,
+                "model_name": model_name,
+                "model_size": model_size,
+                "patch_size": patch_size,
+                "resolution": resolution,
+                "num_layers": num_layers,
+                "baseline_accuracy": baseline_accuracy,
+                "best_accuracy": best_accuracy,
+                "best_layer": best_layer,
+                "best_module": best_module,
+                "gap": gap,
+                "gain": gain,
+            }
+        )
+
+    df_out = pd.DataFrame(results)
+    df_out = df_out.sort_values(by=["dataset_name", "model_name", "model_size"])
+    save_path = RESULT_DIR / "analysis" / "image_classification.csv"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    df_out.to_csv(save_path, index=False, encoding="utf-8")
+    logger.info(f"Saved table to {save_path}")
+
+
+def aggregate_cifar10_c_results() -> None:
+    r"""
+    Aggregate Cifar10-C results by recovering the best probing location,
+    the corresponding accuracy, the baseline accuracy, defined as the probing accuracy of the rc2 module
+    at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
+    of the baseline probing.
+    """
+    path = RESULT_DIR / "cifar10_c.csv"
+    df = pd.read_csv(path)
+    grouping_cols = [
+        "corruption",
+        "severity",
+        "model_name",
+        "model_size",
+        "patch_size",
+        "resolution",
+    ]
+
+    # Recover resoluts
+    results = []
+    for keys, group in tqdm(
+        df.groupby(grouping_cols),
+        desc="Building analysis table",
+    ):
+        corruption, severity, model_name, model_size, patch_size, resolution = keys
+        num_layers = int(group["layer"].max()) + 1
+
+        # Best probe
+        best_idx = group["accuracy"].idxmax()
+        best_row = group.loc[best_idx]
+        best_accuracy = best_row["accuracy"]
+        best_layer = best_row["layer"]
+        best_module = best_row["module"]
+
+        # Baseline probe
+        last_layer = int(group["layer"].max())
+        baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
+        baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
+
+        # Gains
+        gap = best_accuracy - baseline_accuracy
+        gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
+        gain = gain * 100
+
+        # Update results
+        results.append(
+            {
+                "corruption": corruption,
+                "severity": severity,
+                "model_name": model_name,
+                "model_size": model_size,
+                "patch_size": patch_size,
+                "resolution": resolution,
+                "num_layers": num_layers,
+                "baseline_accuracy": baseline_accuracy,
+                "best_accuracy": best_accuracy,
+                "best_layer": best_layer,
+                "best_module": best_module,
+                "gap": gap,
+                "gain": gain,
+            }
+        )
+
+    df_out = pd.DataFrame(results)
+    df_out = df_out.sort_values(by=["corruption", "severity", "model_name", "model_size"])
+    save_path = RESULT_DIR / "analysis" / "cifar10_c.csv"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    df_out.to_csv(save_path, index=False, encoding="utf-8")
+    logger.info(f"Saved table to {save_path}")
+
+
+def aggregate_domainnet_results() -> None:
+    r"""
+    Aggregate DomainNet results by recovering the best probing location,
+    the corresponding accuracy, the baseline accuracy, defined as the probing accuracy of the rc2 module
+    at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
+    of the baseline probing.
+    """
+    path = RESULT_DIR / "domainnet.csv"
+    df = pd.read_csv(path)
+    grouping_cols = [
+        "domain",
+        "model_name",
+        "model_size",
+        "patch_size",
+        "resolution",
+    ]
+
+    # Recover resoluts
+    results = []
+    for keys, group in tqdm(
+        df.groupby(grouping_cols),
+        desc="Building analysis table",
+    ):
+        domain, model_name, model_size, patch_size, resolution = keys
+        num_layers = int(group["layer"].max()) + 1
+
+        # Best probe
+        best_idx = group["accuracy"].idxmax()
+        best_row = group.loc[best_idx]
+        best_accuracy = best_row["accuracy"]
+        best_layer = best_row["layer"]
+        best_module = best_row["module"]
+
+        # Baseline probe
+        last_layer = int(group["layer"].max())
+        baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
+        baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
+
+        # Gains
+        gap = best_accuracy - baseline_accuracy
+        gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
+        gain = gain * 100
+
+        # Update results
+        results.append(
+            {
+                "domain": domain,
+                "model_name": model_name,
+                "model_size": model_size,
+                "patch_size": patch_size,
+                "resolution": resolution,
+                "num_layers": num_layers,
+                "baseline_accuracy": baseline_accuracy,
+                "best_accuracy": best_accuracy,
+                "best_layer": best_layer,
+                "best_module": best_module,
+                "gap": gap,
+                "gain": gain,
+            }
+        )
+
+    df_out = pd.DataFrame(results)
+    df_out = df_out.sort_values(by=["domain", "model_name", "model_size"])
+    save_path = RESULT_DIR / "analysis" / "domainnet.csv"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    df_out.to_csv(save_path, index=False, encoding="utf-8")
+    logger.info(f"Saved table to {save_path}")
+
+
 # %% Main
 def main() -> None:
     logging.basicConfig(
@@ -256,7 +669,17 @@ def main() -> None:
         handlers=[logging.StreamHandler()],
     )
 
-    fire.Fire({"mteb": get_mteb_results, "cls": get_image_classification_results})
+    fire.Fire(
+        {
+            "mteb": get_mteb_results,
+            "cls": get_image_classification_results,
+            "domain": get_domainnet_results,
+            "cifar10_c": get_cifar10_c_results,
+            "aggr_cls": aggregate_image_classification_results,
+            "aggr_cifar10_c": aggregate_cifar10_c_results,
+            "aggr_domainnet": aggregate_domainnet_results,
+        }
+    )
 
 
 # %% CLI

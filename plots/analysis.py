@@ -14,6 +14,7 @@ import math
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from waldo.infra import RESULT_DIR
@@ -254,53 +255,6 @@ def plot_aggregated_representation_profile(model, output_dir="figures"):
     plt.close(fig)
 
 
-def print_top_modules_per_task(model):
-    """Identifies and prints the highest-performing module across layers
-
-    for each task in a clean, tabular format.
-    """
-    path = RESULT_DIR / "mteb.csv"  # Ensure RESULT_DIR is defined globally
-    df = pd.read_csv(path)
-
-    # 1. Filter for the specific model
-    model_df = df[df["model_name"] == model].copy()
-
-    if model_df.empty:
-        print(f"Error: No data found for model '{model}'")
-        return
-
-    # 2. Convert accuracy to percentage (0-100)
-    model_df["accuracy_pct"] = model_df["accuracy"] * 100
-
-    # 3. Step A: Average the 10 experimental runs to get a stable score
-    # for each unique combinations of task, module, and layer
-    run_averages = model_df.groupby(["task_name", "module", "layer"])["accuracy_pct"].mean().reset_index()
-
-    # Step B: Find the absolute peak performance for each module within each task
-    # (collapsing the layer dimension to find the module's best moment)
-    module_peaks = run_averages.groupby(["task_name", "module"])["accuracy_pct"].max().reset_index()
-
-    # 4. Step C: For each task, find which module hit the highest overall peak
-    idx_best = module_peaks.groupby("task_name")["accuracy_pct"].idxmax()
-    best_modules = module_peaks.loc[idx_best].sort_values("task_name")
-
-    # 5. Print the results as a cleanly formatted text table
-    print(f"\nTop Performing Modules per Task for Model: {model}")
-    print("-" * 75)
-    # Header with explicit column widths: 40 chars for Task, 18 for Module, 12 for Accuracy
-    print(f"{'Task Name':<40} | {'Best Module':<18} | {'Peak Accuracy':<12}")
-    print("-" * 75)
-
-    for _, row in best_modules.iterrows():
-        task = row["task_name"]
-        module = row["module"]
-        accuracy = row["accuracy_pct"]
-
-        print(f"{task:<40} | {module:<18} | {accuracy:>6.2f}%")
-
-    print("-" * 75)
-
-
 def plot_vision_representation_profile(
     model_name, model_size="1B", patch_size=16, resolution=224, output_dir="figures"
 ):
@@ -472,97 +426,253 @@ def plot_vision_aggregated_profile(model_name, model_size="1B", patch_size=16, r
     plt.close(fig)
 
 
-def print_vision_top_modules_per_dataset(model_name, model_size="1B", patch_size=16, resolution=224):
-    """Computes and prints top module performance and structural metrics
+def plot_vision_domainnet_representation_profile(
+    model_name, model_size="1B", patch_size=16, resolution=224, output_dir="figures"
+):
+    """Generates a grid of line plots (one per dataset) showing module accuracy (%)
 
-    per dataset for vision models in a clean text-table format.
+    vs layer depth (%) for vision models.
     """
-    path = RESULT_DIR / "image_classification.csv"  # Ensure RESULT_DIR is defined globally
+    path = RESULT_DIR / "domainnet.csv"  # Adjust file name as needed
     df = pd.read_csv(path)
 
-    # 1. Filter for the specific vision model configuration
-    model_df = df[
+    # 1. Filter by model architecture metadata
+    filtered_df = df[
         (df["model_name"] == model_name)
         & (df["model_size"] == model_size)
         & (df["patch_size"] == patch_size)
         & (df["resolution"] == resolution)
     ].copy()
 
-    if model_df.empty:
-        print(f"Error: No data found for vision configuration: {model_name}")
+    if filtered_df.empty:
+        print("Error: No data found for the specified vision model configuration.")
         return
 
-    # 2. Convert accuracy to percentage (0-100)
-    model_df["accuracy_pct"] = model_df["accuracy"] * 100
+    unique_datasets = sorted(filtered_df["domain"].unique())
+    num_datasets = len(unique_datasets)
 
-    # 3. Step A: Average across the 10 experimental runs per group
-    run_averages = model_df.groupby(["dataset_name", "module", "layer"])["accuracy_pct"].mean().reset_index()
-
-    unique_datasets = sorted(run_averages["dataset_name"].unique())
-
-    # 4. Print Table Headers
-    print(f"\nTop Performing Modules per Dataset for Model: {model_name} ({model_size})")
-    print("-" * 115)
-    print(
-        f"{'Dataset Name':<25} | {'Best Module':<12} | {'Rank (Peak)':<15} | {'Peak Layer':<12} | {'Last Layer Perf':<18} | {'Overall Rank'}"
-    )
-    print("-" * 115)
-
-    # 5. Process each dataset row-by-row
+    # 2. Process scales (Accuracy -> % and Layer -> Depth %)
+    processed_dfs = []
     for dataset in unique_datasets:
-        ds_df = run_averages[run_averages["dataset_name"] == dataset]
+        ds_df = filtered_df[filtered_df["domain"] == dataset].copy()
+        ds_df["accuracy_pct"] = ds_df["accuracy"] * 100
+
         max_layer = ds_df["layer"].max()
+        ds_df["layer_pct"] = (ds_df["layer"] / max_layer) * 100 if max_layer > 0 else 0.0
+        processed_dfs.append(ds_df)
 
-        peaks = {}
-        peak_layers = {}
-        last_layer_perfs = {}
+    filtered_df = pd.concat(processed_dfs)
 
-        # Loop through modules present in this dataset to harvest performance peaks
-        for mod in ds_df["module"].unique():
-            mod_df = ds_df[ds_df["module"] == mod]
+    # 3. Dynamic Grid setup (e.g., 2x5 grid for 10 datasets)
+    ncols = 5
+    nrows = math.ceil(num_datasets / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(22, 4 * nrows + 2))
+    axes = axes.flatten()
 
-            # Peak performance across all layers
-            idx_max = mod_df["accuracy_pct"].idxmax()
-            peaks[mod] = mod_df.loc[idx_max, "accuracy_pct"]
-            peak_layers[mod] = mod_df.loc[idx_max, "layer"]
+    legend_dict = {}
 
-            # Performance at the final output layer
-            last_perf = mod_df[mod_df["layer"] == max_layer]["accuracy_pct"]
-            last_layer_perfs[mod] = last_perf.values[0] if not last_perf.empty else 0.0
+    # 4. Plot curves per dataset
+    for i, dataset in enumerate(unique_datasets):
+        ax = axes[i]
+        ds_data = filtered_df[filtered_df["domain"] == dataset]
 
-        # Rank the modules relative to each other based on peak accuracy
-        sorted_modules = sorted(peaks.items(), key=lambda x: x[1], reverse=True)
-        mod_ranks = {mod: i + 1 for i, (mod, _) in enumerate(sorted_modules)}
+        # Aggregate across experimental runs if multiple exist per layer/module
+        grouped = ds_data.groupby(["module", "layer_pct"])["accuracy_pct"].mean().reset_index()
 
-        # The absolute winner is the top element in our sorted list
-        best_mod, best_peak = sorted_modules[0]
-        best_layer = peak_layers[best_mod]
-        best_last = last_layer_perfs[best_mod]
+        for module_name, mod_df in grouped.groupby("module"):
+            mod_df = mod_df.sort_values("layer_pct")
+            (line,) = ax.plot(
+                mod_df["layer_pct"],
+                mod_df["accuracy_pct"],
+                label=module_name,
+                linewidth=2,
+                alpha=0.9,
+            )
+            if module_name not in legend_dict:
+                legend_dict[module_name] = line
 
-        # Construct the overall rank summary block for the final column
-        # Example tracking style: act(#1) > fc2(#2) > fc1(#3)
-        rank_summary = " > ".join([f"{mod}(#{rank})" for mod, rank in mod_ranks.items()])
+        ax.set_title(dataset, fontsize=12, weight="bold", pad=8)
+        ax.grid(True, linestyle="--", alpha=0.5)
 
-        # Print the row cleanly using structured string spacing formatting
-        print(
-            f"{dataset:<25} | "
-            f"{best_mod:<12} | "
-            f"#{mod_ranks[best_mod]} ({best_peak:>5.2f}%) | "
-            f"L{int(best_layer):<10} | "
-            f"{best_last:>6.2f}%{'':<11} | "
-            f"{rank_summary}"
-        )
+    # Clean up empty subplots
+    for j in range(num_datasets, len(axes)):
+        fig.delaxes(axes[j])
 
-    print("-" * 115)
+    # Global labels and Legend
+    fig.text(0.5, 0.02, "Layer Depth (%)", ha="center", fontsize=14, weight="semibold")
+    fig.text(
+        0.01,
+        0.5,
+        "Accuracy (%) [Mean]",
+        va="center",
+        rotation="vertical",
+        fontsize=14,
+        weight="semibold",
+    )
+
+    sorted_modules = sorted(legend_dict.keys())
+    fig.legend(
+        [legend_dict[m] for m in sorted_modules],
+        sorted_modules,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.02),
+        ncol=len(sorted_modules),
+        fontsize=11,
+    )
+
+    title_str = f"Vision Profile: {model_name} ({model_size}, Patch {patch_size}, {resolution}px)"
+    fig.suptitle(title_str, fontsize=18, weight="bold", y=0.98)
+    plt.tight_layout(rect=[0.02, 0.04, 0.98, 0.95])
+
+    # Save
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    out_name = f"vision_domainnet_separated_{model_name}_{model_size}_p{patch_size}.png"
+    plt.savefig(Path(output_dir) / out_name, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_vision_cifar10_c_representation_profile(
+    model_name, model_size="1B", patch_size=16, resolution=224, output_dir="figures"
+):
+    """
+    Generates a grid of line plots showing module accuracy (%)
+    vs layer depth (%) for each CIFAR10-C corruption/severity pair.
+    """
+
+    path = RESULT_DIR / "cifar10_c.csv"
+    df = pd.read_csv(path)
+
+    # Filter model configuration
+    filtered_df = df[
+        (df["model_name"] == model_name)
+        & (df["model_size"] == model_size)
+        & (df["patch_size"] == patch_size)
+        & (df["resolution"] == resolution)
+    ].copy()
+
+    if filtered_df.empty:
+        print("Error: No data found for the specified model configuration.")
+        return
+
+    corruptions = sorted(filtered_df["corruption"].unique())
+    severities = sorted(filtered_df["severity"].unique())
+
+    ncols = len(corruptions)
+    nrows = len(severities)
+
+    # Scale metrics
+    filtered_df["accuracy_pct"] = filtered_df["accuracy"] * 100
+
+    max_layer = filtered_df["layer"].max()
+    filtered_df["layer_pct"] = filtered_df["layer"] / max_layer * 100 if max_layer > 0 else 0.0
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 3.5 * nrows + 2))
+
+    if nrows == 1 and ncols == 1:
+        axes = np.array([[axes]])
+    elif nrows == 1:
+        axes = axes.reshape(1, -1)
+    elif ncols == 1:
+        axes = axes.reshape(-1, 1)
+
+    legend_dict = {}
+
+    for row_idx, severity in enumerate(severities):
+        for col_idx, corruption in enumerate(corruptions):
+            ax = axes[row_idx, col_idx]
+
+            subset = filtered_df[(filtered_df["severity"] == severity) & (filtered_df["corruption"] == corruption)]
+
+            if subset.empty:
+                ax.axis("off")
+                continue
+
+            grouped = subset.groupby(["module", "layer_pct"])["accuracy_pct"].mean().reset_index()
+
+            for module_name, mod_df in grouped.groupby("module"):
+                mod_df = mod_df.sort_values("layer_pct")
+
+                (line,) = ax.plot(
+                    mod_df["layer_pct"],
+                    mod_df["accuracy_pct"],
+                    linewidth=2,
+                    alpha=0.9,
+                    label=module_name,
+                )
+
+                if module_name not in legend_dict:
+                    legend_dict[module_name] = line
+
+            if row_idx == 0:
+                ax.set_title(corruption, fontsize=11, weight="bold")
+
+            if col_idx == 0:
+                ax.set_ylabel(
+                    f"Severity {severity}",
+                    fontsize=10,
+                    weight="bold",
+                )
+
+            ax.grid(True, linestyle="--", alpha=0.5)
+
+    fig.text(
+        0.5,
+        0.02,
+        "Layer Depth (%)",
+        ha="center",
+        fontsize=14,
+        weight="semibold",
+    )
+
+    fig.text(
+        0.01,
+        0.5,
+        "Accuracy (%) [Mean]",
+        va="center",
+        rotation="vertical",
+        fontsize=14,
+        weight="semibold",
+    )
+
+    sorted_modules = sorted(legend_dict.keys())
+
+    fig.legend(
+        [legend_dict[m] for m in sorted_modules],
+        sorted_modules,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.02),
+        ncol=len(sorted_modules),
+        fontsize=10,
+    )
+
+    title_str = f"Vision Profile: {model_name} ({model_size}, Patch {patch_size}, {resolution}px)"
+    fig.suptitle(title_str, fontsize=18, weight="bold", y=0.98)
+    plt.tight_layout(rect=[0.02, 0.04, 0.98, 0.95])
+
+    # Save
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    out_name = f"vision_cifar10_c_separated_{model_name}_{model_size}_p{patch_size}.png"
+    plt.savefig(Path(output_dir) / out_name, dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
 
 # model = "Qwen3-1.7B"  # "gemma-3-4b-pt"  # "Llama-3.2-3B"
 # plot_global_representation_profile(model=model)
 # plot_aggregated_representation_profile(model=model)
-# print_top_modules_per_task(model=model)
 
-model_name = "dinov3"  # "aimv2"
-model_size = "vit7b16"  # "1B"
-plot_vision_representation_profile(model_name=model_name, model_size=model_size)
-plot_vision_aggregated_profile(model_name=model_name, model_size=model_size)
-print_vision_top_modules_per_dataset(model_name=model_name, model_size=model_size)
+model_name = "aimv2"  # "dinov3"  # "aimv2"
+model_size = "large"  # "vit7b16"  # "1B"
+patch_size = 16
+resolution = 224
+# plot_vision_representation_profile(
+#     model_name=model_name, model_size=model_size, patch_size=patch_size, resolution=resolution
+# )
+# plot_vision_aggregated_profile(
+#     model_name=model_name, model_size=model_size, patch_size=patch_size, resolution=resolution
+# )
+plot_vision_domainnet_representation_profile(
+    model_name=model_name, model_size=model_size, patch_size=patch_size, resolution=resolution
+)
+plot_vision_cifar10_c_representation_profile(
+    model_name=model_name, model_size=model_size, patch_size=patch_size, resolution=resolution
+)
