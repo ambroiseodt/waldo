@@ -130,24 +130,17 @@ def get_mteb_results() -> None:
                 content = f.read().replace("NaN", "null")
                 data = json.loads(content)
                 task_name = data["task_name"]
-                evaluation_time = data["evaluation_time"]
-                key, scores = data["scores"].popitem()
-                scores = scores[0]
-                accuracies = [value["accuracy"] for value in scores["scores_per_experiment"]]
-
-                # Sweep over experiments
-                for id, accuracy in enumerate(accuracies):
-                    results.append(
-                        {
-                            "task_name": task_name,
-                            "model_name": model_name,
-                            "layer": layer,
-                            "module": module,
-                            "evaluation_time": evaluation_time,
-                            "experiment_id": id,
-                            "accuracy": accuracy,
-                        }
-                    )
+                _, scores = data["scores"].popitem()
+                accuracy = scores[0]["accuracy"]
+                results.append(
+                    {
+                        "task_name": task_name,
+                        "model_name": model_name,
+                        "layer": layer,
+                        "module": module,
+                        "accuracy": accuracy,
+                    }
+                )
 
     # Aggregate results
     df = pd.DataFrame(results)
@@ -158,8 +151,6 @@ def get_mteb_results() -> None:
         "model_name",
         "layer",
         "module",
-        "evaluation_time",
-        "experiment_id",
         "accuracy",
     ]
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
