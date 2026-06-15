@@ -12,10 +12,12 @@ in the root directory of this source tree.
 import json
 import logging
 import re
+
 import fire
 import pandas as pd
-from waldo.infra import SAVING_DIR, RESULT_DIR
 from tqdm import tqdm
+
+from waldo.infra import RESULT_DIR, SAVING_DIR
 
 # Logger setup
 logger = logging.getLogger("waldo.aggregate")
@@ -27,7 +29,7 @@ RUN_DIR = SAVING_DIR / "runs"
 # ------------------------------------------------------------------------------
 # Utils
 # ------------------------------------------------------------------------------
-def parse_model_config(name: str) -> tuple[str, int, str] | None:
+def parse_model_config(name: str) -> tuple[str, int, str]:
     r"""
     Parse a model configuration name to recover model name, layer index, and module name.
 
@@ -53,15 +55,13 @@ def parse_model_config(name: str) -> tuple[str, int, str] | None:
         r"$"
     )
     match = pattern.match(name)
-    if not match:
-        return None
-
+    assert match is not None, f"Match not found. Check regex pattern and input {name}."
     model_name, layer, module = match.groups()
 
     return model_name, int(layer), module
 
 
-def parse_result_config(name: str) -> tuple[int, str] | None:
+def parse_result_config(name: str) -> tuple[int, str]:
     r"""
     Parse a result configuration name to recover layer index and module name.
 
@@ -84,9 +84,7 @@ def parse_result_config(name: str) -> tuple[int, str] | None:
         r".json"
     )
     match = pattern.match(name)
-    if not match:
-        return None
-
+    assert match is not None, f"Match not found. Check regex pattern and input {name}."
     layer, module = match.groups()
 
     return int(layer), module
