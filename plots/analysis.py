@@ -11,14 +11,24 @@ in the root directory of this source tree.
 
 import logging
 
+import fire
 import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 
 from waldo.infra import FIGURE_DIR, RESULT_DIR
 
 logger = logging.getLogger("waldo.analysis")
 
+# Variables
+VFMs = ["aim", "dino", "vit"]
+VLMs = ["clip", "siglip"]
+LLMs = ["gemma", "llama", "qwen"]
 
+
+# ------------------------------------------------------------------------------
+# Utils
+# ------------------------------------------------------------------------------
 def save_plot(figname: str, format: str = "pdf", dpi: int = 100) -> None:
     """Save figure in pdf format."""
     figure_path = FIGURE_DIR
@@ -28,67 +38,64 @@ def save_plot(figname: str, format: str = "pdf", dpi: int = 100) -> None:
     plt.savefig(save_dir, format=format, bbox_inches="tight", dpi=dpi)
 
 
-def plot_probe_comparison_image_classification(
-    dataset_name, model_name, model_size, patch_size, resolution, save=False
-):
-    path = RESULT_DIR / "analysis" / "image_classification.csv"
+# ------------------------------------------------------------------------------
+# Plotting functions
+# ------------------------------------------------------------------------------
+def plot_gap_distribution_vfm(save: bool = False) -> None:
+    # Recover results
+    path = RESULT_DIR / "analysis" / "domainnet.csv"
     df = pd.read_csv(path)
+    pattern = "|".join(VLMs)
+    df = df[~df["model_name"].str.contains(pattern, case=False, na=False)]
+    pattern = "|".join(["1B", "3B", "vit7b16", "giant", "huge", "large"])
+    df = df[~df["model_size"].str.contains(pattern, case=False, na=False)]
+    # df = df[~df["severity"].isin([1, 3])]
+    pattern = "|".join(["infograph", "quickdraw"])
+    df = df[~df["domain"].str.contains(pattern, case=False, na=False)]
+    plot_df = pd.DataFrame(
+        {
+            "gap": pd.concat(
+                [df["gap_best_layer_rc2"], df["gap_best_module_last_layer"], df["gap"]], ignore_index=True
+            ),
+            "type": (["best layer"] * len(df) + ["best module"] * len(df) + ["best location"] * len(df)),
+        }
+    )
+    plot_df["gap"] = 100 * plot_df["gap"]
+    plt.figure(figsize=(6, 5))
 
-    # filter one experiment
-    row = df[
-        (df["model_name"] == model_name)
-        & (df["model_size"] == model_size)
-        & (df["patch_size"] == patch_size)
-        & (df["resolution"] == resolution)
-        & (df["dataset_name"] == dataset_name)
-    ]
+    sns.boxplot(
+        data=plot_df,
+        x="type",
+        y="gap",
+        showfliers=False,  # IMPORTANT: removes outlier clutter
+    )
 
-    if row.empty:
-        raise ValueError("No matching experiment found.")
+    # sns.stripplot(data=plot_df, x="type", y="gap", color="black", alpha=0.25, size=2)
 
-    row = row.iloc[0]
+    plt.axhline(0, color="gray", linestyle="--", linewidth=1)
 
-    labels = ["Standard (last, rc2)", "Best layer (rc2 fixed)", "Best module (last layer fixed)", "Global best"]
-
-    values = [
-        row["baseline_accuracy"],
-        row["best_layer_rc2_accuracy"],
-        row["best_module_last_layer_accuracy"],
-        row["best_accuracy"],
-    ]
-
-    plt.figure(figsize=(7, 4))
-    bars = plt.bar(labels, values)
-
-    plt.ylabel("Accuracy")
-
-    title = f"{model_name} | {model_size} | {dataset_name}"
-    plt.title(title)
-
-    plt.xticks(rotation=20, ha="right")
-    plt.grid(axis="y", linestyle="--", alpha=0.4)
-
-    for b, v in zip(bars, values):
-        plt.text(b.get_x() + b.get_width() / 2, v, f"{v:.3f}", ha="center", va="bottom", fontsize=9)
+    plt.xlabel("")
+    plt.ylabel("Gain over standard probing")
+    plt.title("Probe-location optimization improves performance")
 
     plt.tight_layout()
     if save:
-        figname = f"probe_comparison_{model_name}_{model_size}_{dataset_name}"
+        figname = "gap_distribution"
         save_plot(figname=figname)
-    plt.show()
 
 
-save = True
-model_name = "clip"
-model_size = "large"
-patch_size = 14
-resolution = 224
-dataset_name = "food101"
-plot_probe_comparison_image_classification(
-    dataset_name=dataset_name,
-    model_name=model_name,
-    model_size=model_size,
-    patch_size=patch_size,
-    resolution=resolution,
-    save=save,
-)
+# %% Main
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(message)s",
+        handlers=[logging.StreamHandler()],
+    )
+
+    fire.Fire({"gap": plot_gap_distribution_vfm})
+
+
+# %% CLI
+if __name__ == "__main__":
+    main()
+# %%

@@ -447,6 +447,30 @@ def aggregate_mteb_results() -> None:
         gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
         gain = gain * 100
 
+        # Best layer with rc2 fixed
+        rc2_df = group[group["module"] == "rc2"]
+        best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
+        best_layer_rc2_accuracy = best_layer_rc2_row["accuracy"]
+        best_layer_rc2 = best_layer_rc2_row["layer"]
+
+        # Gains
+        gap_best_layer_rc2 = best_layer_rc2_accuracy - baseline_accuracy
+        gain_best_layer_rc2 = gap_best_layer_rc2 / baseline_accuracy if baseline_accuracy > 0 else gap_best_layer_rc2
+        gain_best_layer_rc2 = gain_best_layer_rc2 * 100
+
+        # Best module at last layer
+        last_layer_df = group[group["layer"] == last_layer]
+        best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
+        best_module_last_layer_accuracy = best_module_last_row["accuracy"]
+        best_module_last_layer = best_module_last_row["module"]
+
+        # Gains
+        gap_best_module_last_layer = best_module_last_layer_accuracy - baseline_accuracy
+        gain_best_module_last_layer = (
+            gap_best_module_last_layer / baseline_accuracy if baseline_accuracy > 0 else gap_best_module_last_layer
+        )
+        gain_best_module_last_layer = gain_best_module_last_layer * 100
+
         # Update results
         results.append(
             {
@@ -459,6 +483,14 @@ def aggregate_mteb_results() -> None:
                 "best_module": best_module,
                 "gap": gap,
                 "gain": gain,
+                "best_layer_rc2": best_layer_rc2,
+                "best_layer_rc2_accuracy": best_layer_rc2_accuracy,
+                "gap_best_layer_rc2": gap_best_layer_rc2,
+                "gain_best_layer_rc2": gain_best_layer_rc2,
+                "best_module_last_layer": best_module_last_layer,
+                "best_module_last_layer_accuracy": best_module_last_layer_accuracy,
+                "gap_best_module_last_layer": gap_best_module_last_layer,
+                "gain_best_module_last_layer": gain_best_module_last_layer,
             }
         )
 
@@ -804,10 +836,10 @@ def main() -> None:
             "cls": get_image_classification_results,
             "domain": get_domainnet_results,
             "cifar10_c": get_cifar10_c_results,
-            "aggr_mteb": aggregate_mteb_results,
-            "aggr_cls": aggregate_image_classification_results,
-            "aggr_cifar10_c": aggregate_cifar10_c_results,
-            "aggr_domainnet": aggregate_domainnet_results,
+            "analysis_mteb": aggregate_mteb_results,
+            "analysis_cls": aggregate_image_classification_results,
+            "analysis_cifar10_c": aggregate_cifar10_c_results,
+            "analysis_domainnet": aggregate_domainnet_results,
         }
     )
 
