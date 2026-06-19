@@ -59,13 +59,11 @@ def plot_gap_distribution_vfm(save: bool = False) -> None:
     # df = df[~df["domain"].str.contains(pattern, case=False, na=False)]
     plot_df = pd.DataFrame(
         {
-            "gap": pd.concat(
+            "gain": pd.concat(
                 [
-                    df["gap_best_layer_rc2"],
-                    df["gap_best_module_last_layer"],
-                    df["gap"],
-                    # df["gap"] - df["gap_best_layer_rc2"],
-                    # df["gap"] - df["gap_best_module_last_layer"],
+                    df["gain_layer"],
+                    df["gain_module"],
+                    df["gain"],
                 ],
                 ignore_index=True,
             ),
@@ -73,13 +71,13 @@ def plot_gap_distribution_vfm(save: bool = False) -> None:
             # "type": (["best layer"] * len(df) + ["best module"] * len(df)),
         }
     )
-    plot_df["gap"] = 100 * plot_df["gap"]
+    plot_df["gain"] = 100 * plot_df["gain"]
     plt.figure(figsize=(6, 5))
 
     sns.boxplot(
         data=plot_df,
         x="type",
-        y="gap",
+        y="gain",
         showfliers=False,  # IMPORTANT: removes outlier clutter
         showmeans=True,
     )
@@ -99,7 +97,7 @@ def plot_gap_distribution_vfm(save: bool = False) -> None:
 
 
 def plot_cdf(ax, df, title):
-    for col, label in [("gap_best_layer_rc2", "Layer"), ("gap_best_module_last_layer", "Module"), ("gap", "Location")]:
+    for col, label in [("gain_layer", "Layer"), ("gain_module", "Module"), ("gain", "Location")]:
         x = np.sort(df[col].values)
         y = np.arange(1, len(x) + 1) / len(x)
         ax.plot(x, 1 - y, linewidth=2, label=label)
@@ -112,9 +110,7 @@ def plot_cdf(ax, df, title):
 
 
 def plot_paired(ax, df, title):
-    data = pd.DataFrame(
-        {"Layer": df["gap_best_layer_rc2"], "Module": df["gap_best_module_last_layer"], "Location": df["gap"]}
-    )
+    data = pd.DataFrame({"Layer": df["gain_layer"], "Module": df["gain_module"], "Location": df["gain"]})
 
     melted = data.melt(var_name="Method", value_name="Gain")
 
@@ -167,6 +163,144 @@ def plot_all(save: bool = False):
         save_plot(figname=figname)
 
 
+def summarize_models(df):
+
+    summary = (
+        df.groupby(["model_name", "model_size"])
+        .agg(
+            gain_mean=("gain", "mean"),
+            gain_std=("gain", "std"),
+            gain_layer_mean=("gain_layer", "mean"),
+            gain_layer_std=("gain_layer", "std"),
+            gain_module_mean=("gain_module", "mean"),
+            gain_module_std=("gain_module", "std"),
+        )
+        .reset_index()
+    )
+
+    return summary.sort_values(["model_name", "model_size"])
+
+
+def dataset_level_gain(df):
+
+    summary = (
+        df.groupby("dataset_name")
+        .agg(
+            acc_mean=("baseline_accuracy", "mean"),
+            acc_std=("baseline_accuracy", "std"),
+            acc_best=("baseline_accuracy", "max"),
+            gain_mean=("gain", "mean"),
+            gain_std=("gain", "std"),
+            gain_layer_mean=("gain_layer", "mean"),
+            gain_layer_std=("gain_layer", "std"),
+            gain_module_mean=("gain_module", "mean"),
+            gain_module_std=("gain_module", "std"),
+        )
+        .reset_index()
+    )
+
+    return summary.sort_values("gain_mean", ascending=False)
+
+
+def corruption_level_gain(df):
+
+    summary = (
+        df.groupby(["corruption", "severity"])
+        .agg(
+            acc_mean=("baseline_accuracy", "mean"),
+            acc_std=("baseline_accuracy", "std"),
+            acc_best=("baseline_accuracy", "max"),
+            gain_mean=("gain", "mean"),
+            gain_std=("gain", "std"),
+            gain_layer_mean=("gain_layer", "mean"),
+            gain_layer_std=("gain_layer", "std"),
+            gain_module_mean=("gain_module", "mean"),
+            gain_module_std=("gain_module", "std"),
+        )
+        .reset_index()
+    )
+
+    return summary.sort_values("gain_mean", ascending=False)
+
+
+def domain_level_gain(df):
+
+    summary = (
+        df.groupby("domain")
+        .agg(
+            acc_mean=("baseline_accuracy", "mean"),
+            acc_std=("baseline_accuracy", "std"),
+            acc_best=("baseline_accuracy", "max"),
+            gain_mean=("gain", "mean"),
+            gain_std=("gain", "std"),
+            gain_layer_mean=("gain_layer", "mean"),
+            gain_layer_std=("gain_layer", "std"),
+            gain_module_mean=("gain_module", "mean"),
+            gain_module_std=("gain_module", "std"),
+        )
+        .reset_index()
+    )
+
+    return summary.sort_values("gain_mean", ascending=False)
+
+
+def task_level_gain(df):
+
+    summary = (
+        df.groupby("task_name")
+        .agg(
+            acc_mean=("baseline_accuracy", "mean"),
+            acc_std=("baseline_accuracy", "std"),
+            acc_best=("baseline_accuracy", "max"),
+            gain_mean=("gain", "mean"),
+            gain_std=("gain", "std"),
+            gain_layer_mean=("gain_layer", "mean"),
+            gain_layer_std=("gain_layer", "std"),
+            gain_module_mean=("gain_module", "mean"),
+            gain_module_std=("gain_module", "std"),
+        )
+        .reset_index()
+    )
+
+    return summary.sort_values("gain_mean", ascending=False)
+
+
+def summarize_llms(df):
+
+    summary = (
+        df.groupby(["model_name"])
+        .agg(
+            gain_mean=("gain", "mean"),
+            gain_std=("gain", "std"),
+            gain_layer_mean=("gain_layer", "mean"),
+            gain_layer_std=("gain_layer", "std"),
+            gain_module_mean=("gain_module", "mean"),
+            gain_module_std=("gain_module", "std"),
+        )
+        .reset_index()
+    )
+
+    return summary.sort_values(["model_name"])
+
+
+def table():
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / "image_classification.csv")
+    pattern = "|".join(VLMs)
+    df = df[~df["model_name"].str.contains(pattern, case=False, na=False)]
+    print(summarize_models(df))
+    print(dataset_level_gain(df))
+    df = pd.read_csv(path / "cifar10_c.csv")
+    df = df[~df["model_name"].str.contains(pattern, case=False, na=False)]
+    print(corruption_level_gain(df))
+    df = pd.read_csv(path / "domainnet.csv")
+    df = df[~df["model_name"].str.contains(pattern, case=False, na=False)]
+    print(domain_level_gain(df))
+    # df = pd.read_csv(path / "mteb.csv")
+    # print(summarize_llms(df))
+    # print(task_level_gain(df))
+
+
 # %% Main
 def main() -> None:
     logging.basicConfig(
@@ -175,7 +309,7 @@ def main() -> None:
         handlers=[logging.StreamHandler()],
     )
 
-    fire.Fire({"gap": plot_gap_distribution_vfm, "cdf": plot_all})
+    fire.Fire({"gap": plot_gap_distribution_vfm, "cdf": plot_all, "tab": table})
 
 
 # %% CLI

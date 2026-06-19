@@ -151,6 +151,7 @@
 
 ### Related work
 - First connection to this [paper](https://arxiv.org/pdf/2401.08541) that show the benefits of aggregating representation across all layers for better performance in vision models and vlms (+ they evaluation as linear probing of VLMs follow standard linear probing so same as our experimental setup)
+- this [paper](https://arxiv.org/pdf/2604.13386): Multi-layer embedding for linear probing of LLMs improves performance and even increases with model size 
 - Choice of models and datasets: https://arxiv.org/pdf/2601.09322 (also connected to our methodology so very important to mention it)
 - Add a similar table to described datasets as Table 2 in https://arxiv.org/pdf/2601.09322 (nb train, nb test, nb classes, imbalance class ratio)
 - Interpretability:

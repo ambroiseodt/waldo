@@ -430,46 +430,32 @@ def aggregate_mteb_results() -> None:
 
         n_layers = int(group["layer"].max()) + 1
 
-        # Best probe
-        best_idx = group["accuracy"].idxmax()
-        best_row = group.loc[best_idx]
-        best_accuracy = best_row["accuracy"]
-        best_layer = best_row["layer"]
-        best_module = best_row["module"]
-
         # Baseline probe
         last_layer = int(group["layer"].max())
         baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
         baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
 
-        # Gains
-        gap = best_accuracy - baseline_accuracy
-        gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
-        gain = gain * 100
+        # Best probe
+        best_idx = group["accuracy"].idxmax()
+        best_row = group.loc[best_idx]
+        best_layer = best_row["layer"]
+        best_module = best_row["module"]
+        best_accuracy = best_row["accuracy"]
+        gain = best_accuracy - baseline_accuracy
 
         # Best layer with rc2 fixed
         rc2_df = group[group["module"] == "rc2"]
         best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
-        best_layer_rc2_accuracy = best_layer_rc2_row["accuracy"]
         best_layer_rc2 = best_layer_rc2_row["layer"]
-
-        # Gains
-        gap_best_layer_rc2 = best_layer_rc2_accuracy - baseline_accuracy
-        gain_best_layer_rc2 = gap_best_layer_rc2 / baseline_accuracy if baseline_accuracy > 0 else gap_best_layer_rc2
-        gain_best_layer_rc2 = gain_best_layer_rc2 * 100
+        layer_accuracy = best_layer_rc2_row["accuracy"]
+        gain_layer = layer_accuracy - baseline_accuracy
 
         # Best module at last layer
         last_layer_df = group[group["layer"] == last_layer]
         best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
-        best_module_last_layer_accuracy = best_module_last_row["accuracy"]
         best_module_last_layer = best_module_last_row["module"]
-
-        # Gains
-        gap_best_module_last_layer = best_module_last_layer_accuracy - baseline_accuracy
-        gain_best_module_last_layer = (
-            gap_best_module_last_layer / baseline_accuracy if baseline_accuracy > 0 else gap_best_module_last_layer
-        )
-        gain_best_module_last_layer = gain_best_module_last_layer * 100
+        module_accuracy = best_module_last_row["accuracy"]
+        gain_module = module_accuracy - baseline_accuracy
 
         # Update results
         results.append(
@@ -478,19 +464,16 @@ def aggregate_mteb_results() -> None:
                 "model_name": model_name,
                 "n_layers": n_layers,
                 "baseline_accuracy": baseline_accuracy,
-                "best_accuracy": best_accuracy,
                 "best_layer": best_layer,
                 "best_module": best_module,
-                "gap": gap,
+                "best_accuracy": best_accuracy,
                 "gain": gain,
                 "best_layer_rc2": best_layer_rc2,
-                "best_layer_rc2_accuracy": best_layer_rc2_accuracy,
-                "gap_best_layer_rc2": gap_best_layer_rc2,
-                "gain_best_layer_rc2": gain_best_layer_rc2,
+                "layer_accuracy": layer_accuracy,
+                "gain_layer": gain_layer,
                 "best_module_last_layer": best_module_last_layer,
-                "best_module_last_layer_accuracy": best_module_last_layer_accuracy,
-                "gap_best_module_last_layer": gap_best_module_last_layer,
-                "gain_best_module_last_layer": gain_best_module_last_layer,
+                "module_accuracy": module_accuracy,
+                "gain_module": gain_module,
             }
         )
 
@@ -540,38 +523,24 @@ def aggregate_image_classification_results() -> None:
         # Best probe
         best_idx = group["accuracy"].idxmax()
         best_row = group.loc[best_idx]
-        best_accuracy = best_row["accuracy"]
         best_layer = best_row["layer"]
         best_module = best_row["module"]
-
-        # Gains
-        gap = best_accuracy - baseline_accuracy
-        gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
-        gain = gain * 100
+        best_accuracy = best_row["accuracy"]
+        gain = best_accuracy - baseline_accuracy
 
         # Best layer with rc2 fixed
         rc2_df = group[group["module"] == "rc2"]
         best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
-        best_layer_rc2_accuracy = best_layer_rc2_row["accuracy"]
         best_layer_rc2 = best_layer_rc2_row["layer"]
-
-        # Gains
-        gap_best_layer_rc2 = best_layer_rc2_accuracy - baseline_accuracy
-        gain_best_layer_rc2 = gap_best_layer_rc2 / baseline_accuracy if baseline_accuracy > 0 else gap_best_layer_rc2
-        gain_best_layer_rc2 = gain_best_layer_rc2 * 100
+        layer_accuracy = best_layer_rc2_row["accuracy"]
+        gain_layer = layer_accuracy - baseline_accuracy
 
         # Best module at last layer
         last_layer_df = group[group["layer"] == last_layer]
         best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
-        best_module_last_layer_accuracy = best_module_last_row["accuracy"]
         best_module_last_layer = best_module_last_row["module"]
-
-        # Gains
-        gap_best_module_last_layer = best_module_last_layer_accuracy - baseline_accuracy
-        gain_best_module_last_layer = (
-            gap_best_module_last_layer / baseline_accuracy if baseline_accuracy > 0 else gap_best_module_last_layer
-        )
-        gain_best_module_last_layer = gain_best_module_last_layer * 100
+        module_accuracy = best_module_last_row["accuracy"]
+        gain_module = module_accuracy - baseline_accuracy
 
         # Update results
         results.append(
@@ -587,16 +556,13 @@ def aggregate_image_classification_results() -> None:
                 "best_layer": best_layer,
                 "best_module": best_module,
                 "best_accuracy": best_accuracy,
-                "gap": gap,
                 "gain": gain,
                 "best_layer_rc2": best_layer_rc2,
-                "best_layer_rc2_accuracy": best_layer_rc2_accuracy,
-                "gap_best_layer_rc2": gap_best_layer_rc2,
-                "gain_best_layer_rc2": gain_best_layer_rc2,
+                "layer_accuracy": layer_accuracy,
+                "gain_layer": gain_layer,
                 "best_module_last_layer": best_module_last_layer,
-                "best_module_last_layer_accuracy": best_module_last_layer_accuracy,
-                "gap_best_module_last_layer": gap_best_module_last_layer,
-                "gain_best_module_last_layer": gain_best_module_last_layer,
+                "module_accuracy": module_accuracy,
+                "gain_module": gain_module,
             }
         )
 
@@ -647,38 +613,24 @@ def aggregate_cifar10_c_results() -> None:
         # Best probe
         best_idx = group["accuracy"].idxmax()
         best_row = group.loc[best_idx]
-        best_accuracy = best_row["accuracy"]
         best_layer = best_row["layer"]
         best_module = best_row["module"]
-
-        # Gains
-        gap = best_accuracy - baseline_accuracy
-        gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
-        gain = gain * 100
+        best_accuracy = best_row["accuracy"]
+        gain = best_accuracy - baseline_accuracy
 
         # Best layer with rc2 fixed
         rc2_df = group[group["module"] == "rc2"]
         best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
-        best_layer_rc2_accuracy = best_layer_rc2_row["accuracy"]
         best_layer_rc2 = best_layer_rc2_row["layer"]
-
-        # Gains
-        gap_best_layer_rc2 = best_layer_rc2_accuracy - baseline_accuracy
-        gain_best_layer_rc2 = gap_best_layer_rc2 / baseline_accuracy if baseline_accuracy > 0 else gap_best_layer_rc2
-        gain_best_layer_rc2 = gain_best_layer_rc2 * 100
+        layer_accuracy = best_layer_rc2_row["accuracy"]
+        gain_layer = layer_accuracy - baseline_accuracy
 
         # Best module at last layer
         last_layer_df = group[group["layer"] == last_layer]
         best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
-        best_module_last_layer_accuracy = best_module_last_row["accuracy"]
         best_module_last_layer = best_module_last_row["module"]
-
-        # Gains
-        gap_best_module_last_layer = best_module_last_layer_accuracy - baseline_accuracy
-        gain_best_module_last_layer = (
-            gap_best_module_last_layer / baseline_accuracy if baseline_accuracy > 0 else gap_best_module_last_layer
-        )
-        gain_best_module_last_layer = gain_best_module_last_layer * 100
+        module_accuracy = best_module_last_row["accuracy"]
+        gain_module = module_accuracy - baseline_accuracy
 
         # Update results
         results.append(
@@ -692,19 +644,16 @@ def aggregate_cifar10_c_results() -> None:
                 "n_layers": n_layers,
                 "training_paradigm": training_paradigm,
                 "baseline_accuracy": baseline_accuracy,
-                "best_accuracy": best_accuracy,
                 "best_layer": best_layer,
                 "best_module": best_module,
-                "gap": gap,
+                "best_accuracy": best_accuracy,
                 "gain": gain,
                 "best_layer_rc2": best_layer_rc2,
-                "best_layer_rc2_accuracy": best_layer_rc2_accuracy,
-                "gap_best_layer_rc2": gap_best_layer_rc2,
-                "gain_best_layer_rc2": gain_best_layer_rc2,
+                "layer_accuracy": layer_accuracy,
+                "gain_layer": gain_layer,
                 "best_module_last_layer": best_module_last_layer,
-                "best_module_last_layer_accuracy": best_module_last_layer_accuracy,
-                "gap_best_module_last_layer": gap_best_module_last_layer,
-                "gain_best_module_last_layer": gain_best_module_last_layer,
+                "module_accuracy": module_accuracy,
+                "gain_module": gain_module,
             }
         )
 
@@ -754,38 +703,24 @@ def aggregate_domainnet_results() -> None:
         # Best probe
         best_idx = group["accuracy"].idxmax()
         best_row = group.loc[best_idx]
-        best_accuracy = best_row["accuracy"]
         best_layer = best_row["layer"]
         best_module = best_row["module"]
-
-        # Gains
-        gap = best_accuracy - baseline_accuracy
-        gain = gap / baseline_accuracy if baseline_accuracy > 0 else gap
-        gain = gain * 100
+        best_accuracy = best_row["accuracy"]
+        gain = best_accuracy - baseline_accuracy
 
         # Best layer with rc2 fixed
         rc2_df = group[group["module"] == "rc2"]
         best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
-        best_layer_rc2_accuracy = best_layer_rc2_row["accuracy"]
         best_layer_rc2 = best_layer_rc2_row["layer"]
-
-        # Gains
-        gap_best_layer_rc2 = best_layer_rc2_accuracy - baseline_accuracy
-        gain_best_layer_rc2 = gap_best_layer_rc2 / baseline_accuracy if baseline_accuracy > 0 else gap_best_layer_rc2
-        gain_best_layer_rc2 = gain_best_layer_rc2 * 100
+        layer_accuracy = best_layer_rc2_row["accuracy"]
+        gain_layer = layer_accuracy - baseline_accuracy
 
         # Best module at last layer
         last_layer_df = group[group["layer"] == last_layer]
         best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
-        best_module_last_layer_accuracy = best_module_last_row["accuracy"]
         best_module_last_layer = best_module_last_row["module"]
-
-        # Gains
-        gap_best_module_last_layer = best_module_last_layer_accuracy - baseline_accuracy
-        gain_best_module_last_layer = (
-            gap_best_module_last_layer / baseline_accuracy if baseline_accuracy > 0 else gap_best_module_last_layer
-        )
-        gain_best_module_last_layer = gain_best_module_last_layer * 100
+        module_accuracy = best_module_last_row["accuracy"]
+        gain_module = module_accuracy - baseline_accuracy
 
         # Update results
         results.append(
@@ -798,19 +733,16 @@ def aggregate_domainnet_results() -> None:
                 "n_layers": n_layers,
                 "training_paradigm": training_paradigm,
                 "baseline_accuracy": baseline_accuracy,
-                "best_accuracy": best_accuracy,
                 "best_layer": best_layer,
                 "best_module": best_module,
-                "gap": gap,
+                "best_accuracy": best_accuracy,
                 "gain": gain,
                 "best_layer_rc2": best_layer_rc2,
-                "best_layer_rc2_accuracy": best_layer_rc2_accuracy,
-                "gap_best_layer_rc2": gap_best_layer_rc2,
-                "gain_best_layer_rc2": gain_best_layer_rc2,
+                "layer_accuracy": layer_accuracy,
+                "gain_layer": gain_layer,
                 "best_module_last_layer": best_module_last_layer,
-                "best_module_last_layer_accuracy": best_module_last_layer_accuracy,
-                "gap_best_module_last_layer": gap_best_module_last_layer,
-                "gain_best_module_last_layer": gain_best_module_last_layer,
+                "module_accuracy": module_accuracy,
+                "gain_module": gain_module,
             }
         )
 
