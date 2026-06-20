@@ -168,6 +168,7 @@ i## **Main focus**: mutimodality and varied model sizes using main transformer c
     - https://arxiv.org/pdf/2605.01188 (scaling laws)
 - Look at mechanistic interpretrability literature on VLMs, VFMs and LLMs with probing technics, SAE analysis. Some findings or design choices might be similar; our conclusions could also be read from the interpretability viewpoint.
 - https://arxiv.org/pdf/2605.26097 discuss distribution shifts from pretraining with different languages
+- probing intermediate transformer blocks for remote sensing (they cite our workhsop paper layer by layer): https://arxiv.org/pdf/2606.13896
 - VLM alignment:
     - look at those papres for alignement metrics and ideas
     - https://arxiv.org/pdf/2506.16895 for VLM alignement
