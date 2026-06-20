@@ -1,4 +1,4 @@
-## **Main focus**: mutimodality and varied model sizes using main transformer components (encoder and decoder); our choices are motivated by models staying close to the original Transformer architecture (https://arxiv.org/pdf/1706.03762)
+i## **Main focus**: mutimodality and varied model sizes using main transformer components (encoder and decoder); our choices are motivated by models staying close to the original Transformer architecture (https://arxiv.org/pdf/1706.03762)
 
 ### **TODO**:
 
@@ -150,6 +150,7 @@
 - use it to get related work + ideas + analysis from the LLM community
 
 ### Related work
+- nice papers with good ideas for plots of "where does ràdomness come from in generative models" https://arxiv.org/pdf/2606.20536
 - First connection to this [paper](https://arxiv.org/pdf/2401.08541) that show the benefits of aggregating representation across all layers for better performance in vision models and vlms (+ they evaluation as linear probing of VLMs follow standard linear probing so same as our experimental setup)
 - this [paper](https://arxiv.org/pdf/2604.13386): Multi-layer embedding for linear probing of LLMs improves performance and even increases with model size 
 - Choice of models and datasets: https://arxiv.org/pdf/2601.09322 (also connected to our methodology so very important to mention it)
