@@ -149,6 +149,8 @@ i## **Main focus**: mutimodality and varied model sizes using main transformer c
 - nice paper with interesting ideas regarding inermediate probes and depth https://arxiv.org/pdf/2605.31220
 - use it to get related work + ideas + analysis from the LLM community
 
+### choice of probing in gated MLP
+- interesting work showing the connection betEen M'P and gated MLP https://arxiv.org/pdf/2606.22172
 ### Related work
 - nice papers with good ideas for plots of "where does ràdomness come from in generative models" https://arxiv.org/pdf/2606.20536
 - First connection to this [paper](https://arxiv.org/pdf/2401.08541) that show the benefits of aggregating representation across all layers for better performance in vision models and vlms (+ they evaluation as linear probing of VLMs follow standard linear probing so same as our experimental setup)
