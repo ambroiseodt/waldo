@@ -39,6 +39,15 @@ DATASETS = {
 VFMs = ["aim", "dino", "vit"]
 VLMs = ["clip", "siglip"]
 LLMs = ["gemma", "llama", "qwen"]
+REPRESENTATIVE_MODELS = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
+REPRESENTATIVE_DATASETS = ["aircraft", "domainnet-sketch", "food101", "flowers102"]
+PRETRAINING_TOKENS = {
+    "vit": 2.5e11,  # 3.3e11 for ViT-Huge due to patch size 14
+    "dinov2": 1.80e12,
+    "dinov2_giant": 1.80e12,
+    "dinov3": 3.91e12,
+    "aimv2": 3.15e12,
+}
 
 # Plot aesthetic
 WIDTH = 4
@@ -125,8 +134,8 @@ def plot_cdf_vision(filename: str, save: bool = False) -> None:
 
 def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     r"""
-    Plot evolution of average gains over models on a given dataset as a function of
-    the said dataset difficulty (measured by the highest achievable performance)
+    Plot the evolution of gain over standard probing, averaged over models for a given dataset,
+    as a function of the dataset difficulty (measured by the highest achievable performance).
 
     Parameters
     ----------
@@ -219,26 +228,24 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
     pattern = "|".join(VLMs)
     df = df[~df["model_name"].str.contains(pattern, case=False, na=False)]
 
-    # Recover representative datasets and models
-    datasets = ["aircraft", "domainnet-sketch", "food101", "flowers102"]
-    models = {"vit": "large", "dinov2": "large", "dinov3": "vitl16", "aimv2": "large"}
+    # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in models.items():
+    for model, size in REPRESENTATIVE_MODELS.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
     # Figure
-    N = len(datasets)
+    N = len(REPRESENTATIVE_DATASETS)
     figsize = 2 * N * WIDTH, 2 * HEIGHT
     fig, axes = plt.subplots(1, N, figsize=figsize, sharey=True)
-    model_order = list(models.keys())
+    model_order = list(REPRESENTATIVE_MODELS.keys())
     gain_types = ["gain_layer", "gain_module", "gain"]
     gain_labels = ["Layer", "Module", "Both"]
 
     colors = sns.color_palette("Set2", 3)
 
     # Results
-    for ax, dataset in zip(axes, datasets, strict=False):
+    for ax, dataset in zip(axes, REPRESENTATIVE_DATASETS, strict=False):
         sub = df[df["dataset_name"] == dataset]
         agg = sub.groupby("model_name")[gain_types].mean().reindex(model_order)
         x = np.arange(len(model_order))
@@ -279,6 +286,110 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
     plt.tight_layout()
     if save:
         figname = f"model_family_vision_{filename}"
+        save_plot(figname=figname)
+
+
+def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
+    r"""
+    Plot the evolution of gain over standard probing as a function of pretraining scale,
+    measured by the number of images seen during pretraining.
+
+    We follow the scaling law literature for LLMs [1, 2]_ and consider the total amount of tokens seen during
+    pretraining. Notably, this takes into considerations multiple epochs, i.e., the number of image exposure, and
+    the number of tokens in each image. This depends on the patch size and image resolution. For simplicity (and
+    since this does not impact the order of magnitude), we only consider visual tokens. In particular, we do not
+    account for CLS or register tokens. In summary, we have: image exposure x token per image.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+
+    Notes
+    -----
+    We recall that for an RGB image H x W x C, and a patch size P, the nb of tokens in the sequence is N = (HW / P^2).
+    For each model, we assume the following amount of pretraining images (using the original technical reports):
+        - ViT [3]_: trained on ImageNet-21K with 14M images
+        - DINOV2 [4]_: trained on LVD-142M with 142B images
+        - DINOV3 [5]_: trained on LVD-1689M with 1.7B images
+        - AIMv2 [6]_: trained on a mixture of image-text pairs with 12B distinct pairs
+    Some models are trained from scracth, while others are obtained via knowledge distillation. For simplicity, we
+    consider that distilled models have seen the same amount of pretraining images as their teacher model. For models
+    trained using epochs, we simply multiply the dataset size by the number of epochs to gain the number of exposures.
+    For models trained by iterations, we multiply the total number of iterations by the batch size.
+
+
+    References
+    ----------
+    .. [1] J. Kaplan et al. Scaling Laws for Neural Language Models. arXiv, 2020
+
+    .. [2] J. Hoffman et al. Training Compute-Optimal Large Language Models. In NeurIPS 2022
+
+    .. [3] A. Dosovitskiy, L. Beyer et al. An Image is Worth 16x16 Words: Transformers
+       for Image Recognition at Scale. In ICLR 2021
+
+    .. [4] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+
+    .. [5] O. Simeoni et al. DINOv3. arXiv 2025
+
+    .. [6] E. Fini et al. Multimodal Autoregressive Pre-training of Large Vision Encoders. In CVPR 2025
+    """
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Recover representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_MODELS.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
+
+    # map pretraining scale
+    df["pretraining_images"] = df["model_name"].map(PRETRAINING_TOKENS)
+
+    plt.figure(figsize=(7, 4))
+
+    # color by dataset (cleanest visual encoding)
+    datasets = df["dataset_name"].unique()  # REPRESENTATIVE_DATASETS
+    palette = sns.color_palette("tab10", len(datasets))
+    color_map = dict(zip(datasets, palette))
+    for ds in datasets:
+        sub = df[df["dataset_name"] == ds]
+
+        plt.scatter(
+            sub["pretraining_images"],
+            sub["gain"],
+            label=ds,
+            color=color_map[ds],
+            s=80,
+            alpha=0.9,
+        )
+
+        # optional: connect points within dataset (ONLY visual grouping)
+        sub = sub.sort_values("pretraining_images")
+        if len(sub) > 1:
+            plt.plot(
+                sub["pretraining_images"],
+                sub["gain"],
+                color=color_map[ds],
+                alpha=0.5,
+            )
+
+    plt.xscale("log")
+    plt.xlabel("Pretraining scale (number of images)")
+    plt.ylabel("Location gain")
+
+    plt.grid(alpha=0.3)
+
+    # Common legend
+    plt.legend()
+    plt.tight_layout()
+    if save:
+        figname = f"pretraining_scale_vision_{filename}"
         save_plot(figname=figname)
 
 
@@ -449,29 +560,64 @@ def test_size_effect(filename: str):
     df["model_name"] = df["model_name"].astype("category")
     df["dataset_name"] = df["dataset_name"].astype("category")
 
+    # # ------------------------------------------------------------
+    # # mixed model
+    # # ------------------------------------------------------------
+    # model = smf.mixedlm(
+    #     formula="gain ~ model_size",
+    #     data=df,
+    #     groups=df["model_name"],  # model family random effect
+    #     vc_formula={"dataset": "0 + C(dataset_name)"},  # dataset random effect
+    # )
+
+    # result = model.fit()
+
+    # print(result.summary())
+
+    # # ------------------------------------------------------------
+    # # interpretability helper
+    # # ------------------------------------------------------------
+    # print("\n=== Fixed effect (model_size) ===")
+    # for k, v in result.pvalues.items():
+    #     if "model_size" in k:
+    #         print(f"{k}: p = {v:.4g}")
+
     # ------------------------------------------------------------
-    # mixed model
+    # 2. MIXED EFFECT MODEL (STATISTICAL TEST)
     # ------------------------------------------------------------
-    model = smf.mixedlm(
-        formula="gain ~ model_size",
-        data=df,
-        groups=df["model_name"],  # model family random effect
-        vc_formula={"dataset": "0 + C(dataset_name)"},  # dataset random effect
-    )
+    model = smf.mixedlm("gain ~ model_size", df, groups=df["model_name"], vc_formula={"dataset": "0 + C(dataset_name)"})
 
     result = model.fit()
 
+    print("\n===== MIXED EFFECT MODEL =====")
     print(result.summary())
 
     # ------------------------------------------------------------
-    # interpretability helper
+    # 3. VARIANCE BREAKDOWN (VERY IMPORTANT FOR PAPER)
     # ------------------------------------------------------------
-    print("\n=== Fixed effect (model_size) ===")
-    for k, v in result.pvalues.items():
-        if "model_size" in k:
-            print(f"{k}: p = {v:.4g}")
+    print("\n===== VARIANCE COMPONENTS =====")
+    print("\n===== VARIANCE COMPONENTS =====")
 
-    return result
+    # dataset variance (vc component)
+    dataset_var = result.vcomp[0] if hasattr(result, "vcomp") and len(result.vcomp) > 0 else 0.0
+
+    # family variance (random effect)
+    if hasattr(result, "cov_re") and result.cov_re is not None and result.cov_re.size > 0:
+        family_var = float(np.asarray(result.cov_re).flatten()[0])
+    else:
+        family_var = 0.0
+
+    # residual variance
+    residual_var = float(result.scale)
+
+    total = dataset_var + family_var + residual_var
+
+    def safe_pct(x):
+        return (x / total) if total > 0 else 0
+
+    print(f"Dataset variance: {dataset_var:.3f} ({safe_pct(dataset_var):.2%})")
+    print(f"Family variance:  {family_var:.3f} ({safe_pct(family_var):.2%})")
+    print(f"Residual:        {residual_var:.3f} ({safe_pct(residual_var):.2%})")
 
     return result
 
@@ -864,16 +1010,21 @@ def plot_figures() -> None:
     # filename = "cls"
     # plot_dataset_difficulty_vision(filename=filename, save=save)
 
-    # # Model family
-    # save = True
-    # filename = "cls"
-    # plot_model_family_vision(filename=filename, save=save)
-
-    # Model size
+    # Model family
     save = True
     filename = "cls"
-    # plot_model_size_vision(filename=filename, save=save)
-    print(test_size_effect(filename=filename))
+    plot_model_family_vision(filename=filename, save=save)
+
+    # Pretraining scale
+    save = True
+    filename = "cls"
+    plot_pretraining_scale_vision(filename=filename, save=save)
+
+    # # Model size
+    # save = True
+    # filename = "cls"
+    # # plot_model_size_vision(filename=filename, save=save)
+    # print(test_size_effect(filename=filename))
 
 
 # %% Main

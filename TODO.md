@@ -176,3 +176,4 @@ i## **Main focus**: mutimodality and varied model sizes using main transformer c
     - https://arxiv.org/pdf/2506.16895 for VLM alignement
     - https://arxiv.org/pdf/2409.19425v2 for VLM alignement too 
     - alignement of LLM representation with vision in VLMs https://openaccess.thecvf.com/content/CVPR2026F/papers/Gan_Seeing_Helps_Reasoning_in_Language_Models_CVPRF_2026_paper.pdf
+- Use of early and last layers for LLM decoding: https://arxiv.org/pdf/2309.03883
