@@ -202,8 +202,7 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
 
 def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     r"""
-    Plot the evolution of gain over standard probing as a function of pretraining scale,
-    measured by the number of images seen during pretraining.
+    Plot the average gain over standard probing for different pretraining scales.
 
     We follow the scaling law literature for LLMs [1, 2]_ and consider the total amount of tokens seen during
     pretraining. Notably, this takes into considerations multiple epochs, i.e., the number of image exposure, and
@@ -302,17 +301,15 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
         fontsize=FONTSIZE,
     )
 
-    # Styling
+    # Visualization
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-
-    ax.set_ylabel("Gain over standard probing", fontsize=FONTSIZE)
+    ax.set_ylabel("Average gain over standard probing", fontsize=FONTSIZE)
     ax.set_xlabel("Model family\nPretraining scale", fontsize=FONTSIZE)
-
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
@@ -363,7 +360,18 @@ def plot_pretraining_scale_all_vision(filename: str, save: bool = False) -> None
     fig, axes = plt.subplots(2, 5, figsize=figsize, sharex=True, sharey=True)
     axes = axes.flatten()
 
-    datasets = df["dataset_name"].unique().tolist()
+    datasets = [
+        "aircraft",
+        "domainnet-sketch",
+        "dtd",
+        "cifar100",
+        "cifar10_c-corruption-motion_blur-severity-5",
+        "food101",
+        "pet",
+        "eurosat",
+        "cifar10",
+        "flowers102",
+    ]
     for ax, dataset in zip(axes, datasets, strict=False):
         sub = df[df["dataset_name"] == dataset]
 
@@ -381,15 +389,21 @@ def plot_pretraining_scale_all_vision(filename: str, save: bool = False) -> None
             alpha=0.85,
         )
 
-        # styling
+        # Visualization
         ax.set_title(dataset, fontsize=FONTSIZE)
-        ax.grid(alpha=ALPHA_GRID, lw=1.2)
-        ax.tick_params(axis="both", direction="out", length=4, width=1)
+        ax.grid(alpha=ALPHA_GRID, lw=1.3)
+        ax.spines["left"].set_linewidth(1)
+        ax.spines["right"].set_linewidth(1)
+        ax.spines["top"].set_linewidth(1)
+        ax.spines["bottom"].set_linewidth(1)
+        ax.tick_params(axis="both", direction="out", length=5, width=1)
+        ax.set_ylabel("Average gain over standard probing", fontsize=FONTSIZE)
+        ax.set_xlabel("Model family\nPretraining scale", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
 
-    sns.despine(fig, ax, trim=True)
-
+    # Common legend
+    plt.legend()
     plt.tight_layout()
-
     if save:
         save_plot(figname=f"pretraining_scale_all_vision_{filename}")
 
