@@ -263,54 +263,56 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
-    # Recover pretraining tokens for representative models
-    pretraining_tokens = {"vit": 2.5e11, "dinov2": 1.80e12, "aimv2": 3.15e12, "dinov3": 3.91e12}
-    df["pretraining_tokens"] = np.log10(df["model_name"].map(pretraining_tokens))
+    # Pretraining scale (annotation only, NOT axis geometry)
+    pretraining_tokens = {
+        "vit": 2.5e11,
+        "dinov2": 1.80e12,
+        "aimv2": 3.15e12,
+        "dinov3": 3.91e12,
+    }
+
+    token_labels = {
+        "vit": "250B",
+        "dinov2": "1.8T",
+        "aimv2": "3.2T",
+        "dinov3": "3.9T",
+    }
+
+    df["pretraining_tokens"] = df["model_name"].map(pretraining_tokens)
+
+    # Order by scale
+    model_order = ["vit", "dinov2", "aimv2", "dinov3"]
 
     # Figure
     figsize = 2 * WIDTH, 2 * HEIGHT
     fig = plt.figure(figsize=figsize)
 
-    # Results
-    summary = (
-        df.groupby("model_name")
-        .agg(
-            mean_gain=("gain", "mean"),
-            std_gain=("gain", "std"),
-            n=("gain", "count"),
-            pretraining_tokens=("pretraining_tokens", "mean"),
-        )
-        .reset_index()
+    ax = sns.barplot(
+        data=df,
+        x="model_name",
+        y="gain",
+        order=model_order,
+        palette="Set2",
+        errorbar=None,
     )
-    summary["ci"] = 1.96 * summary["std_gain"] / np.sqrt(summary["n"])
-    sns.scatterplot(
-        data=summary,
-        x="pretraining_tokens",
-        y="mean_gain",
-        hue="model_name",
-        s=120,
-    )
-    for _, row in summary.iterrows():
-        plt.errorbar(
-            row["pretraining_tokens"],
-            row["mean_gain"],
-            yerr=row["ci"],
-            fmt="none",
-            capsize=4,
-            color="black",
-            alpha=0.7,
-        )
 
-    # Visualization
-    ax = fig.axes[0]
+    # X-axis labels with scale annotation
+    ax.set_xticklabels(
+        [f"{m}\n{token_labels[m]}" for m in model_order],
+        fontsize=FONTSIZE,
+    )
+
+    # Styling
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xlabel("Nb. of pretraining tokens (log10)", fontsize=FONTSIZE)
+
     ax.set_ylabel("Gain over standard probing", fontsize=FONTSIZE)
+    ax.set_xlabel("Model family\nPretraining scale", fontsize=FONTSIZE)
+
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
@@ -319,6 +321,77 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     if save:
         figname = f"pretraining_scale_vision_{filename}"
         save_plot(figname=figname)
+
+
+def plot_pretraining_scale_all_vision(filename: str, save: bool = False) -> None:
+    r"""
+    Appendix figure: gain vs pretraining scale per dataset.
+    Each subplot shows dataset-specific trend over model families.
+    """
+
+    # Load data
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Representative models only
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_MODELS.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
+
+    # Pretraining scale mapping (log scale)
+    pretraining_tokens = {
+        "vit": 2.5e11,
+        "dinov2": 1.80e12,
+        "aimv2": 3.15e12,
+        "dinov3": 3.91e12,
+    }
+
+    model_order = ["vit", "dinov2", "aimv2", "dinov3"]
+
+    df["pretraining_tokens"] = df["model_name"].map(pretraining_tokens)
+
+    # Log scale (safe because sparse regimes)
+    df["log_tokens"] = np.log10(df["pretraining_tokens"])
+
+    # Figure layout: 5 x 2
+    figsize = 2 * 5 * WIDTH, 2 * 2 * HEIGHT
+    fig, axes = plt.subplots(2, 5, figsize=figsize, sharex=True, sharey=True)
+    axes = axes.flatten()
+
+    datasets = df["dataset_name"].unique().tolist()
+    for ax, dataset in zip(axes, datasets, strict=False):
+        sub = df[df["dataset_name"] == dataset]
+
+        # mean gain per model
+        agg = sub.groupby("model_name")["gain"].mean().reindex(model_order)
+
+        x_vals = [np.log10(pretraining_tokens[m]) for m in model_order]
+
+        # curve (light, not implying smooth law)
+        ax.plot(
+            x_vals,
+            agg.values,
+            marker="o",
+            linewidth=2,
+            alpha=0.85,
+        )
+
+        # styling
+        ax.set_title(dataset, fontsize=FONTSIZE)
+        ax.grid(alpha=ALPHA_GRID, lw=1.2)
+        ax.tick_params(axis="both", direction="out", length=4, width=1)
+
+    sns.despine(fig, ax, trim=True)
+
+    plt.tight_layout()
+
+    if save:
+        save_plot(figname=f"pretraining_scale_all_vision_{filename}")
 
 
 def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -> None:
@@ -609,27 +682,28 @@ def get_tables() -> None:
 
 
 def plot_figures() -> None:
-    # CDF
-    save = True
-    for filename in ["cls", "cifar10_c", "domainnet"]:
-        plot_cdf_vision(filename=filename, save=save)
-        plot_cdf_multimodal(filename=filename, save=save)
-    plot_cdf_language(filename="mteb", save=save)
+    # # CDF
+    # save = True
+    # for filename in ["cls", "cifar10_c", "domainnet"]:
+    #     plot_cdf_vision(filename=filename, save=save)
+    #     plot_cdf_multimodal(filename=filename, save=save)
+    # plot_cdf_language(filename="mteb", save=save)
 
-    # Dataset difficulty
-    save = True
-    filename = "cls"
-    plot_dataset_difficulty_vision(filename=filename, save=save)
-
-    # Model family
-    save = True
-    filename = "cls"
-    plot_model_family_vision(filename=filename, save=save)
+    # # Dataset difficulty
+    # save = True
+    # filename = "cls"
+    # plot_dataset_difficulty_vision(filename=filename, save=save)
 
     # Pretraining scale
     save = True
     filename = "cls"
     plot_pretraining_scale_vision(filename=filename, save=save)
+    plot_pretraining_scale_all_vision(filename=filename, save=save)
+
+    # # Model family
+    # save = True
+    # filename = "cls"
+    # plot_model_family_vision(filename=filename, save=save)
 
 
 # %% Main
