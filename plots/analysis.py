@@ -497,6 +497,69 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
         save_plot(figname=figname)
 
 
+def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
+    r"""
+    Plot probing gain as a function of corruption severity on CIFAR10-C.
+
+    Each curve corresponds to one representative vision model.
+    Results are averaged over corruption types.
+    """
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # ----------------------------
+    # Severity order
+    # ----------------------------
+    severity_order = [1, 3, 5]
+
+    # ----------------------------
+    # Figure
+    # ----------------------------
+    figsize = 2 * WIDTH, 2 * HEIGHT
+    fig = plt.figure(figsize=figsize)
+
+    # ----------------------------
+    # Barplot with CI
+    # ----------------------------
+    ax = sns.barplot(
+        data=df,
+        x="severity",
+        y="gain",
+        order=severity_order,
+        estimator=np.mean,
+        errorbar=("ci", 95),
+        capsize=0.15,
+        color="steelblue",
+    )
+
+    # ----------------------------
+    # Visualization styling
+    # ----------------------------
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+
+    ax.set_xlabel("Corruption severity", fontsize=FONTSIZE)
+    ax.set_ylabel("Average gain over standard probing", fontsize=FONTSIZE)
+
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    plt.tight_layout()
+
+    if save:
+        save_plot(figname=f"cifar10c_severity_{filename}")
+
+
 def analyze_gain(filename: str):
 
     # Recover results
@@ -708,16 +771,21 @@ def plot_figures() -> None:
     # filename = "cls"
     # plot_dataset_difficulty_vision(filename=filename, save=save)
 
-    # Pretraining scale
-    save = True
-    filename = "cls"
-    plot_pretraining_scale_vision(filename=filename, save=save)
-    plot_pretraining_scale_all_vision(filename=filename, save=save)
+    # # Pretraining scale
+    # save = True
+    # filename = "cls"
+    # plot_pretraining_scale_vision(filename=filename, save=save)
+    # plot_pretraining_scale_all_vision(filename=filename, save=save)
 
     # # Model family
     # save = True
     # filename = "cls"
     # plot_model_family_vision(filename=filename, save=save)
+
+    # Cifar10-C
+    save = True
+    filename = "cifar10_c"
+    plot_cifar10c_severity(filename=filename, save=save)
 
 
 # %% Main
