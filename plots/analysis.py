@@ -10,14 +10,14 @@ in the root directory of this source tree.
 """
 
 import logging
+from itertools import combinations
 
 import fire
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import statsmodels.formula.api as smf
-from scipy.stats import spearmanr
+from scipy.stats import friedmanchisquare, spearmanr, wilcoxon
 
 from waldo.infra import FIGURE_DIR, RESULT_DIR
 
@@ -41,6 +41,12 @@ VLMs = ["clip", "siglip"]
 LLMs = ["gemma", "llama", "qwen"]
 REPRESENTATIVE_MODELS = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
 REPRESENTATIVE_DATASETS = ["aircraft", "domainnet-sketch", "food101", "flowers102"]
+MODEL_SIZES = {
+    "vit": ["base", "large", "huge"],
+    "dinov2": ["small", "base", "large", "giant"],
+    "aimv2": ["large", "huge", "1B", "3B"],
+    "dinov3": ["vits16", "vitb16", "vitl16", "vit7b16"],
+}
 
 # Plot aesthetic
 WIDTH = 4
@@ -560,69 +566,63 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         save_plot(figname=f"cifar10c_severity_{filename}")
 
 
-def analyze_gain(filename: str):
-
+def analyze_model_size(filename: str) -> None:
     # Recover results
     path = RESULT_DIR / "analysis"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
-    df["gain"] = df["gain"].astype(float)
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
-    # =========================================================
-    # 1. SUMMARY TABLE (dataset × family × size)
-    # =========================================================
-    summary = (
-        df.groupby(["dataset_name", "model_name", "model_size"])
-        .agg(
-            mean_gain=("gain", "mean"),
-            std_gain=("gain", "std"),
-            n=("gain", "count"),
+    for family, sizes in MODEL_SIZES.items():
+        sub = df[df["model_name"] == family]
+
+        # Build matrix: rows=datasets, cols=sizes
+        pivot = (
+            sub.pivot_table(index="dataset_name", columns="model_size", values="gain").reindex(columns=sizes).dropna()
         )
-        .reset_index()
-    )
 
-    summary["ci95"] = 1.96 * summary["std_gain"] / np.sqrt(summary["n"])
+        print(f"\n{'=' * 50}")
+        print(f"Family: {family}  |  sizes: {sizes}  |  datasets: {len(pivot)}")
+        print(pivot.round(4).to_string())
 
-    summary_fmt = summary.copy()
-    for col in ["mean_gain", "std_gain", "ci95"]:
-        summary_fmt[col] = summary_fmt[col].map(lambda x: f"{x:.2f}")
+        # --- Friedman test ---
+        groups = [pivot[s].values for s in pivot.columns]
+        stat, p = friedmanchisquare(*groups)
 
-    latex_table = summary_fmt.to_latex(
-        index=False,
-        escape=False,
-        column_format="lllrrrr",
-        caption="Gain statistics across datasets, model families, and model sizes.",
-        label="tab:gain_stats",
-    )
+        # Kendall's W (effect size)
+        k = len(pivot.columns)
+        n = len(pivot)
+        W = stat / (k * (n - 1))  # = chi2 / (k*(n-1)) for Friedman
 
-    # =========================================================
-    # 2. STATISTICAL MODELS
-    # =========================================================
+        print(f"\nFriedman: chi2={stat:.3f}, p={p:.4f}, W={W:.3f}")
 
-    # --- Model 1: size effect only ---
-    model_size = smf.ols("gain ~ C(model_size)", data=df).fit()
+        if p < 0.05:
+            print("→ Significant. Post-hoc pairwise Wilcoxon (Holm-corrected):")
+            pairs = list(combinations(pivot.columns, 2))
+            raw_p = []
+            for s1, s2 in pairs:
+                _, pw = wilcoxon(pivot[s1], pivot[s2])
+                raw_p.append(pw)
+            # Holm correction
+            order = np.argsort(raw_p)
+            corrected = np.zeros(len(raw_p))
+            for rank, idx in enumerate(order):
+                corrected[idx] = min(raw_p[idx] * (len(raw_p) - rank), 1.0)
+            for (s1, s2), rp, cp in zip(pairs, raw_p, corrected):
+                sig = "*" if cp < 0.05 else ""
+                print(f"  {s1} vs {s2}: p_raw={rp:.4f}, p_holm={cp:.4f} {sig}")
+        else:
+            print("→ Not significant. Size does not systematically affect gain.")
 
-    # --- Model 2: dataset + family + size ---
-    model_full = smf.ols("gain ~ C(dataset_name) + C(model_name) + C(model_size)", data=df).fit()
-
-    # --- Model 3: interaction (size × family) ---
-    model_inter = smf.ols(
-        "gain ~ C(model_size) * C(model_name) + C(dataset_name)",
-        data=df,
-    ).fit()
-
-    # =========================================================
-    # 3. OUTPUT DICTIONARY
-    # =========================================================
-    results = {
-        "latex_table": latex_table,
-        "model_size_effect": model_size.summary().as_text(),
-        "full_model": model_full.summary().as_text(),
-        "interaction_model": model_inter.summary().as_text(),
-    }
-
-    return results
+        # --- Direction: Spearman between size rank and mean gain ---
+        size_ranks = np.arange(len(sizes))  # ordinal: 0=smallest
+        mean_gains = [pivot[s].mean() for s in sizes]
+        rho, p_rho = spearmanr(size_ranks, mean_gains)
+        print(f"Spearman (size rank vs mean gain): rho={rho:.3f}, p={p_rho:.4f}")
+        print(f"Mean gain per size: { {s: f'{g:.4f}' for s, g in zip(sizes, mean_gains)} }")
 
 
 def get_table_modules() -> None:
@@ -754,8 +754,7 @@ def plot_cdf_language(filename: str, save: bool = False) -> None:
 def get_tables() -> None:
 
     filename = "cls"
-    res = analyze_gain(filename=filename)
-    print(res)
+    analyze_model_size(filename=filename)
 
 
 def plot_figures() -> None:
