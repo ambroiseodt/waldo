@@ -286,37 +286,88 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     df["pretraining_tokens"] = df["model_name"].map(pretraining_tokens)
 
     # Order by scale
-    model_order = ["vit", "dinov2", "aimv2", "dinov3"]
+    model_order = [
+        "vit",
+        "dinov2",
+        "aimv2",
+        "dinov3",
+    ]
 
     # Figure
     figsize = 2 * WIDTH, 2 * HEIGHT
     fig = plt.figure(figsize=figsize)
 
-    ax = sns.barplot(
-        data=df,
-        x="model_name",
-        y="gain",
-        order=model_order,
-        palette="Set2",
-        errorbar=None,
+    # ── Median + IQR per model across datasets ────────────────────────────────
+    stats = {}
+    for m in model_order:
+        vals = df[df["model_name"] == m]["gain"].values
+        stats[m] = {
+            "median": np.median(vals),
+            "q25": np.percentile(vals, 25),
+            "q75": np.percentile(vals, 75),
+        }
+
+    x = np.arange(len(model_order))
+    medians = [stats[m]["median"] for m in model_order]
+    q25s = [stats[m]["q25"] for m in model_order]
+    q75s = [stats[m]["q75"] for m in model_order]
+
+    # Dashed line connecting medians
+    plt.plot(
+        x,
+        medians,
+        color="#2D3A8C",
+        lw=1.8,
+        zorder=3,
+        linestyle="--",
+        alpha=0.5,
     )
 
-    # X-axis labels with scale annotation
+    # IQR band
+    plt.fill_between(
+        x,
+        q25s,
+        q75s,
+        color="#2D3A8C",
+        alpha=0.15,
+        zorder=2,
+        label="IQR across datasets (Q1–Q3)",
+    )
+
+    # One coloured marker per model family
+    for xi, m in zip(x, model_order):
+        plt.scatter(
+            xi,
+            stats[m]["median"],
+            color=PALETTE[m],
+            s=100,
+            zorder=4,
+            edgecolors="white",
+            linewidths=1.2,
+            label=m,
+        )
+
+    # ── Axes ──────────────────────────────────────────────────────────────────
+    ax = fig.axes[0]
+    ax.set_xticks(x)
     ax.set_xticklabels(
         [f"{m}\n{token_labels[m]}" for m in model_order],
         fontsize=FONTSIZE,
     )
+    ax.set_ylabel("Median gain over standard probing (pp)", fontsize=FONTSIZE)
+    ax.set_xlabel("Model family  /  Pretraining scale", fontsize=FONTSIZE)
+    ax.set_xlim(-0.4, len(model_order) - 0.6)
+    ax.set_ylim(bottom=0)
 
-    # Visualization
+    # ── Cosmetics ─────────────────────────────────────────────────────────────
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
+    for spine in ax.spines.values():
+        spine.set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_ylabel("Average gain over standard probing", fontsize=FONTSIZE)
-    ax.set_xlabel("Model family\nPretraining scale", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
+    ax.legend(frameon=False, fontsize=FONTSIZE - 1, loc="upper right")
+
+    plt.tight_layout()
 
     # Common legend
     plt.legend()
@@ -324,94 +375,6 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     if save:
         figname = f"pretraining_scale_vision_{filename}"
         save_plot(figname=figname)
-
-
-def plot_pretraining_scale_all_vision(filename: str, save: bool = False) -> None:
-    r"""
-    Appendix figure: gain vs pretraining scale per dataset.
-    Each subplot shows dataset-specific trend over model families.
-    """
-
-    # Load data
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep vision models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Representative models only
-    mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_MODELS.items():
-        mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
-
-    # Pretraining scale mapping (log scale)
-    pretraining_tokens = {
-        "vit": 2.5e11,
-        "dinov2": 1.80e12,
-        "aimv2": 3.15e12,
-        "dinov3": 3.91e12,
-    }
-
-    model_order = ["vit", "dinov2", "aimv2", "dinov3"]
-
-    df["pretraining_tokens"] = df["model_name"].map(pretraining_tokens)
-
-    # Log scale (safe because sparse regimes)
-    df["log_tokens"] = np.log10(df["pretraining_tokens"])
-
-    # Figure layout: 5 x 2
-    figsize = 2 * 5 * WIDTH, 2 * 2 * HEIGHT
-    fig, axes = plt.subplots(2, 5, figsize=figsize, sharex=True, sharey=True)
-    axes = axes.flatten()
-
-    datasets = [
-        "aircraft",
-        "domainnet-sketch",
-        "dtd",
-        "cifar100",
-        "cifar10_c-corruption-motion_blur-severity-5",
-        "food101",
-        "pet",
-        "eurosat",
-        "cifar10",
-        "flowers102",
-    ]
-    for ax, dataset in zip(axes, datasets, strict=False):
-        sub = df[df["dataset_name"] == dataset]
-
-        # mean gain per model
-        agg = sub.groupby("model_name")["gain"].mean().reindex(model_order)
-
-        x_vals = [np.log10(pretraining_tokens[m]) for m in model_order]
-
-        # curve (light, not implying smooth law)
-        ax.plot(
-            x_vals,
-            agg.values,
-            marker="o",
-            linewidth=2,
-            alpha=0.85,
-        )
-
-        # Visualization
-        ax.set_title(dataset, fontsize=FONTSIZE)
-        ax.grid(alpha=ALPHA_GRID, lw=1.3)
-        ax.spines["left"].set_linewidth(1)
-        ax.spines["right"].set_linewidth(1)
-        ax.spines["top"].set_linewidth(1)
-        ax.spines["bottom"].set_linewidth(1)
-        ax.tick_params(axis="both", direction="out", length=5, width=1)
-        ax.set_ylabel("Average gain over standard probing", fontsize=FONTSIZE)
-        ax.set_xlabel("Model family\nPretraining scale", fontsize=FONTSIZE)
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    # Common legend
-    plt.legend()
-    plt.tight_layout()
-    if save:
-        save_plot(figname=f"pretraining_scale_all_vision_{filename}")
 
 
 def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -> None:
@@ -926,12 +889,12 @@ def get_tables() -> None:
 
 
 def plot_figures() -> None:
-    # CDF
-    save = True
+    # # CDF
+    # save = True
     # for filename in ["cls", "cifar10_c", "domainnet"]:
     #     plot_cdf_vision(filename=filename, save=save)
     #     plot_cdf_multimodal(filename=filename, save=save)
-    plot_cdf_language(filename="mteb", save=save)
+    # plot_cdf_language(filename="mteb", save=save)
 
     # # Dataset difficulty
     # save = True
@@ -942,17 +905,16 @@ def plot_figures() -> None:
     # save = True
     # filename = "cls"
     # plot_pretraining_scale_vision(filename=filename, save=save)
-    # plot_pretraining_scale_all_vision(filename=filename, save=save)
 
     # # Model family
     # save = True
     # filename = "cls"
     # plot_model_family_vision(filename=filename, save=save)
 
-    # # Cifar10-C
-    # save = True
-    # filename = "cifar10_c"
-    # plot_cifar10c_severity(filename=filename, save=save)
+    # Cifar10-C
+    save = True
+    filename = "cifar10_c"
+    plot_cifar10c_severity(filename=filename, save=save)
 
 
 # %% Main
