@@ -668,7 +668,7 @@ def analysis_mteb_results() -> None:
     #####################
     # TEMP
     #####################
-    MISSING_MODELS = ["Qwen3-4B", "Qwen3-8B", "Qwen3-32B", "gemma-3-12b-pt", "gemma-3-27b-pt"]
+    MISSING_MODELS = ["Qwen3-8B", "Qwen3-32B", "gemma-3-27b-pt"]
     #####################
     # TEMP
     #####################
@@ -687,7 +687,6 @@ def analysis_mteb_results() -> None:
         desc="Building analysis table",
     ):
         dataset_name, model_name = keys
-
         #####################
         # TEMP
         #####################

@@ -625,6 +625,173 @@ def analyze_model_size(filename: str) -> None:
         print(f"Mean gain per size: { {s: f'{g:.4f}' for s, g in zip(sizes, mean_gains)} }")
 
 
+def analyze_module(filename: str) -> None:
+    # ============================================================
+
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # ============================================================
+    # 1) Frequency of best module
+    # ============================================================
+
+    # Best location for every (dataset, model, size)
+    idx = df.groupby(["dataset_name", "model_name", "model_size"])["accuracy"].idxmax()
+
+    best = df.loc[idx].copy()
+
+    freq = best["module"].value_counts(normalize=True).rename_axis("module").reset_index(name="frequency")
+
+    freq["frequency"] *= 100
+
+    # Plot
+    plt.figure(figsize=(5, 3.5))
+    sns.barplot(
+        data=freq,
+        x="module",
+        y="frequency",
+        color="steelblue",
+    )
+
+    plt.ylabel("Winning frequency over 150 configurations (%)")
+    plt.xlabel("")
+    plt.grid(alpha=0.3)
+    sns.despine()
+    plt.tight_layout()
+
+    print(freq)
+
+    # ============================================================
+    # 2) Recovery tables
+    # ============================================================
+
+    CANONICAL_MODULE = "act"
+    STANDARD_MODULE = "rc2"
+
+    groups = ["dataset_name", "model_name", "model_size"]
+
+    rows = []
+
+    for key, sub in df.groupby(groups):
+        # -----------------------
+        # Standard
+        # -----------------------
+        last_layer = sub["layer"].max()
+
+        std = sub[(sub.layer == last_layer) & (sub.module == STANDARD_MODULE)]["accuracy"]
+
+        if len(std) == 0:
+            continue
+
+        std = std.iloc[0]
+
+        # -----------------------
+        # Last layer + act
+        # -----------------------
+        act_last = sub[(sub.layer == last_layer) & (sub.module == CANONICAL_MODULE)]["accuracy"]
+
+        act_last = act_last.iloc[0] if len(act_last) else np.nan
+
+        # -----------------------
+        # Best layer + rc2
+        # -----------------------
+        rc2_best = sub[sub.module == STANDARD_MODULE].sort_values("accuracy").accuracy.iloc[-1]
+
+        # -----------------------
+        # Best layer + act
+        # -----------------------
+        act_best = sub[sub.module == CANONICAL_MODULE].sort_values("accuracy").accuracy.iloc[-1]
+
+        # -----------------------
+        # Optimum
+        # -----------------------
+        optimum = sub["accuracy"].max()
+
+        gain_opt = optimum - std
+
+        if gain_opt <= 1e-8:
+            continue
+
+        strategies = {
+            "Standard": std,
+            "Best layer + rc2": rc2_best,
+            "Last layer + act": act_last,
+            "Best layer + act": act_best,
+        }
+
+        for strategy, acc in strategies.items():
+            gain = acc - std
+
+            recovered = np.clip(gain / gain_opt, 0, 1)
+
+            exact = np.isclose(acc, optimum)
+
+            rows.append(
+                {
+                    "dataset": key[0],
+                    "family": key[1],
+                    "size": key[2],
+                    "strategy": strategy,
+                    "gain": gain,
+                    "recovered": recovered * 100,
+                    "exact": exact,
+                }
+            )
+
+    summary = pd.DataFrame(rows)
+
+    # ============================================================
+    # Overall table
+    # ============================================================
+
+    overall = summary.groupby("strategy").agg(
+        gain=("gain", "mean"),
+        recovered=("recovered", "mean"),
+        optimal_frequency=("exact", "mean"),
+    )
+
+    overall["optimal_frequency"] *= 100
+
+    print("\n================ OVERALL ================\n")
+    print(overall.round(2))
+
+    # ============================================================
+    # Per dataset
+    # ============================================================
+
+    per_dataset = summary.groupby(["dataset", "strategy"]).agg(
+        gain=("gain", "median"),
+        recovered=("recovered", "mean"),
+        optimal_frequency=("exact", "mean"),
+    )
+
+    per_dataset["optimal_frequency"] *= 100
+
+    print("\n================ DATASET ================\n")
+    print(per_dataset.round(2))
+
+    # ============================================================
+    # Per family
+    # ============================================================
+
+    per_family = summary.groupby(["family", "strategy"]).agg(
+        gain=("gain", "median"),
+        recovered=("recovered", "mean"),
+        optimal_frequency=("exact", "mean"),
+    )
+
+    per_family["optimal_frequency"] *= 100
+
+    print("\n================ FAMILY ================\n")
+    print(per_family.round(2))
+
+
 def get_table_modules() -> None:
     r"""TODO: we want to show that act is overall the best module (check frequency of best module, or percentage
     of optimal performance recovered compared to other modules and to standard probing). So that both
@@ -755,15 +922,16 @@ def get_tables() -> None:
 
     filename = "cls"
     analyze_model_size(filename=filename)
+    analyze_module(filename=filename)
 
 
 def plot_figures() -> None:
-    # # CDF
-    # save = True
+    # CDF
+    save = True
     # for filename in ["cls", "cifar10_c", "domainnet"]:
     #     plot_cdf_vision(filename=filename, save=save)
     #     plot_cdf_multimodal(filename=filename, save=save)
-    # plot_cdf_language(filename="mteb", save=save)
+    plot_cdf_language(filename="mteb", save=save)
 
     # # Dataset difficulty
     # save = True
@@ -781,10 +949,10 @@ def plot_figures() -> None:
     # filename = "cls"
     # plot_model_family_vision(filename=filename, save=save)
 
-    # Cifar10-C
-    save = True
-    filename = "cifar10_c"
-    plot_cifar10c_severity(filename=filename, save=save)
+    # # Cifar10-C
+    # save = True
+    # filename = "cifar10_c"
+    # plot_cifar10c_severity(filename=filename, save=save)
 
 
 # %% Main
