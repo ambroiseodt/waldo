@@ -10,14 +10,13 @@ in the root directory of this source tree.
 """
 
 import logging
-from itertools import combinations
 
 import fire
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.stats import friedmanchisquare, spearmanr, wilcoxon
+from scipy.stats import friedmanchisquare, spearmanr
 
 from waldo.infra import FIGURE_DIR, RESULT_DIR
 
@@ -83,7 +82,7 @@ def save_plot(figname: str, dirname: str | None = None, format: str = "pdf", dpi
 # ------------------------------------------------------------------------------
 def plot_cdf_vision(filename: str, save: bool = False) -> None:
     r"""
-    Plot the percentage of runs over VFMs for which the gain is bigger than a certain level.
+    Plot the percentage of runs over VFMs for which the gain is strictly above a certain threshold.
 
     Three types of gains over standard probing (over the output of the last transformer block) are considered:
         - gain by optimizing over layers (probing done on the output of transformer blocks)
@@ -110,15 +109,33 @@ def plot_cdf_vision(filename: str, save: bool = False) -> None:
     # Figure
     figsize = 2 * WIDTH, 2 * HEIGHT
     fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
+
+    # Zoomed window (x and y axis are padded to avoid overlapping splines)
+    ZOOM_XLIM = (-0.05, 0.35)
+    ZOOM_YLIM = (75, 100)
+    axins = ax.inset_axes((0.25, 0.48, 0.24, 0.44))
 
     # Results
     for col, label in [("gain_layer", "Layer"), ("gain_module", "Module"), ("gain", "Location")]:
         gains = np.sort(df[col].to_numpy())
         percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
-        plt.plot(gains, percentage, linewidth=LINEWIDTH, label=label)
+        ax.plot(gains, percentage, linewidth=LINEWIDTH, label=label)
+        axins.plot(gains, percentage, linewidth=LINEWIDTH)
 
-    # Visualization
-    ax = fig.axes[0]
+    # Subplot limits
+    axins.set_xlim(*ZOOM_XLIM)
+    axins.set_ylim(*ZOOM_YLIM)
+    axins.grid(alpha=ALPHA_GRID, lw=1.0)
+    axins.tick_params(axis="both", direction="out", length=3, width=1, labelsize=FONTSIZE * 0.6)
+    for spine in axins.spines.values():
+        spine.set_linewidth(0.8)
+        spine.set_edgecolor("0.6")
+
+    # Align zoomed window and subplot
+    ax.indicate_inset_zoom(axins, edgecolor="0.15", linewidth=1.0, linestyle="--")
+
+    # Visualization (parent)
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
@@ -126,11 +143,11 @@ def plot_cdf_vision(filename: str, save: bool = False) -> None:
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
     ax.set_xlabel("Gain over standard probing", fontsize=FONTSIZE)
-    ax.set_ylabel(r"Percentage of runs with gain $\geq x$", fontsize=FONTSIZE)
+    ax.set_ylabel(r"Percentage of runs with gain $> x$", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
-    plt.legend()
+    ax.legend()
     plt.tight_layout()
     if save:
         figname = f"cdf_vision_{filename}"
@@ -194,7 +211,7 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
     ax.set_xlabel("Maximum achievable accuracy", fontsize=FONTSIZE)
-    ax.set_ylabel("Average gain over standard probing", fontsize=FONTSIZE)
+    ax.set_ylabel("Mean probing gain", fontsize=FONTSIZE)
     ax.set_title(f"Dataset difficulty vs gain\nSpearman ρ = {rho:.2f}, p = {pval:.2e}", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
@@ -206,9 +223,130 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
+def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
+    r"""
+    Plot probing gain as a function of corruption severity on CIFAR10-C.
+
+    Each curve corresponds to one representative vision model.
+    Results are averaged over corruption types.
+    """
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Figure
+    figsize = 2 * WIDTH, 2 * HEIGHT
+    fig = plt.figure(figsize=figsize)
+
+    # Results
+    severity_order = [1, 3, 5]
+    sns.barplot(
+        data=df,
+        x="severity",
+        y="gain",
+        order=severity_order,
+        estimator=np.mean,
+        errorbar=("ci", 95),
+        capsize=0.15,
+        color="steelblue",
+    )
+
+    # Visualization
+    ax = fig.axes[0]
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    ax.set_xlabel("Corruption severity", fontsize=FONTSIZE)
+    ax.set_ylabel("Mean probing gain", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        save_plot(figname=f"cifar10c_severity_{filename}")
+
+
+def plot_cifar10c_severity_all(
+    filename: str,
+    save: bool = False,
+) -> None:
+    """
+    Plot probing gain as a function of corruption severity
+    for each CIFAR10-C corruption separately.
+
+    Each curve is averaged over
+        - model families
+        - model sizes
+    """
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    severity_order = [1, 3, 5]
+    corruptions = sorted(df["corruption"].unique())
+
+    # Figure
+    ncols = 5
+    nrows = int(np.ceil(len(corruptions) / ncols))
+    figsize = (ncols * WIDTH, nrows * HEIGHT)
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=figsize,
+        sharex=True,
+        sharey=True,
+    )
+
+    # Results
+    axes = np.asarray(axes).flatten()
+    color = sns.color_palette()[0]
+    for i, (ax, corruption) in enumerate(zip(axes, corruptions, strict=True)):
+        sub = df[df["corruption"] == corruption]
+        stats = sub.groupby("severity")["gain"].mean().reindex(severity_order)
+        ax.plot(
+            severity_order,
+            stats.values,
+            color=color,
+            marker="o",
+            lw=2,
+            ms=5,
+        )
+
+        # Visualization
+        ax.grid(alpha=ALPHA_GRID, lw=1.3)
+        ax.spines["left"].set_linewidth(1)
+        ax.spines["right"].set_linewidth(1)
+        ax.spines["top"].set_linewidth(1)
+        ax.spines["bottom"].set_linewidth(1)
+        ax.tick_params(axis="both", direction="out", length=5, width=1)
+        ax.set_xlabel("Corruption severity", fontsize=FONTSIZE)
+        if i == 0:
+            ax.set_ylabel("Mean probing gain", fontsize=FONTSIZE)
+        ax.set_title(corruption, fontsize=FONTSIZE - 2)
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        save_plot(f"cifar10c_severity_all_{filename}")
+
+
 def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     r"""
-    Plot the average gain over standard probing for different pretraining scales.
+    Plot the Mean probing gain for different pretraining scales.
 
     We follow the scaling law literature for LLMs [1, 2]_ and consider the total amount of tokens seen during
     pretraining. Notably, this takes into considerations multiple epochs, i.e., the number of image exposure, and
@@ -268,53 +406,37 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
-    # Pretraining scale (annotation only, NOT axis geometry)
+    # Pretraining scale
     pretraining_tokens = {
         "vit": 2.5e11,
         "dinov2": 1.80e12,
         "aimv2": 3.15e12,
         "dinov3": 3.91e12,
     }
-
-    token_labels = {
-        "vit": "250B",
-        "dinov2": "1.8T",
-        "aimv2": "3.2T",
-        "dinov3": "3.9T",
-    }
-
+    token_labels = {"vit": "250B", "dinov2": "1.8T", "aimv2": "3.2T", "dinov3": "3.9T"}
     df["pretraining_tokens"] = df["model_name"].map(pretraining_tokens)
-
-    # Order by scale
-    model_order = [
-        "vit",
-        "dinov2",
-        "aimv2",
-        "dinov3",
-    ]
 
     # Figure
     figsize = 2 * WIDTH, 2 * HEIGHT
     fig = plt.figure(figsize=figsize)
 
-    # ── Median + IQR per model across datasets ────────────────────────────────
+    # Results
     stats = {}
-    for m in model_order:
-        vals = df[df["model_name"] == m]["gain"].values
-        stats[m] = {
+    models = ["vit", "dinov2", "aimv2", "dinov3"]
+    for model in models:
+        vals = df[df["model_name"] == model]["gain"].to_numpy()
+        stats[model] = {
             "median": np.median(vals),
             "q25": np.percentile(vals, 25),
             "q75": np.percentile(vals, 75),
         }
 
-    x = np.arange(len(model_order))
-    medians = [stats[m]["median"] for m in model_order]
-    q25s = [stats[m]["q25"] for m in model_order]
-    q75s = [stats[m]["q75"] for m in model_order]
-
-    # Dashed line connecting medians
+    scales = np.arange(len(models))
+    medians = [stats[model]["median"] for model in models]
+    q25s = [stats[model]["q25"] for model in models]
+    q75s = [stats[model]["q75"] for model in models]
     plt.plot(
-        x,
+        scales,
         medians,
         color="#2D3A8C",
         lw=1.8,
@@ -322,10 +444,8 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
         linestyle="--",
         alpha=0.5,
     )
-
-    # IQR band
     plt.fill_between(
-        x,
+        scales,
         q25s,
         q75s,
         color="#2D3A8C",
@@ -335,39 +455,34 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     )
 
     # One coloured marker per model family
-    for xi, m in zip(x, model_order):
+    models = ["vit", "dinov2", "aimv2", "dinov3"]
+    for scale, model in zip(scales, models, strict=True):
         plt.scatter(
-            xi,
-            stats[m]["median"],
-            color=PALETTE[m],
+            scale,
+            stats[model]["median"],
+            color=PALETTE[model],
             s=100,
             zorder=4,
             edgecolors="white",
             linewidths=1.2,
-            label=m,
+            label=model,
         )
 
-    # ── Axes ──────────────────────────────────────────────────────────────────
+    # Visualization
     ax = fig.axes[0]
-    ax.set_xticks(x)
-    ax.set_xticklabels(
-        [f"{m}\n{token_labels[m]}" for m in model_order],
-        fontsize=FONTSIZE,
-    )
-    ax.set_ylabel("Median gain over standard probing (pp)", fontsize=FONTSIZE)
-    ax.set_xlabel("Model family  /  Pretraining scale", fontsize=FONTSIZE)
-    ax.set_xlim(-0.4, len(model_order) - 0.6)
-    ax.set_ylim(bottom=0)
-
-    # ── Cosmetics ─────────────────────────────────────────────────────────────
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
-    for spine in ax.spines.values():
-        spine.set_linewidth(1)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
+    ax.set_xticks(scales)
+    ax.set_xticklabels([f"{model}\n{token_labels[model]}" for model in models], fontsize=FONTSIZE)
+    ax.set_ylabel("Median probing gain", fontsize=FONTSIZE)
+    ax.set_xlabel("Model family  /  Pretraining scale", fontsize=FONTSIZE)
+    ax.set_xlim(-0.4, len(models) - 0.6)
+    ax.set_ylim(bottom=0)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
-    ax.legend(frameon=False, fontsize=FONTSIZE - 1, loc="upper right")
-
-    plt.tight_layout()
 
     # Common legend
     plt.legend()
@@ -466,69 +581,644 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
         save_plot(figname=figname)
 
 
-def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
+def plot_winning_module_frequency_vision(
+    filename: str,
+    save: bool = False,
+) -> None:
     r"""
-    Plot probing gain as a function of corruption severity on CIFAR10-C.
-
-    Each curve corresponds to one representative vision model.
-    Results are averaged over corruption types.
+    Frequency with which each transformer module is selected
+    as the optimal probing module over all vision experiments.
     """
 
     # Recover results
     path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep only vision foundation models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Figure
+    figsize = 2 * WIDTH, 2 * HEIGHT
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Results
+    freq = df["best_module"].value_counts(normalize=True).mul(100).sort_values(ascending=False)
+    sns.barplot(
+        x=freq.index,
+        y=freq.values,
+        color=sns.color_palette()[0],
+        edgecolor="black",
+        linewidth=1,
+        ax=ax,
+        legend=False,
+    )
+    for i, v in enumerate(freq.values):
+        ax.text(
+            i,
+            v + 1,
+            f"{v:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=FONTSIZE,
+        )
+
+    # Visualization
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+    ax.set_ylabel("Optimal module frequency (%)", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        figname = f"winning_module_frequency_vision_{filename}"
+        save_plot(figname=figname)
+
+
+def plot_module_depth_vision(filename: str, save: bool = False) -> None:
+    # Recover results
+    path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
     # Keep vision models
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    print(f"Results are presented over a total of {len(df)} runs.")
 
-    # ----------------------------
-    # Severity order
-    # ----------------------------
-    severity_order = [1, 3, 5]
+    # Recover representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_MODELS.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
+    REPRESENTATIVE_DATASETS = df["dataset_name"].unique()
+    nrows = len(REPRESENTATIVE_DATASETS)
+    ncols = len(REPRESENTATIVE_MODELS)
+    fig, axes = plt.subplots(
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(4 * ncols, 3 * nrows),
+        # sharex=True,
+        # sharey="row",
+    )
+    for i, dataset in enumerate(REPRESENTATIVE_DATASETS):
+        print(dataset)
+        for j, model_name in enumerate(REPRESENTATIVE_MODELS):
+            print(model_name)
+            model_size = REPRESENTATIVE_MODELS[model_name]
+            ax = axes[i, j]
+            for module in ["act", "rc2"]:
+                subset = df[
+                    (df["model_name"] == model_name)
+                    & (df["model_size"] == model_size)
+                    & (df["dataset_name"] == dataset)
+                    & (df["module"] == module)
+                ].copy()
 
-    # ----------------------------
-    # Figure
-    # ----------------------------
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
+                if len(subset) == 0:
+                    ax.set_axis_off()
+                    continue
 
-    # ----------------------------
-    # Barplot with CI
-    # ----------------------------
-    ax = sns.barplot(
-        data=df,
-        x="severity",
-        y="gain",
-        order=severity_order,
-        estimator=np.mean,
-        errorbar=("ci", 95),
-        capsize=0.15,
-        color="steelblue",
+                subset = subset.sort_values("layer")
+
+                n_layers = subset["layer"].max()
+
+                subset["depth"] = subset["layer"] / n_layers
+
+                ax.plot(subset["depth"], subset["accuracy"], linewidth=2, label=module)
+                print(module)
+                print(subset["accuracy"].values[-1])
+            ax.set_xlim(0, 1)
+
+            if i == 0:
+                ax.set_title(model_name)
+
+            if j == 0:
+                ax.set_ylabel(f"{dataset}\nAccuracy")
+
+            if i == len(REPRESENTATIVE_MODELS) - 1:
+                ax.set_xlabel("Normalized depth")
+
+            ax.grid(alpha=0.3)
+
+    # Common legend
+    plt.legend()
+    plt.tight_layout()
+    if save:
+        figname = f"module_depth_vision_{filename}"
+        save_plot(figname=figname)
+
+
+def plot_module_depth_vision_all(filename: str, save: bool = False) -> None:
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    print(f"Results are presented over a total of {len(df)} runs.")
+
+    # Recover representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_MODELS.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
+    REPRESENTATIVE_DATASETS = df["dataset_name"].unique()
+    nrows = len(REPRESENTATIVE_DATASETS)
+    ncols = len(REPRESENTATIVE_MODELS)
+    fig, axes = plt.subplots(
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(4 * ncols, 3 * nrows),
+        # sharex=True,
+        # sharey="row",
+    )
+    for i, dataset in enumerate(REPRESENTATIVE_DATASETS):
+        print(dataset)
+        for j, model_name in enumerate(REPRESENTATIVE_MODELS):
+            print(model_name)
+            model_size = REPRESENTATIVE_MODELS[model_name]
+            ax = axes[i, j]
+            for module in ["act", "rc2"]:
+                subset = df[
+                    (df["model_name"] == model_name)
+                    & (df["model_size"] == model_size)
+                    & (df["dataset_name"] == dataset)
+                    & (df["module"] == module)
+                ].copy()
+
+                if len(subset) == 0:
+                    ax.set_axis_off()
+                    continue
+
+                subset = subset.sort_values("layer")
+
+                n_layers = subset["layer"].max()
+
+                subset["depth"] = subset["layer"] / n_layers
+
+                ax.plot(subset["depth"], subset["accuracy"], linewidth=2, label=module)
+                print(module)
+                print(subset["accuracy"].values[-1])
+            ax.set_xlim(0, 1)
+
+            if i == 0:
+                ax.set_title(model_name)
+
+            if j == 0:
+                ax.set_ylabel(f"{dataset}\nAccuracy")
+
+            if i == len(REPRESENTATIVE_MODELS) - 1:
+                ax.set_xlabel("Normalized depth")
+
+            ax.grid(alpha=0.3)
+
+    # Common legend
+    plt.legend()
+    plt.tight_layout()
+    if save:
+        figname = f"module_depth_vision_{filename}"
+        save_plot(figname=figname)
+
+
+def compute_optimal_act_depth(filename: str):
+    """
+    Compute optimal normalized ACT depth for each model x dataset.
+
+    Requires columns:
+    dataset_name, model_name, model_size, layer, module, accuracy
+    """
+
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep only vision foundation models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # df = df.copy()
+
+    # # number of layers per model variant
+    # df["n_layers"] = df.groupby(["model_name", "model_size"])["layer"].transform("max")
+
+    # df["depth"] = df["layer"] / df["n_layers"]
+
+    # # only ACT
+    # df_act = df[df["module"] == "act"].copy()
+
+    # results = []
+
+    # for (model_name, model_size, dataset_name), g in df_act.groupby(["model_name", "model_size", "dataset_name"]):
+    #     best = g.loc[g["accuracy"].idxmax()]
+
+    #     results.append(
+    #         {
+    #             "model_name": model_name,
+    #             "model_size": model_size,
+    #             "dataset_name": dataset_name,
+    #             "best_layer": best["layer"],
+    #             "n_layers": best["n_layers"],
+    #             "best_depth": best["depth"],
+    #             "best_accuracy": best["accuracy"],
+    #         }
+    #     )
+
+    # df = pd.DataFrame(results)
+
+    # model_depth = (
+    #     df.groupby(["model_name", "model_size"])
+    #     .agg(
+    #         median_best_depth=("best_depth", "median"),
+    #         mean_best_depth=("best_depth", "mean"),
+    #         std_best_depth=("best_depth", "std"),
+    #         n_datasets=("dataset_name", "nunique"),
+    #     )
+    #     .reset_index()
+    # )
+
+    # return model_depth
+
+    df = df.copy()
+    # number of layers
+    df["n_layers"] = df.groupby(["model_name", "model_size"])["layer"].transform("max")
+
+    df["depth"] = df["layer"] / df["n_layers"]
+
+    depth_grid = np.linspace(0, 1, 11)
+
+    results = []
+
+    for (model_name, model_size, dataset_name), g in df.groupby(["model_name", "model_size", "dataset_name"]):
+        # baseline = final RC2
+        rc2 = g[g["module"] == "rc2"]
+
+        if len(rc2) == 0:
+            continue
+
+        baseline = rc2.loc[rc2["layer"].idxmax(), "accuracy"]
+
+        # oracle
+        oracle = g["accuracy"].max()
+
+        if oracle <= baseline:
+            continue
+
+        # ACT curve
+        act = g[g["module"] == "act"].sort_values("depth")
+
+        if len(act) == 0:
+            continue
+
+        # recovery at each existing ACT layer
+        act_recovery = (act["accuracy"] - baseline) / (oracle - baseline)
+
+        # interpolate to common depth grid
+        recovery_interp = np.interp(depth_grid, act["depth"], act_recovery)
+
+        for d, r in zip(depth_grid, recovery_interp):
+            results.append(
+                {
+                    "model": f"{model_name}-{model_size}",
+                    "dataset": dataset_name,
+                    "depth": d,
+                    "recovery": 100 * r,
+                }
+            )
+
+    results = pd.DataFrame(results)
+
+    # average over datasets
+    table = results.groupby(["model", "depth"])["recovery"].mean().unstack()
+
+    # nicer column names
+    table.columns = [f"{c:.1f}" for c in table.columns]
+
+    return table.round(1)
+
+
+def plot_module_depth_vision_(filename: str, save: bool = False) -> None:
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep only vision foundation models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    DEPTH_GRID = np.linspace(0, 1, 101)
+
+    # ==========================================================
+    # Add normalized depth
+    # ==========================================================
+
+    df_plot = df.copy()
+
+    # infer number of layers for each model variant
+    df_plot["n_layers"] = df_plot.groupby(["model_name", "model_size"])["layer"].transform("max")
+
+    df_plot["depth"] = df_plot["layer"] / df_plot["n_layers"]
+
+    # ==========================================================
+    # Compute ACT gain curves
+    # ==========================================================
+
+    all_curves = []
+
+    for (model_name, model_size, dataset_name), g_all in df_plot.groupby(["model_name", "model_size", "dataset_name"]):
+        # Standard probing = final layer RC2
+        rc2 = g_all[g_all["module"] == "rc2"]
+
+        if len(rc2) == 0:
+            continue
+
+        baseline = rc2.loc[rc2["layer"].idxmax(), "accuracy"]
+
+        # ACT representations
+        act = g_all[g_all["module"] == "act"].copy()
+
+        if len(act) == 0:
+            continue
+
+        act = act.sort_values("depth")
+
+        # Gain over standard probing
+        act["gain"] = act["accuracy"]
+
+        # interpolate over normalized depth
+        gain_curve = np.interp(DEPTH_GRID, act["depth"], act["gain"])
+
+        all_curves.append(gain_curve)
+
+    all_curves = np.stack(all_curves)
+
+    # ==========================================================
+    # Aggregate
+    # ==========================================================
+
+    median_gain = np.median(all_curves, axis=0)
+
+    q25 = np.percentile(all_curves, 25, axis=0)
+
+    q75 = np.percentile(all_curves, 75, axis=0)
+
+    print(f"Number of model x dataset curves: {len(all_curves)}")
+
+    print(f"Maximum median gain: {median_gain.max():.2f}")
+
+    print(f"Depth of maximum median gain: {DEPTH_GRID[np.argmax(median_gain)]:.2f}")
+
+    # ==========================================================
+    # Plot
+    # ==========================================================
+
+    plt.figure(figsize=(6, 4))
+
+    plt.plot(DEPTH_GRID, median_gain, linewidth=2, label="ACT")
+
+    plt.fill_between(DEPTH_GRID, q25, q75, alpha=0.25, label="25-75 percentile")
+
+    plt.axhline(0, linewidth=1)
+
+    plt.xlabel("Normalized transformer depth")
+
+    plt.ylabel("Gain over standard probing (accuracy points)")
+
+    plt.xlim(0, 1)
+
+    plt.legend(frameon=False)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        figname = f"module_depth_vision_{filename}"
+        save_plot(figname=figname)
+
+
+def plot_act_gain_vision(
+    filename: str,
+    save: bool = False,
+) -> None:
+    """
+    Plot the average gain obtained by the recommended probing strategy
+    (ACT + best layer) over standard probing.
+    """
+
+    # ------------------------------------------------------------
+    # Load
+    # ------------------------------------------------------------
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    STANDARD_MODULE = "rc2"
+    BEST_MODULE = "act"
+
+    groups = ["dataset_name", "model_name", "model_size"]
+
+    rows = []
+
+    for key, sub in df.groupby(groups):
+        last_layer = sub["layer"].max()
+
+        # Standard probing
+        baseline = sub[(sub.layer == last_layer) & (sub.module == STANDARD_MODULE)]["accuracy"]
+
+        if len(baseline) == 0:
+            continue
+
+        baseline = baseline.iloc[0]
+
+        # Recommended strategy = ACT + best layer
+        act_best = sub[sub.module == BEST_MODULE].sort_values("accuracy").iloc[-1]["accuracy"]
+
+        rows.append(
+            {
+                "family": key[1],
+                "gain": act_best - baseline,
+            }
+        )
+
+    gains = pd.DataFrame(rows)
+
+    # ------------------------------------------------------------
+    # Average over all configurations
+    # ------------------------------------------------------------
+    summary = (
+        gains.groupby("family", as_index=False)
+        .agg(
+            gain=("gain", "mean"),
+        )
+        .sort_values("gain", ascending=False)
     )
 
-    # ----------------------------
-    # Visualization styling
-    # ----------------------------
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    # ------------------------------------------------------------
+    # Plot
+    # ------------------------------------------------------------
+    figsize = WIDTH, HEIGHT
+    fig, ax = plt.subplots(figsize=figsize)
 
-    ax.set_xlabel("Corruption severity", fontsize=FONTSIZE)
-    ax.set_ylabel("Average gain over standard probing", fontsize=FONTSIZE)
+    sns.barplot(
+        data=summary,
+        x="family",
+        y="gain",
+        color="steelblue",
+        edgecolor="black",
+        linewidth=1,
+        ax=ax,
+    )
+
+    # values above bars
+    for i, v in enumerate(summary["gain"]):
+        ax.text(
+            i,
+            v + 0.02,
+            f"{v:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=FONTSIZE - 2,
+        )
+
+    ax.set_xlabel("")
+    ax.set_ylabel("Average location gain (%)", fontsize=FONTSIZE)
+
+    ax.grid(axis="y", alpha=ALPHA_GRID)
+
+    ax.tick_params(
+        axis="both",
+        direction="out",
+        length=5,
+        width=1,
+    )
 
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
+    # Common legend
     plt.tight_layout()
-
     if save:
-        save_plot(figname=f"cifar10c_severity_{filename}")
+        figname = f"act_gain_vision_{filename}"
+        save_plot(figname=figname)
 
 
+def plot_layer_gain_vision(
+    filename: str,
+    save: bool = False,
+) -> None:
+    """
+    Plot the average gain obtained by the recommended probing strategy
+    (ACT + best layer) over standard probing.
+    """
+
+    # ------------------------------------------------------------
+    # Load
+    # ------------------------------------------------------------
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    STANDARD_MODULE = "rc2"
+    BEST_MODULE = "act"
+
+    groups = ["dataset_name", "model_name", "model_size"]
+
+    rows = []
+
+    for key, sub in df.groupby(groups):
+        last_layer = sub["layer"].max()
+
+        # Standard probing
+        baseline = sub[(sub.layer == last_layer) & (sub.module == STANDARD_MODULE)]["accuracy"]
+
+        if len(baseline) == 0:
+            continue
+
+        baseline = baseline.iloc[0]
+
+        # Recommended strategy = ACT + last layer
+        act_best = sub[sub.module == "rc2"].sort_values("accuracy").iloc[-1]["accuracy"]
+
+        rows.append(
+            {
+                "family": key[1],
+                "gain": act_best - baseline,
+            }
+        )
+
+    gains = pd.DataFrame(rows)
+
+    # ------------------------------------------------------------
+    # Average over all configurations
+    # ------------------------------------------------------------
+    summary = (
+        gains.groupby("family", as_index=False)
+        .agg(
+            gain=("gain", "mean"),
+        )
+        .sort_values("gain", ascending=False)
+    )
+
+    # ------------------------------------------------------------
+    # Plot
+    # ------------------------------------------------------------
+    figsize = WIDTH, HEIGHT
+    fig, ax = plt.subplots(figsize=figsize)
+
+    sns.barplot(
+        data=summary,
+        x="family",
+        y="gain",
+        color="steelblue",
+        edgecolor="black",
+        linewidth=1,
+        ax=ax,
+    )
+
+    # values above bars
+    for i, v in enumerate(summary["gain"]):
+        ax.text(
+            i,
+            v + 0.02,
+            f"{v:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=FONTSIZE - 2,
+        )
+
+    ax.set_xlabel("")
+    ax.set_ylabel("Average location gain (%)", fontsize=FONTSIZE)
+
+    ax.grid(axis="y", alpha=ALPHA_GRID)
+
+    ax.tick_params(
+        axis="both",
+        direction="out",
+        length=5,
+        width=1,
+    )
+
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        figname = f"layer_gain_vision_{filename}"
+        save_plot(figname=figname)
+
+
+# ------------------------------------------------------------------------------
+# Vision table functions
+# ------------------------------------------------------------------------------
 def analyze_model_size(filename: str) -> None:
     # Recover results
     path = RESULT_DIR / "analysis"
@@ -539,6 +1229,7 @@ def analyze_model_size(filename: str) -> None:
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
+    results = []
     for family, sizes in MODEL_SIZES.items():
         sub = df[df["model_name"] == family]
 
@@ -546,10 +1237,6 @@ def analyze_model_size(filename: str) -> None:
         pivot = (
             sub.pivot_table(index="dataset_name", columns="model_size", values="gain").reindex(columns=sizes).dropna()
         )
-
-        print(f"\n{'=' * 50}")
-        print(f"Family: {family}  |  sizes: {sizes}  |  datasets: {len(pivot)}")
-        print(pivot.round(4).to_string())
 
         # --- Friedman test ---
         groups = [pivot[s].values for s in pivot.columns]
@@ -560,32 +1247,19 @@ def analyze_model_size(filename: str) -> None:
         n = len(pivot)
         W = stat / (k * (n - 1))  # = chi2 / (k*(n-1)) for Friedman
 
-        print(f"\nFriedman: chi2={stat:.3f}, p={p:.4f}, W={W:.3f}")
+        results.append(
+            {
+                "family": family,
+                "n_sizes": k,
+                "n_datasets": n,
+                "chi2": stat,
+                "p": p,
+                "W": W,
+            }
+        )
 
-        if p < 0.05:
-            print("→ Significant. Post-hoc pairwise Wilcoxon (Holm-corrected):")
-            pairs = list(combinations(pivot.columns, 2))
-            raw_p = []
-            for s1, s2 in pairs:
-                _, pw = wilcoxon(pivot[s1], pivot[s2])
-                raw_p.append(pw)
-            # Holm correction
-            order = np.argsort(raw_p)
-            corrected = np.zeros(len(raw_p))
-            for rank, idx in enumerate(order):
-                corrected[idx] = min(raw_p[idx] * (len(raw_p) - rank), 1.0)
-            for (s1, s2), rp, cp in zip(pairs, raw_p, corrected):
-                sig = "*" if cp < 0.05 else ""
-                print(f"  {s1} vs {s2}: p_raw={rp:.4f}, p_holm={cp:.4f} {sig}")
-        else:
-            print("→ Not significant. Size does not systematically affect gain.")
-
-        # --- Direction: Spearman between size rank and mean gain ---
-        size_ranks = np.arange(len(sizes))  # ordinal: 0=smallest
-        mean_gains = [pivot[s].mean() for s in sizes]
-        rho, p_rho = spearmanr(size_ranks, mean_gains)
-        print(f"Spearman (size rank vs mean gain): rho={rho:.3f}, p={p_rho:.4f}")
-        print(f"Mean gain per size: { {s: f'{g:.4f}' for s, g in zip(sizes, mean_gains)} }")
+    friedman_table = pd.DataFrame(results)
+    print(friedman_table.to_latex(index=False, float_format="%.3f"))
 
 
 def analyze_module(filename: str) -> None:
@@ -599,36 +1273,6 @@ def analyze_module(filename: str) -> None:
     # Keep vision models
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # ============================================================
-    # 1) Frequency of best module
-    # ============================================================
-
-    # Best location for every (dataset, model, size)
-    idx = df.groupby(["dataset_name", "model_name", "model_size"])["accuracy"].idxmax()
-
-    best = df.loc[idx].copy()
-
-    freq = best["module"].value_counts(normalize=True).rename_axis("module").reset_index(name="frequency")
-
-    freq["frequency"] *= 100
-
-    # Plot
-    plt.figure(figsize=(5, 3.5))
-    sns.barplot(
-        data=freq,
-        x="module",
-        y="frequency",
-        color="steelblue",
-    )
-
-    plt.ylabel("Winning frequency over 150 configurations (%)")
-    plt.xlabel("")
-    plt.grid(alpha=0.3)
-    sns.despine()
-    plt.tight_layout()
-
-    print(freq)
 
     # ============================================================
     # 2) Recovery tables
@@ -710,63 +1354,84 @@ def analyze_module(filename: str) -> None:
     summary = pd.DataFrame(rows)
 
     # ============================================================
-    # Overall table
+    # Final table
     # ============================================================
 
+    order = [
+        "Standard",
+        "Last layer + act",
+        "Best layer + rc2",
+        "Best layer + act",
+    ]
+
+    # ------------------------------------------------------------
+    # Family table
+    # ------------------------------------------------------------
+    family = (
+        summary.groupby(["family", "strategy"])
+        .agg(
+            recovery=("recovered", "mean"),
+            optimum=("exact", "mean"),
+        )
+        .reset_index()
+    )
+
+    family["optimum"] *= 100
+
+    recovery_family = family.pivot(index="family", columns="strategy", values="recovery").reindex(columns=order)
+
+    optimum_family = family.pivot(index="family", columns="strategy", values="optimum").reindex(columns=order)
+
+    # ------------------------------------------------------------
+    # Overall row
+    # ------------------------------------------------------------
     overall = summary.groupby("strategy").agg(
-        gain=("gain", "mean"),
-        recovered=("recovered", "mean"),
-        optimal_frequency=("exact", "mean"),
+        recovery=("recovered", "mean"),
+        optimum=("exact", "mean"),
     )
 
-    overall["optimal_frequency"] *= 100
+    overall["optimum"] *= 100
 
-    print("\n================ OVERALL ================\n")
-    print(overall.round(2))
+    overall_recovery = overall["recovery"].reindex(order).to_frame().T
+    overall_recovery.index = ["Overall"]
 
-    # ============================================================
-    # Per dataset
-    # ============================================================
+    overall_optimum = overall["optimum"].reindex(order).to_frame().T
+    overall_optimum.index = ["Overall"]
 
-    per_dataset = summary.groupby(["dataset", "strategy"]).agg(
-        gain=("gain", "median"),
-        recovered=("recovered", "mean"),
-        optimal_frequency=("exact", "mean"),
+    # ------------------------------------------------------------
+    # Merge
+    # ------------------------------------------------------------
+    recovery = pd.concat([recovery_family, overall_recovery])
+    optimum = pd.concat([optimum_family, overall_optimum])
+
+    table = pd.concat(
+        {
+            "Recovery (%)": recovery,
+            "Optimum (%)": optimum,
+        },
+        axis=1,
     )
 
-    per_dataset["optimal_frequency"] *= 100
+    table = table.swaplevel(0, 1, axis=1)
+    table = table.sort_index(axis=1, level=0)
 
-    print("\n================ DATASET ================\n")
-    print(per_dataset.round(2))
+    table = table.round(1)
 
-    # ============================================================
-    # Per family
-    # ============================================================
+    print(table)
 
-    per_family = summary.groupby(["family", "strategy"]).agg(
-        gain=("gain", "median"),
-        recovered=("recovered", "mean"),
-        optimal_frequency=("exact", "mean"),
+    # Latex
+    print(
+        table.to_latex(
+            multicolumn=True,
+            multirow=True,
+            float_format="%.1f",
+        )
     )
 
-    per_family["optimal_frequency"] *= 100
 
-    print("\n================ FAMILY ================\n")
-    print(per_family.round(2))
-
-
-def get_table_modules() -> None:
-    r"""TODO: we want to show that act is overall the best module (check frequency of best module, or percentage
-    of optimal performance recovered compared to other modules and to standard probing). So that both
-    when act is optimized over layers and when act is at the last layer.
-    """
-    pass
-
-
-def get_table_ranking() -> None:
-    r"""Showcase how the ranking among models (best among family and between families) would change if the best
-    probing was considerd and the same if act probing was chosen.
-    """
+def analyze_model_ranking(filename: str) -> None:
+    r"""Display table showing the original model ranking with standard probing and the new ranking
+    by optimizing over layers and modules."""
     pass
 
 
@@ -878,28 +1543,91 @@ def plot_cdf_language(filename: str, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
+def plot_layer_winning_frequency_vision(
+    filename: str,
+    save: bool = False,
+) -> None:
+    r"""
+    Frequency with which each transformer module is selected
+    as the optimal probing module over all vision experiments.
+    """
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Figure
+    figsize = 2 * WIDTH, 2 * HEIGHT
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Results
+    freq = df["best_layer"].value_counts(normalize=True).mul(100).sort_values(ascending=False)
+    sns.barplot(
+        x=freq.index,
+        y=freq.values,
+        color=sns.color_palette()[0],
+        edgecolor="black",
+        linewidth=1,
+        ax=ax,
+        legend=False,
+    )
+    for i, v in enumerate(freq.values):
+        ax.text(
+            i,
+            v + 1,
+            f"{v:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=FONTSIZE,
+        )
+
+    # Visualization
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+    ax.set_ylabel("Optimal module frequency (%)", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        figname = f"winning_frequency_language_{filename}"
+        save_plot(figname=figname)
+
+
 # ------------------------------------------------------------------------------
 # Results functions
 # ------------------------------------------------------------------------------
 def get_tables() -> None:
-
+    # Model size
     filename = "cls"
     analyze_model_size(filename=filename)
+
+    # Module analysis
+    filename = "cls"
     analyze_module(filename=filename)
 
 
 def plot_figures() -> None:
     # # CDF
     # save = True
-    # for filename in ["cls", "cifar10_c", "domainnet"]:
-    #     plot_cdf_vision(filename=filename, save=save)
-    #     plot_cdf_multimodal(filename=filename, save=save)
+    # plot_cdf_vision(filename="cls", save=save)
+    # plot_cdf_multimodal(filename="cls", save=save)
     # plot_cdf_language(filename="mteb", save=save)
 
     # # Dataset difficulty
     # save = True
     # filename = "cls"
     # plot_dataset_difficulty_vision(filename=filename, save=save)
+
+    # # Cifar10-C
+    # save = True
+    # filename = "cifar10_c"
+    # plot_cifar10c_severity(filename=filename, save=save)
+    # plot_cifar10c_severity_all(filename=filename, save=save)
 
     # # Pretraining scale
     # save = True
@@ -911,10 +1639,32 @@ def plot_figures() -> None:
     # filename = "cls"
     # plot_model_family_vision(filename=filename, save=save)
 
-    # Cifar10-C
+    # # Module winning frequency
+    # save = True
+    # filename = "cls"
+    # plot_winning_module_frequency_vision(filename=filename, save=save)
+
+    # Module depth
     save = True
-    filename = "cifar10_c"
-    plot_cifar10c_severity(filename=filename, save=save)
+    filename = "cls"
+    plot_module_depth_vision(filename=filename, save=save)
+    # df = compute_optimal_act_depth(filename=filename)
+    # print(df.to_latex(index=False, float_format="%.3f"))
+
+    # # Location gain
+    # save = True
+    # filename = "cls"
+    # plot_act_gain_vision(filename=filename, save=save)
+
+    # # Module gain
+    # save = True
+    # filename = "cls"
+    # plot_layer_gain_vision(filename=filename, save=save)
+
+    # # Layer winning frequency
+    # save = True
+    # filename = "mteb"
+    # plot_layer_winning_frequency_vision(filename=filename, save=save)
 
 
 # %% Main

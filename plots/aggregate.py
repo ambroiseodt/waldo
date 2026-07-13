@@ -668,7 +668,7 @@ def analysis_mteb_results() -> None:
     #####################
     # TEMP
     #####################
-    MISSING_MODELS = ["Qwen3-8B", "Qwen3-32B", "gemma-3-27b-pt"]
+    MISSING_MODELS = ["gemma-4-E2B", "Qwen3-8B", "Qwen3-32B", "gemma-3-27b-pt"]
     #####################
     # TEMP
     #####################
