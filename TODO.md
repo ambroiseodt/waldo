@@ -148,6 +148,10 @@ i## **Main focus**: mutimodality and varied model sizes using main transformer c
 ### LLM probing and mechanistic interpretavility
 - nice paper with interesting ideas regarding inermediate probes and depth https://arxiv.org/pdf/2605.31220
 - use it to get related work + ideas + analysis from the LLM community
+- people mostly use activation when analysing LLMs from a mechanistic interpretability ciewpoint. why? we should discuss and cite that.
+
+### VLM exps
+- paper on somilarity measure between embeddings https://arxiv.org/pdf/2602.05266
 
 ### choice of probing in gated MLP
 - interesting work showing the connection betEen M'P and gated MLP https://arxiv.org/pdf/2606.22172
