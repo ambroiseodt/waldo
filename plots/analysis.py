@@ -886,13 +886,14 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
 
 
 def plot_oracle_recovery(filename: str, save: bool = False) -> None:
-    """
-    Barplot of oracle recovery averaged over datasets/models.
+    r"""
+    Plot the oracle gain recovery (computed as gain / oracle_gain) averaged over datasets and representativemodels.
 
     Strategies:
-        - Best layer + rc2
-        - Last layer + act (heuristic)
-        - Best layer + act (oracle upper bound)
+        - Best layer on rc2
+        - Last layer on act
+        - Heuristic on act (heuristic depth based on the family)
+        - Best layer on act
     """
 
     path = RESULT_DIR
@@ -902,17 +903,17 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
-    # # Recover representative models
-    # mask = np.zeros(len(df), dtype=bool)
-    # for model, size in REPRESENTATIVE_MODELS.items():
-    #     mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    # df = df[mask]
+    # Recover representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_MODELS.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
 
     depths = {
         "aimv2": 1,
-        "dinov2": 1,
+        "dinov2": 0.96,
         "dinov3": 0.96,
-        "vit": 0.7,
+        "vit": 0.8,
     }
 
     df["heuristic_depth"] = df["model_name"].map(depths)
@@ -927,36 +928,38 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
         baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
 
         # Best RC2
-        best_rc2 = sub[sub.module == "rc2"].accuracy.max()
+        rc2_best = sub[sub.module == "rc2"].accuracy.max()
 
         # Last layer ACT heuristic
+        act_last = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
+
+        # Heuristic ACT
         heuristic_depth = sub["heuristic_depth"].iloc[0]
         heuristic_layer = int(heuristic_depth * last_layer)
-
-        act_last = sub[(sub.layer == heuristic_layer) & (sub.module == "act")].accuracy.iloc[0]
+        act_heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "act")].accuracy.iloc[0]
 
         # Best ACT oracle
-        best_act = sub[sub.module == "act"].accuracy.max()
+        act_best = sub[sub.module == "act"].accuracy.max()
 
         # Oracle
         oracle = sub.accuracy.max()
-
         oracle_gain = oracle - baseline
 
-        # Ignore negligible oracle gains
-        if oracle_gain < 1:
+        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
+        if oracle_gain < 0.5:
             continue
 
         strategies = {
-            "Best RC2": best_rc2,
+            "Best RC2": rc2_best,
             "Last layer ACT": act_last,
-            "Best ACT": best_act,
+            "Heuristic ACT": act_heuristic,
+            "Best ACT": act_best,
         }
 
         for strategy, acc in strategies.items():
-            gain = acc - baseline
-            recovery = np.clip(gain / oracle_gain, 0, 1)
-
+            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
+            gain = np.max((acc - baseline, 0))
+            recovery = gain / oracle_gain if gain > 0 else 0
             rows.append(
                 {
                     "dataset": key[0],
@@ -964,34 +967,32 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
                     "size": key[2],
                     "strategy": strategy,
                     "recovery": recovery * 100,
+                    "gain": gain,
                 }
             )
 
     summary = pd.DataFrame(rows)
+    order = [
+        "Best RC2",
+        "Last layer ACT",
+        "Heuristic ACT",
+        "Best ACT",
+    ]
 
-    # Average over all datasets/models/sizes
-    plot_df = (
-        summary.groupby("strategy")
-        .recovery.mean()
-        .reindex(
-            [
-                "Best RC2",
-                "Last layer ACT",
-                "Best ACT",
-            ]
-        )
-        .reset_index()
-    )
+    # Print means
+    print(summary.groupby("strategy")["recovery"].agg(["mean", "std", "count"]).reindex(order))
+    print(summary.groupby("strategy")["gain"].agg(["mean", "std", "count"]).reindex(order))
 
-    print(plot_df)
-
-    # Plot
     plt.figure(figsize=(6, 4))
 
     sns.barplot(
-        data=plot_df,
+        data=summary,
         x="strategy",
         y="recovery",
+        order=order,
+        estimator=np.mean,
+        errorbar=("ci", 95),
+        capsize=0.15,
     )
 
     plt.ylabel("Oracle recovery (%)")
@@ -1003,381 +1004,6 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
     plt.tight_layout()
     if save:
         figname = f"oracle_recovery_{filename}"
-        save_plot(figname=figname)
-
-
-def plot_oracle_gain_vision(filename: str, save: bool = False) -> None:
-    """Plot the distribution of gains by optimizing over the depth for act and rc2 modules."""
-
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep only vision foundation models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Figure
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig, ax = plt.subplots(figsize=figsize)
-
-    # Results
-    groups = ["dataset_name", "model_name", "model_size"]
-    rows = []
-    for key, sub in df.groupby(groups):
-        last_layer = sub["layer"].max()
-        baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")]["accuracy"].iloc[0]
-        oracle = sub.sort_values("accuracy").iloc[-1]["accuracy"]
-        rows.append({"family": key[1], "gain": oracle - baseline})
-    gains = pd.DataFrame(rows)
-    summary = gains.groupby("family", as_index=False).agg(gain=("gain", "mean")).sort_values("gain", ascending=False)
-    sns.barplot(
-        data=summary,
-        x="family",
-        y="gain",
-        color="steelblue",
-        edgecolor="black",
-        linewidth=1,
-        ax=ax,
-    )
-
-    # values above bars
-    for i, v in enumerate(summary["gain"]):
-        ax.text(
-            i,
-            v + 0.02,
-            f"{v:.2f}",
-            ha="center",
-            va="bottom",
-            fontsize=FONTSIZE - 2,
-        )
-
-    # Visualization
-    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-    ax.set_xlabel("")
-    ax.set_ylabel("Average oracle improvement (accuracy points)", fontsize=FONTSIZE)
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    # Common legend
-    plt.tight_layout()
-    if save:
-        figname = f"oracle_gain_vision_{filename}"
-        save_plot(figname=figname)
-
-
-def compare_heuristic_vs_standard(filename: str, save: bool = False) -> None:
-
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep vision models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    print(f"Results are presented over a total of {len(df)} runs.")
-
-    group_cols = [
-        "dataset_name",
-        "model_name",
-        "model_size",
-        "patch_size",
-        "resolution",
-    ]
-
-    rows = []
-
-    for keys, sub in df.groupby(group_cols):
-        dataset_name, model_name, model_size, patch_size, resolution = keys
-
-        n_layers = sub["layer"].max() + 1
-
-        # Standard probing: final RC2
-        standard = sub[(sub["layer"] == sub["layer"].max()) & (sub["module"] == "rc2")]
-
-        if standard.empty:
-            continue
-
-        standard_acc = standard["accuracy"].iloc[0]
-
-        # Heuristic probing: ACT at family-specific normalized depth
-        heuristic_depths = {
-            "aimv2": 0.988,  # 0.8902173913043478,
-            "dinov2": 0.988,  # 0.9213970811796898,
-            "dinov3": 0.988,  # 0.8966580520928347,
-            "vit": 0.938,  # 0.7475540821964385,
-        }
-
-        heuristic_layer = int(heuristic_depths[model_name] * (n_layers - 1))
-
-        heuristic = sub[(sub["layer"] == heuristic_layer) & (sub["module"] == "act")]
-
-        if heuristic.empty:
-            continue
-
-        heuristic_acc = heuristic["accuracy"].iloc[0]
-
-        rows.append(
-            {
-                "dataset_name": dataset_name,
-                "model_name": model_name,
-                "model_size": model_size,
-                "standard_acc": standard_acc,
-                "heuristic_acc": heuristic_acc,
-                "gain": heuristic_acc - standard_acc,
-            }
-        )
-
-    comparison = pd.DataFrame(rows)
-
-    print(f"Number of points: {len(comparison)}")
-    print(f"Mean gain: {comparison['gain'].mean():.3f}")
-    print(f"Median gain: {comparison['gain'].median():.3f}")
-    print(f"Improved cases: {(comparison['gain'] > 0).mean() * 100:.1f}%")
-
-    # Scatter plot
-    plt.figure(figsize=(6, 6))
-
-    plt.scatter(comparison["standard_acc"], comparison["heuristic_acc"], alpha=0.7)
-
-    lims = [
-        min(comparison["standard_acc"].min(), comparison["heuristic_acc"].min()),
-        max(comparison["standard_acc"].max(), comparison["heuristic_acc"].max()),
-    ]
-
-    plt.plot(lims, lims, "--")
-
-    plt.xlabel("Standard probing (RC2)")
-    plt.ylabel("Heuristic probing (ACT)")
-    plt.title("Heuristic vs standard probing")
-
-    plt.xlim(lims)
-    plt.ylim(lims)
-
-    # Common legend
-    plt.legend()
-    plt.tight_layout()
-    if save:
-        figname = f"heuristic_vs_standard_{filename}"
-        save_plot(figname=figname)
-
-
-def plot_act_gain_vision(
-    filename: str,
-    save: bool = False,
-) -> None:
-    """
-    Plot the average gain obtained by the recommended probing strategy
-    (ACT + best layer) over standard probing.
-    """
-
-    # ------------------------------------------------------------
-    # Load
-    # ------------------------------------------------------------
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    STANDARD_MODULE = "rc2"
-    BEST_MODULE = "act"
-
-    groups = ["dataset_name", "model_name", "model_size"]
-
-    rows = []
-
-    for key, sub in df.groupby(groups):
-        last_layer = sub["layer"].max()
-
-        # Standard probing
-        baseline = sub[(sub.layer == last_layer) & (sub.module == STANDARD_MODULE)]["accuracy"]
-
-        if len(baseline) == 0:
-            continue
-
-        baseline = baseline.iloc[0]
-
-        # Recommended strategy = ACT + best layer
-        act_best = sub[sub.module == BEST_MODULE].sort_values("accuracy").iloc[-1]["accuracy"]
-
-        rows.append(
-            {
-                "family": key[1],
-                "gain": act_best - baseline,
-            }
-        )
-
-    gains = pd.DataFrame(rows)
-
-    # ------------------------------------------------------------
-    # Average over all configurations
-    # ------------------------------------------------------------
-    summary = (
-        gains.groupby("family", as_index=False)
-        .agg(
-            gain=("gain", "mean"),
-        )
-        .sort_values("gain", ascending=False)
-    )
-
-    # ------------------------------------------------------------
-    # Plot
-    # ------------------------------------------------------------
-    figsize = WIDTH, HEIGHT
-    fig, ax = plt.subplots(figsize=figsize)
-
-    sns.barplot(
-        data=summary,
-        x="family",
-        y="gain",
-        color="steelblue",
-        edgecolor="black",
-        linewidth=1,
-        ax=ax,
-    )
-
-    # values above bars
-    for i, v in enumerate(summary["gain"]):
-        ax.text(
-            i,
-            v + 0.02,
-            f"{v:.2f}",
-            ha="center",
-            va="bottom",
-            fontsize=FONTSIZE - 2,
-        )
-
-    ax.set_xlabel("")
-    ax.set_ylabel("Average location gain (%)", fontsize=FONTSIZE)
-
-    ax.grid(axis="y", alpha=ALPHA_GRID)
-
-    ax.tick_params(
-        axis="both",
-        direction="out",
-        length=5,
-        width=1,
-    )
-
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    # Common legend
-    plt.tight_layout()
-    if save:
-        figname = f"act_gain_vision_{filename}"
-        save_plot(figname=figname)
-
-
-def plot_layer_gain_vision(
-    filename: str,
-    save: bool = False,
-) -> None:
-    """
-    Plot the average gain obtained by the recommended probing strategy
-    (ACT + best layer) over standard probing.
-    """
-
-    # ------------------------------------------------------------
-    # Load
-    # ------------------------------------------------------------
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    STANDARD_MODULE = "rc2"
-    BEST_MODULE = "act"
-
-    groups = ["dataset_name", "model_name", "model_size"]
-
-    rows = []
-
-    for key, sub in df.groupby(groups):
-        last_layer = sub["layer"].max()
-
-        # Standard probing
-        baseline = sub[(sub.layer == last_layer) & (sub.module == STANDARD_MODULE)]["accuracy"]
-
-        if len(baseline) == 0:
-            continue
-
-        baseline = baseline.iloc[0]
-
-        # Recommended strategy = ACT + last layer
-        act_best = sub[sub.module == "rc2"].sort_values("accuracy").iloc[-1]["accuracy"]
-
-        rows.append(
-            {
-                "family": key[1],
-                "gain": act_best - baseline,
-            }
-        )
-
-    gains = pd.DataFrame(rows)
-
-    # ------------------------------------------------------------
-    # Average over all configurations
-    # ------------------------------------------------------------
-    summary = (
-        gains.groupby("family", as_index=False)
-        .agg(
-            gain=("gain", "mean"),
-        )
-        .sort_values("gain", ascending=False)
-    )
-
-    # ------------------------------------------------------------
-    # Plot
-    # ------------------------------------------------------------
-    figsize = WIDTH, HEIGHT
-    fig, ax = plt.subplots(figsize=figsize)
-
-    sns.barplot(
-        data=summary,
-        x="family",
-        y="gain",
-        color="steelblue",
-        edgecolor="black",
-        linewidth=1,
-        ax=ax,
-    )
-
-    # values above bars
-    for i, v in enumerate(summary["gain"]):
-        ax.text(
-            i,
-            v + 0.02,
-            f"{v:.2f}",
-            ha="center",
-            va="bottom",
-            fontsize=FONTSIZE - 2,
-        )
-
-    ax.set_xlabel("")
-    ax.set_ylabel("Average location gain (%)", fontsize=FONTSIZE)
-
-    ax.grid(axis="y", alpha=ALPHA_GRID)
-
-    ax.tick_params(
-        axis="both",
-        direction="out",
-        length=5,
-        width=1,
-    )
-
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    # Common legend
-    plt.tight_layout()
-    if save:
-        figname = f"layer_gain_vision_{filename}"
         save_plot(figname=figname)
 
 
@@ -1449,12 +1075,13 @@ def table_performance_comparison(filename: str) -> None:
 
     # Results
     rows = []
-    groups = ["dataset_name", "model_name", "model_size"]
-    for (dataset, family, size), sub in df.groupby(groups):
+    groups = ["dataset_name", "model_name"]
+    for (dataset, family), sub in df.groupby(groups):
         last_layer = sub.layer.max()
         standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        best_rc2 = sub[sub.module == "rc2"].accuracy.max()
-        best_act = sub[sub.module == "act"].accuracy.max()
+        rc2_best = sub[sub.module == "rc2"].accuracy.max()
+        act_best = sub[sub.module == "act"].accuracy.max()
+        oracle = sub.accuracy.max()
         rows.extend(
             [
                 {
@@ -1467,13 +1094,19 @@ def table_performance_comparison(filename: str) -> None:
                     "dataset": dataset,
                     "family": family,
                     "strategy": "Best RC2",
-                    "accuracy": best_rc2,
+                    "accuracy": rc2_best,
                 },
                 {
                     "dataset": dataset,
                     "family": family,
                     "strategy": "Best ACT",
-                    "accuracy": best_act,
+                    "accuracy": act_best,
+                },
+                {
+                    "dataset": dataset,
+                    "family": family,
+                    "strategy": "Oracle",
+                    "accuracy": oracle,
                 },
             ]
         )
@@ -1483,15 +1116,10 @@ def table_performance_comparison(filename: str) -> None:
 
     # Overall rows across all models, sizes, and datasets
     overall_rows = summary.groupby(["strategy", "dataset"])["accuracy"].mean().unstack("dataset")
-
     overall_rows["Average"] = overall_rows.mean(axis=1)
 
-    # Add family/model_size levels so it matches the table index
-    overall_rows.index = pd.MultiIndex.from_tuples(
-        [("Overall", "", strategy) for strategy in overall_rows.index],
-        names=["family", "model_size", "strategy"],
-    )
-
+    # Add the family level
+    overall_rows = pd.concat({"Overall": overall_rows}, names=["family"])
     table = pd.concat([table, overall_rows])
 
     # Latex table
@@ -1514,8 +1142,9 @@ def table_performance_comparison_all(filename: str) -> None:
     for (dataset, family, size), sub in df.groupby(groups):
         last_layer = sub.layer.max()
         standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        best_rc2 = sub[sub.module == "rc2"].accuracy.max()
-        best_act = sub[sub.module == "act"].accuracy.max()
+        rc2_best = sub[sub.module == "rc2"].accuracy.max()
+        act_best = sub[sub.module == "act"].accuracy.max()
+        oracle = sub.accuracy.max()
         rows.extend(
             [
                 {
@@ -1530,14 +1159,21 @@ def table_performance_comparison_all(filename: str) -> None:
                     "family": family,
                     "size": size,
                     "strategy": "Best RC2",
-                    "accuracy": best_rc2,
+                    "accuracy": rc2_best,
                 },
                 {
                     "dataset": dataset,
                     "family": family,
                     "size": size,
                     "strategy": "Best ACT",
-                    "accuracy": best_act,
+                    "accuracy": act_best,
+                },
+                {
+                    "dataset": dataset,
+                    "family": family,
+                    "size": size,
+                    "strategy": "Oracle",
+                    "accuracy": oracle,
                 },
             ]
         )
@@ -1547,15 +1183,12 @@ def table_performance_comparison_all(filename: str) -> None:
 
     # Overall rows across all models, sizes, and datasets
     overall_rows = summary.groupby(["strategy", "dataset"])["accuracy"].mean().unstack("dataset")
-
     overall_rows["Average"] = overall_rows.mean(axis=1)
 
     # Add family/model_size levels so it matches the table index
     overall_rows.index = pd.MultiIndex.from_tuples(
-        [("Overall", "", strategy) for strategy in overall_rows.index],
-        names=["family", "model_size", "strategy"],
+        [("Overall", "", strategy) for strategy in overall_rows.index], names=["family", "model_size", "strategy"]
     )
-
     table = pd.concat([table, overall_rows])
 
     # Latex table
@@ -2321,29 +1954,14 @@ def plot_figures() -> None:
 
 
 def get_tables() -> None:
-    # # Model size
-    # filename = "cls"
-    # table_model_size(filename=filename)
+    # Model size
+    filename = "cls"
+    table_model_size(filename=filename)
 
     # Performance comparions
     filename = "cls"
     table_performance_comparison(filename=filename)
     table_performance_comparison_all(filename=filename)
-
-    # table_oracle_recovery(filename=filename)
-    # table_oracle_recovery_by_dataset(filename=filename)
-
-    # # Heuristic depth
-    # filename = "cls"
-    # compute_depth_region_frequency(filename=filename)
-
-    # # Module depth
-    # filename = "cls"
-    # table_depth(filename=filename, verbose=True)
-
-    # # Gains
-    # filename = "cls"
-    # table_gains(filename=filename)
 
 
 # %% Main
