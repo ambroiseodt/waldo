@@ -41,14 +41,15 @@ MODELS=(
     "google/vit-base-patch16-224-in21k"
     "google/vit-large-patch16-224-in21k"
     "google/vit-huge-patch14-224-in21k"
+    "google/siglip-base-patch16-224"
+    "google/siglip-large-patch16-256"
     "google/siglip2-base-patch16-224"
-    "google/siglip2-large-patch16-256",
+    "google/siglip2-large-patch16-256"
     "google/siglip2-giant-opt-patch16-256"
     "google/siglip2-so400m-patch16-256"
     "openai/clip-vit-base-patch16"
     "openai/clip-vit-large-patch14"
 )
-
 SUCCESS_COUNT=0
 FAILED_COUNT=0
 FAILED_MODELS=()
