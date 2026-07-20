@@ -33,8 +33,9 @@ exps = [
     "cuml-cu12==26.2.*",           
     "huggingface_hub[hf_xet]==1.5.0",  
     "mteb[xet] @ git+https://github.com/embeddings-benchmark/mteb.git@2.13.2",
+    "sentencepiece==0.2.2",
     "scikit-learn==1.8.0",
-    "transformers==5.5.4",
+    "transformers[sentencepiece]==5.5.4",
 ]
 figs = [
     "ipykernel==7.2.0",    
