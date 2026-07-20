@@ -11,6 +11,7 @@ in the root directory of this source tree.
 
 from .base import BaseVisionLanguageModel
 from .clip import Clip, ClipBlockAdapter, ClipConfig
+from .siglip import Siglip, SiglipBlockAdapter, SiglipConfig
 from .siglip2 import Siglip2, Siglip2BlockAdapter, Siglip2Config
 
 __all__ = [
@@ -18,6 +19,9 @@ __all__ = [
     "Clip",
     "ClipBlockAdapter",
     "ClipConfig",
+    "Siglip",
+    "SiglipBlockAdapter",
+    "SiglipConfig",
     "Siglip2",
     "Siglip2BlockAdapter",
     "Siglip2Config",
