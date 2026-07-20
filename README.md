@@ -19,11 +19,11 @@ Install the repository (the ``pretrained" dependencies are optional but allow fo
 ```bash
 git clone <repo url>
 cd <repo path>
-pip install -e ".[pretrained]"
+pip install -e ".[exps]"
 ```
 To install the development and visualization dependencies, you can swap the previous command for the following one:
 ```bash
-pip install -e ".[pretrained,dev,visual]"
+pip install -e ".[exps,dev,figs]"
 ```
 
 #### Accelerate specific instructions
@@ -37,7 +37,6 @@ accelerate config
 
 ### Using HuggingFace pretrained models
 Some models are gated, e.g., the Llama and Gemma ones. Users should request the access and login to the huggingface hub to use them in the scripts. See https://huggingface.co/docs/hub/en/models-gated for more information.
-
 
 ## Installation
 
