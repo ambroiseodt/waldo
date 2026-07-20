@@ -12,7 +12,7 @@ Comments abbreviations
 
 Notes
 -----
-We focus on the pretrained models available on HuggingFace for zero-shot image classification..
+We focus on the pretrained models available on HuggingFace for zero-shot image classification.
 See https://huggingface.co/collections/google/siglip2 for other model variants.
 
 References
