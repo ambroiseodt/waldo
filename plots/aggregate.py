@@ -103,72 +103,6 @@ def parse_result_config(name: str) -> tuple[int, str]:
 # ------------------------------------------------------------------------------
 # Save results
 # ------------------------------------------------------------------------------
-def get_mteb_results() -> None:
-    r"""
-    Sweep over MTEB json files and aggregate results in a single csv.
-
-    Notes
-    -----
-    MTEB does not modify the datasets structure is contains. As such,
-    the evaluation is done on a test split when available. If only a train
-    split is available, the logistic regression is fit and evaluated on independent
-    samples to avoid data leakage. For more information, check out the official MTEB
-    documentation.
-    """
-
-    # Check that path exists
-    results_path = RUN_DIR / "mteb"
-    if not results_path.exists():
-        logger.info(f"Result directory '{results_path}' does not exist.")
-        return
-
-    # Compile results by looping over json files
-    logger.info(f"Start recovering results from {results_path}.")
-    results = []
-
-    config_files = [f for f in results_path.glob("**/model_meta.json")]
-    for config_path in tqdm(config_files, desc="Writing results", unit="runs"):
-        # Recover model config
-        config = json.loads(config_path.read_text(encoding="utf-8"))
-        model_name, layer, module = parse_model_config(name=config["name"])
-
-        # Recover results
-        folder_path = config_path.parent
-        results_files = [f for f in folder_path.glob("*.json") if f.name != "model_meta.json"]
-        for json_path in results_files:
-            with open(json_path, encoding="utf-8") as f:
-                content = f.read().replace("NaN", "null")
-                data = json.loads(content)
-                task_name = data["task_name"]
-                _, scores = data["scores"].popitem()
-                accuracy = 100 * scores[0]["accuracy"]
-                results.append(
-                    {
-                        "task_name": task_name,
-                        "model_name": model_name,
-                        "layer": layer,
-                        "module": module,
-                        "accuracy": accuracy,
-                    }
-                )
-
-    # Aggregate results
-    df = pd.DataFrame(results)
-    column_order = ["task_name", "model_name", "layer", "module"]
-    df = df.sort_values(by=column_order, ascending=True)
-    columns = [
-        "task_name",
-        "model_name",
-        "layer",
-        "module",
-        "accuracy",
-    ]
-    RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    save_path = RESULT_DIR / "mteb.csv"
-    df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
-    logger.info(f"Results saved at {save_path}.")
-
-
 def get_cls_results() -> None:
     r"""Sweep over image classification benchmarks json files and aggregate results in a single csv."""
 
@@ -380,6 +314,72 @@ def get_domainnet_results() -> None:
     ]
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     save_path = RESULT_DIR / "domainnet.csv"
+    df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
+    logger.info(f"Results saved at {save_path}.")
+
+
+def get_mteb_results() -> None:
+    r"""
+    Sweep over MTEB json files and aggregate results in a single csv.
+
+    Notes
+    -----
+    MTEB does not modify the datasets structure is contains. As such,
+    the evaluation is done on a test split when available. If only a train
+    split is available, the logistic regression is fit and evaluated on independent
+    samples to avoid data leakage. For more information, check out the official MTEB
+    documentation.
+    """
+    # Check that path exists
+    results_path = RUN_DIR / "mteb"
+    if not results_path.exists():
+        logger.info(f"Result directory '{results_path}' does not exist.")
+        return
+
+    # Compile results by looping over json files
+    logger.info(f"Start recovering results from {results_path}.")
+    results = []
+    config_files = [f for f in results_path.glob("**/model_meta.json")]
+    for config_path in tqdm(config_files, desc="Writing results", unit="runs"):
+        # Recover model config
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        model_name, layer, module = parse_model_config(name=config["name"])
+        # if model_name in MISSING_MODELS:
+        #     continue
+
+        # Recover results
+        folder_path = config_path.parent
+        results_files = [f for f in folder_path.glob("*.json") if f.name != "model_meta.json"]
+        for json_path in results_files:
+            with open(json_path, encoding="utf-8") as f:
+                content = f.read().replace("NaN", "null")
+                data = json.loads(content)
+                task_name = data["task_name"]
+                _, scores = data["scores"].popitem()
+                accuracy = 100 * scores[0]["accuracy"]
+                results.append(
+                    {
+                        "task_name": task_name,
+                        "model_name": model_name,
+                        "layer": layer,
+                        "module": module,
+                        "accuracy": accuracy,
+                    }
+                )
+
+    # Aggregate results
+    df = pd.DataFrame(results)
+    column_order = ["task_name", "model_name", "layer", "module"]
+    df = df.sort_values(by=column_order, ascending=True)
+    columns = [
+        "task_name",
+        "model_name",
+        "layer",
+        "module",
+        "accuracy",
+    ]
+    RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = RESULT_DIR / "mteb.csv"
     df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
     logger.info(f"Results saved at {save_path}.")
 
@@ -663,16 +663,6 @@ def analysis_mteb_results() -> None:
     at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
     of the baseline probing.
     """
-
-    # TEMP: some results are missing, so we bypass them in the results aggregation
-    #####################
-    # TEMP
-    #####################
-    MISSING_MODELS = ["gemma-4-E2B", "Qwen3-8B", "Qwen3-32B", "gemma-3-27b-pt"]
-    #####################
-    # TEMP
-    #####################
-
     path = RESULT_DIR / "mteb.csv"
     df = pd.read_csv(path)
     grouping_cols = [
@@ -687,15 +677,6 @@ def analysis_mteb_results() -> None:
         desc="Building analysis table",
     ):
         dataset_name, model_name = keys
-        #####################
-        # TEMP
-        #####################
-        if model_name in MISSING_MODELS:
-            continue
-        #####################
-        # TEMP
-        #####################
-
         n_layers = int(group["layer"].max()) + 1
 
         # Baseline probe

@@ -38,7 +38,9 @@ DATASETS = {
 VFMs = ["aim", "dino", "vit"]
 VLMs = ["clip", "siglip"]
 LLMs = ["gemma", "llama", "qwen"]
-REPRESENTATIVE_MODELS = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
+REPRESENTATIVE_VFMS = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
+REPRESENTATIVE_VLMS = {"clip": "large", "siglip2": "large"}
+REPRESENTATIVE_LLMS = ["gemma3-1b-pt", "Llama-3.2-1B", "Qwen3-1B"]
 REPRESENTATIVE_DATASETS = ["aircraft", "domainnet-sketch", "food101", "flowers102"]
 MODEL_SIZES = {
     "vit": ["base", "large", "huge"],
@@ -46,6 +48,7 @@ MODEL_SIZES = {
     "aimv2": ["large", "huge", "1B", "3B"],
     "dinov3": ["vits16", "vitb16", "vitl16", "vit7b16"],
 }
+MODULE_ORDER = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 
 # Plot aesthetic
 WIDTH = 4
@@ -78,7 +81,7 @@ def save_plot(figname: str, dirname: str | None = None, format: str = "pdf", dpi
 
 
 # ------------------------------------------------------------------------------
-# Vision plotting functions
+# VFMs plotting functions
 # ------------------------------------------------------------------------------
 def plot_cdf_vision(filename: str, save: bool = False) -> None:
     r"""
@@ -402,7 +405,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_MODELS.items():
+    for model, size in REPRESENTATIVE_VFMS.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
@@ -522,7 +525,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_MODELS.items():
+    for model, size in REPRESENTATIVE_VFMS.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
@@ -530,7 +533,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
     N = len(REPRESENTATIVE_DATASETS)
     figsize = 2 * N * WIDTH, 2 * HEIGHT
     fig, axes = plt.subplots(1, N, figsize=figsize, sharey=True)
-    model_order = list(REPRESENTATIVE_MODELS.keys())
+    model_order = list(REPRESENTATIVE_VFMS.keys())
     gain_types = ["gain_layer", "gain_module", "gain"]
     gain_labels = ["Layer", "Module", "Both"]
 
@@ -600,37 +603,44 @@ def plot_winning_module_frequency_vision(
 
     # Figure
     figsize = 2 * WIDTH, 2 * HEIGHT
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
 
     # Results
-    freq = df["best_module"].value_counts(normalize=True).mul(100).sort_values(ascending=False)
+    freq = df["best_module"].value_counts(normalize=True).mul(100)
+    freq = freq.reindex(MODULE_ORDER, fill_value=0.0).sort_values(ascending=False)
+    ranks = np.arange(1, len(freq) + 1)
     sns.barplot(
-        x=freq.index,
+        x=ranks,
         y=freq.values,
         color=sns.color_palette()[0],
         edgecolor="black",
         linewidth=1,
-        ax=ax,
         legend=False,
     )
-    for i, v in enumerate(freq.values):
-        ax.text(
+
+    # Annotate module name and value above each bar
+    for i, (module, v) in enumerate(freq.items()):
+        plt.text(
             i,
             v + 1,
-            f"{v:.1f}",
+            f"{module}",
             ha="center",
             va="bottom",
-            fontsize=FONTSIZE,
+            fontsize=FONTSIZE - 1,
+            rotation=0,
         )
 
     # Visualization
+    ax = fig.axes[0]
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-    ax.set_ylabel("Optimal module frequency (%)", fontsize=FONTSIZE)
+    ax.set_xlabel("Rank", fontsize=FONTSIZE)
+    ax.set_xticks(np.arange(len(freq)))
+    ax.set_xticklabels(ranks)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
@@ -654,12 +664,12 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_MODELS.items():
+    for model, size in REPRESENTATIVE_VFMS.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
     # Figure
-    ncols = len(REPRESENTATIVE_MODELS)
+    ncols = len(REPRESENTATIVE_VFMS)
     figsize = ncols * 2 * WIDTH, 2 * HEIGHT
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
 
@@ -671,12 +681,12 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
 
     # Results
     dataset_name = "domainnet-sketch"
-    for i, model_name in enumerate(REPRESENTATIVE_MODELS):
+    for i, model_name in enumerate(REPRESENTATIVE_VFMS):
         ax = axes[i]
         axins = None
         if i:
             axins = ax.inset_axes((*positions, *format[i]))
-        model_size = REPRESENTATIVE_MODELS[model_name]
+        model_size = REPRESENTATIVE_VFMS[model_name]
         acc_level = 0
         for module in ["act", "rc2"]:
             subset = df[
@@ -755,21 +765,21 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_MODELS.items():
+    for model, size in REPRESENTATIVE_VFMS.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
     # Figure
     nrows = len(REPRESENTATIVE_DATASETS)
-    ncols = len(REPRESENTATIVE_MODELS)
+    ncols = len(REPRESENTATIVE_VFMS)
     figsize = ncols * 2 * WIDTH, nrows * 2 * HEIGHT
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
 
     # Results
     for i, dataset_name in enumerate(REPRESENTATIVE_DATASETS):
-        for j, model_name in enumerate(REPRESENTATIVE_MODELS):
+        for j, model_name in enumerate(REPRESENTATIVE_VFMS):
             ax = axes[i, j]
-            model_size = REPRESENTATIVE_MODELS[model_name]
+            model_size = REPRESENTATIVE_VFMS[model_name]
             for module in ["act", "rc2"]:
                 subset = df[
                     (df["model_name"] == model_name)
@@ -887,7 +897,7 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
 
 def plot_oracle_recovery(filename: str, save: bool = False) -> None:
     r"""
-    Plot the oracle gain recovery (computed as gain / oracle_gain) averaged over datasets and representativemodels.
+    Plot the oracle gain recovery (computed as gain / oracle_gain) averaged over datasets and representative models.
 
     Strategies:
         - Best layer on rc2
@@ -905,22 +915,16 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_MODELS.items():
+    for model, size in REPRESENTATIVE_VFMS.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
-    depths = {
-        "aimv2": 1,
-        "dinov2": 0.96,
-        "dinov3": 0.96,
-        "vit": 0.8,
-    }
-
-    df["heuristic_depth"] = df["model_name"].map(depths)
-
+    # Figure
+    figsize = 2 * WIDTH, 2 * HEIGHT
+    fig = plt.figure(figsize=figsize)
+    order = ["Best RC2", "Last layer ACT", "Best ACT"]
     groups = ["dataset_name", "model_name", "model_size"]
     rows = []
-
     for key, sub in df.groupby(groups):
         last_layer = sub["layer"].max()
 
@@ -933,28 +937,22 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
         # Last layer ACT heuristic
         act_last = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
 
-        # Heuristic ACT
-        heuristic_depth = sub["heuristic_depth"].iloc[0]
-        heuristic_layer = int(heuristic_depth * last_layer)
-        act_heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "act")].accuracy.iloc[0]
-
         # Best ACT oracle
         act_best = sub[sub.module == "act"].accuracy.max()
 
-        # Oracle
+        strategies = {
+            "Best RC2": rc2_best,
+            "Last layer ACT": act_last,
+            "Best ACT": act_best,
+        }
+
+        # Recover oracle recovery
         oracle = sub.accuracy.max()
         oracle_gain = oracle - baseline
 
         # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
         if oracle_gain < 0.5:
             continue
-
-        strategies = {
-            "Best RC2": rc2_best,
-            "Last layer ACT": act_last,
-            "Heuristic ACT": act_heuristic,
-            "Best ACT": act_best,
-        }
 
         for strategy, acc in strategies.items():
             # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
@@ -967,24 +965,11 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
                     "size": key[2],
                     "strategy": strategy,
                     "recovery": recovery * 100,
-                    "gain": gain,
                 }
             )
 
     summary = pd.DataFrame(rows)
-    order = [
-        "Best RC2",
-        "Last layer ACT",
-        "Heuristic ACT",
-        "Best ACT",
-    ]
-
-    # Print means
     print(summary.groupby("strategy")["recovery"].agg(["mean", "std", "count"]).reindex(order))
-    print(summary.groupby("strategy")["gain"].agg(["mean", "std", "count"]).reindex(order))
-
-    plt.figure(figsize=(6, 4))
-
     sns.barplot(
         data=summary,
         x="strategy",
@@ -995,10 +980,17 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
         capsize=0.15,
     )
 
-    plt.ylabel("Oracle recovery (%)")
-    plt.xlabel("")
-    plt.ylim(0, 100)
-    plt.xticks(rotation=20, ha="right")
+    # Visualization
+    ax = fig.axes[0]
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+    ax.set_xlabel("")
+    ax.set_ylim(0, 100)
+    ax.set_ylabel("Oracle recovery (%)")
 
     # Common legend
     plt.tight_layout()
@@ -1007,8 +999,106 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
+def plot_oracle_recovery_all(filename: str, save: bool = False) -> None:
+    r"""
+    Plot the oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
+
+    Strategies:
+        - Best layer on rc2
+        - Last layer on act
+        - Heuristic on act (heuristic depth based on the family)
+        - Best layer on act
+    """
+
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Figure
+    figsize = 2 * WIDTH, 2 * HEIGHT
+    fig = plt.figure(figsize=figsize)
+    order = ["Best RC2", "Last layer ACT", "Best ACT"]
+    groups = ["dataset_name", "model_name", "model_size"]
+    rows = []
+    for key, sub in df.groupby(groups):
+        last_layer = sub["layer"].max()
+
+        # Standard
+        baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
+
+        # Best RC2
+        rc2_best = sub[sub.module == "rc2"].accuracy.max()
+
+        # Last layer ACT heuristic
+        act_last = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
+
+        # Best ACT oracle
+        act_best = sub[sub.module == "act"].accuracy.max()
+
+        strategies = {
+            "Best RC2": rc2_best,
+            "Last layer ACT": act_last,
+            "Best ACT": act_best,
+        }
+
+        # Recover oracle recovery
+        oracle = sub.accuracy.max()
+        oracle_gain = oracle - baseline
+
+        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
+        if oracle_gain < 0.5:
+            continue
+
+        for strategy, acc in strategies.items():
+            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
+            gain = np.max((acc - baseline, 0))
+            recovery = gain / oracle_gain if gain > 0 else 0
+            rows.append(
+                {
+                    "dataset": key[0],
+                    "family": key[1],
+                    "size": key[2],
+                    "strategy": strategy,
+                    "recovery": recovery * 100,
+                }
+            )
+
+    summary = pd.DataFrame(rows)
+    print(summary.groupby("strategy")["recovery"].agg(["mean", "std", "count"]).reindex(order))
+    sns.barplot(
+        data=summary,
+        x="strategy",
+        y="recovery",
+        order=order,
+        estimator=np.mean,
+        errorbar=("ci", 95),
+        capsize=0.15,
+    )
+
+    # Visualization
+    ax = fig.axes[0]
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+    ax.set_xlabel("")
+    ax.set_ylim(0, 100)
+    ax.set_ylabel("Oracle recovery (%)")
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        figname = f"oracle_recovery_all_{filename}"
+        save_plot(figname=figname)
+
+
 # ------------------------------------------------------------------------------
-# Vision table functions
+# VFMs table functions
 # ------------------------------------------------------------------------------
 def table_model_size(filename: str) -> None:
     r"""
@@ -1069,7 +1159,7 @@ def table_performance_comparison(filename: str) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_MODELS.items():
+    for model, size in REPRESENTATIVE_VFMS.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
@@ -1195,537 +1285,12 @@ def table_performance_comparison_all(filename: str) -> None:
     print(table.to_latex(float_format="%.2f", multirow=True, bold_rows=True))
 
 
-def table_oracle_recovery(filename: str) -> None:
-    r"""
-    Analyze the oracle performance recovery of different probing strategies.
-
-    The different probing strategies are:
-        - standard: probing of rc2 module at the last layer
-        - best rc2: best probing of rc2 over the depth
-        - best act: best probing of act over the depth
-    """
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep vision models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    depths = {
-        "aimv2": 1,
-        "dinov2": 1,
-        "dinov3": 0.925,
-        "vit": 0.8,
-    }  # analyze_depth(filename=filename, verbose=False)
-    df["heuristic_depth"] = df["model_name"].map(depths)
-
-    # Results
-    groups = ["dataset_name", "model_name", "model_size"]
-    rows = []
-    for key, sub in df.groupby(groups):
-        # Standard
-        last_layer = sub["layer"].max()
-        baseline = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]
-        baseline = baseline.iloc[0]
-
-        # Best rc2
-        rc2_best = sub[sub.module == "rc2"].sort_values("accuracy").accuracy.iloc[-1]
-
-        # Last layer act
-        last_layer = sub["layer"].max()
-        heuristic_depth = sub["heuristic_depth"].iloc[0]
-        heuristic_layer = int(heuristic_depth * last_layer)
-        if rc2_best > 0:  # 80:
-            heuristic_layer = last_layer
-        act_last = sub[(sub["layer"] == heuristic_layer) & (sub["module"] == "act")]["accuracy"]
-        act_last = act_last.iloc[0]
-
-        # Best act
-        act_best = sub[sub.module == "act"].sort_values("accuracy").accuracy.iloc[-1]
-
-        # Oracle
-        oracle = sub["accuracy"].max()
-        oracle_gain = oracle - baseline
-        if oracle_gain < 1:  # 0.5:
-            continue
-
-        # Table
-        strategies = {
-            "Standard": baseline,
-            "Best layer + rc2": rc2_best,
-            "Last layer + act": act_last,
-            "Best layer + act": act_best,
-        }
-
-        for strategy, acc in strategies.items():
-            gain = acc - baseline
-            recovered = np.clip(gain / oracle_gain, 0, 1)
-            exact = np.isclose(gain, oracle_gain)
-            rows.append(
-                {
-                    "dataset": key[0],
-                    "family": key[1],
-                    "size": key[2],
-                    "strategy": strategy,
-                    "gain": gain,
-                    "recovered": recovered * 100,
-                    "exact": exact,
-                }
-            )
-
-    summary = pd.DataFrame(rows)
-    order = [
-        "Standard",
-        "Best layer + rc2",
-        "Last layer + act",
-        "Best layer + act",
-    ]
-    family = (
-        summary.groupby(["family", "strategy"])
-        .agg(gain=("gain", "mean"), recovery=("recovered", "mean"), optimum=("exact", "mean"))
-        .reset_index()
-    )
-    family["optimum"] *= 100
-    recovery_family = family.pivot(index="family", columns="strategy", values="recovery").reindex(columns=order)
-    gain_family = family.pivot(index="family", columns="strategy", values="gain").reindex(columns=order)
-    optimum_family = family.pivot(index="family", columns="strategy", values="optimum").reindex(columns=order)
-    overall = summary.groupby("strategy").agg(
-        gain=("gain", "mean"),
-        recovery=("recovered", "mean"),
-        optimum=("exact", "mean"),
-    )
-    overall["optimum"] *= 100
-    overall_recovery = overall["recovery"].reindex(order).to_frame().T
-    overall_recovery.index = ["Overall"]
-    overall_optimum = overall["optimum"].reindex(order).to_frame().T
-    overall_optimum.index = ["Overall"]
-    overall_gain = overall["gain"].reindex(order).to_frame().T
-    overall_gain.index = ["Overall"]
-    recovery = pd.concat([recovery_family, overall_recovery])
-    optimum = pd.concat([optimum_family, overall_optimum])
-    gain = pd.concat([gain_family, overall_gain])
-    table = pd.concat({"Gain": gain, "Recovery (%)": recovery, "Optimum (%)": optimum}, axis=1)
-    print(table)
-
-
-# def table_oracle_recovery_by_dataset(
-#     filename: str,
-# ) -> pd.DataFrame:
-#     path = RESULT_DIR
-#     df = pd.read_csv(path / f"{filename}.csv").copy()
-
-#     pattern = "|".join(VFMs)
-#     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-#     # Recover representative models
-#     mask = np.zeros(len(df), dtype=bool)
-#     for model, size in REPRESENTATIVE_MODELS.items():
-#         mask |= (df["model_name"] == model) & (df["model_size"] == size)
-#     df = df[mask]
-#     df = df[df["dataset_name"].isin(REPRESENTATIVE_DATASETS)]
-#     heuristic_depths = {"aimv2": 1.0, "dinov2": 1.0, "dinov3": 0.925, "vit": 0.8}
-#     df["heuristic_depth"] = df["model_name"].map(heuristic_depths)
-
-#     rows = []
-#     groups = ["dataset_name", "model_name", "model_size"]
-#     for key, sub in df.groupby(groups):
-#         dataset_name, model_name, _ = key
-#         last_layer = sub["layer"].max()
-
-#         baseline = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]
-#         if baseline.empty:
-#             continue
-#         baseline = baseline.iloc[0]
-
-#         heuristic_depth = sub["heuristic_depth"].iloc[0]
-#         heuristic_layer = int(heuristic_depth * last_layer)
-#         act_last_rows = sub[(sub["layer"] == heuristic_layer) & (sub["module"] == "act")]["accuracy"]
-#         if act_last_rows.empty:
-#             continue
-#         act_last = act_last_rows.iloc[0]
-
-#         act_best = sub[sub.module == "act"]["accuracy"].max()
-#         oracle = sub["accuracy"].max()
-
-#         oracle_gain = oracle - baseline
-#         if oracle_gain < 0.5:
-#             continue
-
-#         last_recovery = np.clip((act_last - baseline) / oracle_gain, 0, 1) * 100
-#         best_recovery = np.clip((act_best - baseline) / oracle_gain, 0, 1) * 100
-
-#         rows.append(
-#             {
-#                 "family": model_name,
-#                 "dataset": dataset_name,
-#                 "Oracle gain": oracle_gain,
-#                 "Act, last layer (%)": last_recovery,
-#                 "Act, best depth (%)": best_recovery,
-#             }
-#         )
-
-#     summary = pd.DataFrame(rows)
-
-#     table = summary.pivot(
-#         index="family",
-#         columns="dataset",
-#         values=["Oracle gain", "Act, last layer (%)", "Act, best depth (%)"],
-#     )
-#     table = table.swaplevel(axis=1).sort_index(axis=1, level=0)
-#     table = table.reindex(columns=REPRESENTATIVE_DATASETS, level=0)
-#     table = table.reindex(["vit", "dinov2", "aimv2", "dinov3"])
-#     print(table)
-#     return table
-
-
-def table_oracle_recovery_by_dataset(
-    filename: str,
-) -> pd.DataFrame:
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Recover representative models
-    mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_MODELS.items():
-        mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
-    REPRESENTATIVE_DATASETS = df["dataset_name"].unique()
-    df = df[df["dataset_name"].isin(REPRESENTATIVE_DATASETS)]
-    heuristic_depths = {"aimv2": 1.0, "dinov2": 1.0, "dinov3": 1, "vit": 0.8}
-    df["heuristic_depth"] = df["model_name"].map(heuristic_depths)
-
-    rows = []
-    groups = ["dataset_name", "model_name", "model_size"]
-    for key, sub in df.groupby(groups):
-        dataset_name, model_name, _ = key
-        last_layer = sub["layer"].max()
-
-        baseline = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]
-        if baseline.empty:
-            continue
-        baseline = baseline.iloc[0]
-        rc2_best = sub[sub.module == "rc2"]["accuracy"].max()
-        act_last_rows = sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"]
-        act_last = act_last_rows.iloc[0]
-        heuristic_depth = sub["heuristic_depth"].iloc[0]
-        heuristic_layer = int(heuristic_depth * last_layer)
-        if baseline > 80:
-            heuristic_layer = last_layer
-        act_heuristic = sub[(sub["layer"] == heuristic_layer) & (sub["module"] == "act")]["accuracy"]
-        act_heuristic = act_heuristic.iloc[0]
-        act_best = sub[sub.module == "act"]["accuracy"].max()
-        oracle = sub["accuracy"].max()
-
-        rows.append(
-            {
-                "family": model_name,
-                "dataset": dataset_name,
-                "Best rc2": rc2_best - baseline,
-                "Last layer act": act_last - baseline,
-                "Heuristic act": act_heuristic - baseline,
-                "Best act": act_best - baseline,
-                "Oracle": oracle - baseline,
-            }
-        )
-
-    summary = pd.DataFrame(rows)
-
-    table = summary.pivot(
-        index="family",
-        columns="dataset",
-        # values=["Best rc2", "Last layer act", "Heuristic act", "Best act", "Oracle"],
-        values=["Heuristic act", "Best act", "Oracle"],
-    )
-    table = table.swaplevel(axis=1).sort_index(axis=1, level=0)
-    table = table.reindex(columns=REPRESENTATIVE_DATASETS, level=0)
-    table = table.reindex(["vit", "dinov2", "aimv2", "dinov3"])
-    pd.set_option("display.max_rows", None)
-    pd.set_option("display.max_columns", None)
-
-    print(table)
-    return table
-
-
-def compute_depth_region_frequency(filename: str) -> None:
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep vision models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    tolerance = 0.01
-    n_bins = 20
-
-    df = df[df["module"] == "act"].copy()
-
-    group_cols = [
-        "dataset_name",
-        "model_name",
-        "model_size",
-        "patch_size",
-        "resolution",
-    ]
-
-    results = []
-
-    for keys, sub in df.groupby(group_cols):
-        # normalize depth
-        max_layer = sub["layer"].max()
-        sub = sub.copy()
-        sub["depth"] = sub["layer"] / max_layer
-
-        # oracle activation accuracy for this model/dataset
-        best_acc = sub["accuracy"].max()
-
-        # whether each layer is within tolerance of oracle
-        sub["near_optimal"] = sub["accuracy"] >= best_acc * (1 - tolerance)
-
-        # assign depth bins
-        gap = 50 // n_bins
-        sub["depth_bin"] = pd.cut(
-            sub["depth"],
-            bins=np.linspace(0.5, 1, n_bins + 1),
-            # labels=[f"{int(i * gap)}-{int((i + 1) * gap)}%" for i in range(n_bins)],
-            include_lowest=True,
-        )
-
-        # one value per depth bin: whether this region contains
-        # a near-optimal layer
-        bin_values = sub.groupby("depth_bin", observed=False)["near_optimal"].any()
-
-        results.append({"model_name": keys[1], **bin_values.to_dict()})
-
-    result = pd.DataFrame(results)
-
-    # convert model_name to model family
-    result = result.groupby("model_name").mean(numeric_only=True) * 100
-    print(result)
-
-
-def table_depth(filename: str, verbose: bool = False) -> dict:
-    r"""Compute the median optimal depth to choose for the act module."""
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep only vision foundation models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    df = df.copy()
-
-    # # Recover representative models
-    # mask = np.zeros(len(df), dtype=bool)
-    # for model, size in REPRESENTATIVE_MODELS.items():
-    #     mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    # df = df[mask]
-
-    # Results
-    df["n_layers"] = df.groupby(["model_name", "model_size"])["layer"].transform("max")
-    df["depth"] = df["layer"] / df["n_layers"]
-    df = df[df["module"] == "act"]
-    results = []
-    for (model_name, model_size, dataset_name), g in df.groupby(["model_name", "model_size", "dataset_name"]):
-        best = g.loc[g["accuracy"].idxmax()]
-        results.append(
-            {
-                "model_name": model_name,
-                "model_size": model_size,
-                "dataset_name": dataset_name,
-                "best_layer": best["layer"],
-                "n_layers": best["n_layers"],
-                "best_depth": best["depth"],
-                "best_accuracy": best["accuracy"],
-            }
-        )
-    df = pd.DataFrame(results)
-    depth = (
-        df.groupby(["model_name", "model_size", "dataset_name"])
-        .agg(mean_best_depth=("best_depth", "mean"))
-        .reset_index()
-    )
-    if verbose:
-        depth["mean_best_depth"] = 100 * depth["mean_best_depth"]
-        pd.set_option("display.max_rows", None)
-        print(depth)
-    depths = {row["model_name"]: row["mean_best_depth"] for idx, row in depth.iterrows()}
-    return depths
-
-
-def table_gains(filename: str) -> None:
-    r"""
-    Analyze the oracle performance recovery and frequency of optimality of different probing strategies.
-
-    The different probing strategies are:
-        - standard: probing of rc2 module at the last layer
-        - best rc2: best probing of rc2 over the depth
-        - fixed act: probing of act module at the layer predicted by the depth analysis
-        - best act: best probing of act over the depth
-    """
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep vision models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Recover the heuristic depth for each model family
-    depths = {
-        "aimv2": 1,  # 0.8902173913043478,
-        "dinov2": 1,  # 0.9213970811796898,
-        "dinov3": 0.97,  # 0.96,  # 0.8966580520928347,
-        "vit": 0.72,  # 0.7475540821964385,
-    }  # analyze_depth(filename=filename, verbose=False)
-    print(depths)
-    df["heuristic_depth"] = df["model_name"].map(depths)
-
-    # Results
-    groups = ["dataset_name", "model_name", "model_size"]
-    rows = []
-    for key, sub in df.groupby(groups):
-        # Standard
-        last_layer = sub["layer"].max()
-        rc2_std = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]
-        rc2_std = rc2_std.iloc[0]
-
-        # Best rc2
-        rc2_best = sub[sub.module == "rc2"].sort_values("accuracy").accuracy.iloc[-1]
-
-        # Fixed act
-        heuristic_depth = sub["heuristic_depth"].iloc[0]
-        heuristic_layer = int(heuristic_depth * last_layer)
-        act_fixed = sub[(sub["layer"] == heuristic_layer) & (sub["module"] == "act")]["accuracy"]
-        act_fixed = act_fixed.iloc[0] if len(act_fixed) else np.nan
-
-        # Best act
-        act_best = sub[sub.module == "act"].sort_values("accuracy").accuracy.iloc[-1]
-
-        # Oracle
-        oracle_acc = sub["accuracy"].max()
-        oracle_gain = oracle_acc - rc2_std
-        if oracle_gain < 1e-8:
-            continue
-
-        # Table
-        strategies = {
-            "Standard": rc2_std,
-            "Best layer + rc2": rc2_best,
-            "Fixed layer + act": act_fixed,
-            "Best layer + act": act_best,
-        }
-
-        for strategy, acc in strategies.items():
-            gain = acc - rc2_std
-            recovered = np.clip(gain / oracle_gain, 0, 1)
-            exact = np.isclose(gain, oracle_gain)
-            rows.append(
-                {
-                    "dataset": key[0],
-                    "family": key[1],
-                    "size": key[2],
-                    "strategy": strategy,
-                    "gain": gain,
-                    "recovered": recovered * 100,
-                    "exact": exact,
-                }
-            )
-
-    summary = pd.DataFrame(rows)
-    print(summary)
-    # ============================================================
-    # Final table
-    # ============================================================
-
-    order = [
-        "Standard",
-        "Best layer + rc2",
-        "Fixed layer + act",
-        "Best layer + act",
-    ]
-
-    # ------------------------------------------------------------
-    # Family table
-    # ------------------------------------------------------------
-    family = (
-        summary.groupby(["family", "strategy"])
-        .agg(
-            gain=("gain", "mean"),
-            recovery=("recovered", "mean"),
-            optimum=("exact", "mean"),
-        )
-        .reset_index()
-    )
-
-    family["optimum"] *= 100
-
-    gain_family = family.pivot(index="family", columns="strategy", values="gain").reindex(columns=order)
-    recovery_family = family.pivot(index="family", columns="strategy", values="recovery").reindex(columns=order)
-    optimum_family = family.pivot(index="family", columns="strategy", values="optimum").reindex(columns=order)
-
-    # ------------------------------------------------------------
-    # Overall row
-    # ------------------------------------------------------------
-    overall = summary.groupby("strategy").agg(
-        gain=("gain", "mean"),
-        recovery=("recovered", "mean"),
-        optimum=("exact", "mean"),
-    )
-    overall["optimum"] *= 100
-    overall_gain = overall["gain"].reindex(order).to_frame().T
-    overall_gain.index = ["Overall"]
-    overall_recovery = overall["recovery"].reindex(order).to_frame().T
-    overall_recovery.index = ["Overall"]
-    overall_optimum = overall["optimum"].reindex(order).to_frame().T
-    overall_optimum.index = ["Overall"]
-
-    # ------------------------------------------------------------
-    # Merge
-    # ------------------------------------------------------------
-    gain = pd.concat([gain_family, overall_gain])
-    recovery = pd.concat([recovery_family, overall_recovery])
-    optimum = pd.concat([optimum_family, overall_optimum])
-
-    table = pd.concat(
-        {
-            "Gain": gain,
-            "Recovery (%)": recovery,
-            "Optimum (%)": optimum,
-        },
-        axis=1,
-    )
-
-    table = table.swaplevel(0, 1, axis=1)
-    table = table.sort_index(axis=1, level=0)
-
-    table = table.round(1)
-
-    print(table)
-
-    # Latex
-    print(
-        table.to_latex(
-            multicolumn=True,
-            multirow=True,
-            float_format="%.1f",
-        )
-    )
-
-
 # ------------------------------------------------------------------------------
-# Multimodal plotting functions
+# VLMs and LLMs plotting functions
 # ------------------------------------------------------------------------------
-def plot_cdf_multimodal(filename: str, save: bool = False) -> None:
+def plot_cdf_vlm_llm(filenames: tuple[str, str], save: bool = False) -> None:
     r"""
-    Plot the percentage of runs over VLMs for which the gain is bigger than a certain level.
+    Plot the percentage of runs over VLMs and LLMs for which the gain is bigger than a certain level.
 
     Three types of gains over standard probing (over the output of the last transformer block) are considered:
         - gain by optimizing over layers (probing done on the output of transformer blocks)
@@ -1734,101 +1299,274 @@ def plot_cdf_multimodal(filename: str, save: bool = False) -> None:
 
     Parameters
     ----------
-    filename: str
-        Name of the result file to use.
+    filenames: tuple
+        Filenames for VLM and LLM results.
     save: bool, default=False
         Whether to save the plot.
     """
     # Recover results
     path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
+    vision, language = filenames
+    df_vlm = pd.read_csv(path / f"{vision}.csv").copy()
+    pattern = "|".join(VLMs)
+    df_vlm = df_vlm[df_vlm["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"VLMs results are presented over a total of {len(df_vlm)} runs.")
+    df_llm = pd.read_csv(path / f"{language}.csv").copy()
+    pattern = "|".join(LLMs)
+    df_llm = df_llm[df_llm["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"LLMs results are presented over a total of {len(df_llm)} runs.")
 
-    # Keep VLMs rows from dataframe
+    # Figure
+    df = [df_vlm, df_llm]
+    modalities = ["VLM", "LLM"]
+    ncols = len(modalities)
+    figsize = ncols * 2 * WIDTH, 2 * HEIGHT
+    fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
+
+    # Results
+    for i, ax in enumerate(axes):
+        ax.set_title(modalities[i])
+        for col, label in [("gain_layer", "Layer"), ("gain_module", "Module"), ("gain", "Location")]:
+            gains = np.sort(df[i][col].to_numpy())
+            percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
+            ax.plot(gains, percentage, linewidth=LINEWIDTH, label=label)
+
+        # Visualization
+        ax.grid(alpha=ALPHA_GRID, lw=1.3)
+        ax.spines["left"].set_linewidth(1)
+        ax.spines["right"].set_linewidth(1)
+        ax.spines["top"].set_linewidth(1)
+        ax.spines["bottom"].set_linewidth(1)
+        ax.tick_params(axis="both", direction="out", length=5, width=1)
+        ax.set_xlabel("Gain over standard probing", fontsize=FONTSIZE)
+        if i == 0:
+            ax.set_ylabel(r"Percentage of runs with gain $\geq x$", fontsize=FONTSIZE)
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.legend()
+    plt.tight_layout()
+    if save:
+        figname = "cdf_vlm_llm"
+        save_plot(figname=figname)
+
+
+def plot_winning_module_frequency_vlm_llm(
+    filenames: tuple[str, str],
+    save: bool = False,
+) -> None:
+    r"""
+    TODO
+    """
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    vision, language = filenames
+    df_vlm = pd.read_csv(path / f"{vision}.csv").copy()
+    pattern = "|".join(VLMs)
+    df_vlm = df_vlm[df_vlm["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"VLMs results are presented over a total of {len(df_vlm)} runs.")
+    df_llm = pd.read_csv(path / f"{language}.csv").copy()
+    pattern = "|".join(LLMs)
+    df_llm = df_llm[df_llm["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"LLMs results are presented over a total of {len(df_llm)} runs.")
+
+    # Figure
+    df = [df_vlm, df_llm]
+    modalities = ["VLM", "LLM"]
+    ncols = len(modalities)
+    figsize = ncols * 2 * WIDTH, 2 * HEIGHT
+    fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
+
+    # Results
+    modalities = {"VLM": df_vlm, "LLM": df_llm}
+    for ax, (name, df) in zip(axes, modalities.items(), strict=True):
+        freq = df["best_module"].value_counts(normalize=True).mul(100)
+        freq = freq.reindex(MODULE_ORDER, fill_value=0.0).sort_values(ascending=False)
+        ranks = np.arange(1, len(freq) + 1)
+        sns.barplot(
+            x=ranks,
+            y=freq.values,
+            color=sns.color_palette()[0],
+            edgecolor="black",
+            linewidth=1,
+            ax=ax,
+            legend=False,
+        )
+
+        # Annotate module name and value above each bar
+        for i, (module, v) in enumerate(freq.items()):
+            ax.text(
+                i,
+                v + 1,
+                f"{module}",
+                ha="center",
+                va="bottom",
+                fontsize=FONTSIZE - 1,
+                rotation=0,
+            )
+
+        # Visualization
+        ax.set_title(name, fontsize=FONTSIZE)
+        ax.grid(alpha=ALPHA_GRID, lw=1.3)
+        ax.spines["left"].set_linewidth(1)
+        ax.spines["right"].set_linewidth(1)
+        ax.spines["top"].set_linewidth(1)
+        ax.spines["bottom"].set_linewidth(1)
+        ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+        ax.set_xlabel("Rank", fontsize=FONTSIZE)
+        ax.set_xticks(np.arange(len(freq)))
+        ax.set_xticklabels(ranks)
+
+    axes[0].set_ylabel("Optimal module frequency (%)", fontsize=FONTSIZE)
+    ax_ylim = axes[0].get_ylim()
+    axes[0].set_ylim(0, max(ax_ylim[1], 60))
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        figname = "winning_module_frequency_vlm_llm"
+        save_plot(figname=figname)
+
+
+def plot_probing_depth_language(filename: str, save: bool = False) -> None:
+    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Figure
+    models = df["model_name"].unique()
+    tasks = df["task_name"].unique()
+    ncols = len(models)
+    figsize = ncols * 2 * WIDTH, 2 * HEIGHT
+    fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
+
+    # Results
+    for i, model_name in enumerate(models):
+        for module in ["fc1", "rc2"]:
+            subset = df[(df["model_name"] == model_name) & (df["module"] == module)].copy()
+            ax = axes[i]
+            acc = []
+            depth = []
+            for task_name in tasks:
+                values = subset[subset.task_name == task_name]
+                acc.append(values["accuracy"])
+                values = values.sort_values("layer")
+                n_layers = values["layer"].max()
+                if len(depth) == 0:
+                    depth = values["layer"] / n_layers
+            acc = np.asarray(acc)
+            acc = acc.mean(axis=0)
+            ax.plot(depth, acc, label=module)
+
+            # Mark the highest fc1 performance
+            if module == "fc1":
+                depth = np.asarray(depth)
+                index = np.argmax(acc)
+                ax.scatter(
+                    depth[index],
+                    acc[index],
+                    s=MARKER_SIZE,
+                    color="black",
+                )
+
+            # Visualization
+            ax.grid(alpha=ALPHA_GRID, lw=1.3)
+            ax.spines["left"].set_linewidth(1)
+            ax.spines["right"].set_linewidth(1)
+            ax.spines["top"].set_linewidth(1)
+            ax.spines["bottom"].set_linewidth(1)
+            ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+            ax.set_xlim(0, 1)
+            ax.set_xlabel("Normalized depth")
+            ax.set_title(model_name)
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.legend()
+    plt.tight_layout()
+    if save:
+        figname = f"probing_depth_language_{filename}"
+        save_plot(figname=figname)
+
+
+def plot_probing_depth_all_multimodal(filename: str, save: bool = False) -> None:
+    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
     pattern = "|".join(VLMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
     print(f"Results are presented over a total of {len(df)} runs.")
 
-    # Figure
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
-    for col, label in [("gain_layer", "Layer"), ("gain_module", "Module"), ("gain", "Location")]:
-        gains = np.sort(df[col].to_numpy())
-        percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
-        plt.plot(gains, percentage, linewidth=LINEWIDTH, label=label)
+    # Recover representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_VLMS.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
 
-    # Visualization
-    ax = fig.axes[0]
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xlabel("Gain over standard probing", fontsize=FONTSIZE)
-    ax.set_ylabel(r"Percentage of runs with gain $\geq x$", fontsize=FONTSIZE)
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
+    # Figure
+    REPRESENTATIVE_DATASETS = df["dataset_name"].unique()
+    nrows = len(REPRESENTATIVE_DATASETS)
+    ncols = len(REPRESENTATIVE_VLMS)
+    figsize = ncols * 2 * WIDTH, nrows * 2 * HEIGHT
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
+
+    # Results
+    for i, dataset_name in enumerate(REPRESENTATIVE_DATASETS):
+        for j, model_name in enumerate(REPRESENTATIVE_VLMS):
+            ax = axes[i, j]
+            model_size = REPRESENTATIVE_VLMS[model_name]
+            for module in ["act", "rc2"]:
+                subset = df[
+                    (df["model_name"] == model_name)
+                    & (df["model_size"] == model_size)
+                    & (df["dataset_name"] == dataset_name)
+                    & (df["module"] == module)
+                ].copy()
+                subset = subset.sort_values("layer")
+                n_layers = subset["layer"].max()
+                subset["depth"] = subset["layer"] / n_layers
+                ax.plot(subset["depth"], subset["accuracy"], linewidth=LINEWIDTH, label=module)
+
+                # Mark the highest act performance
+                if module == "act":
+                    index = np.argmax(subset["accuracy"])
+                    ax.scatter(
+                        subset["depth"].values[index],
+                        subset["accuracy"].values[index],
+                        s=MARKER_SIZE,
+                        color="black",
+                    )
+
+            # Visualization
+            ax.grid(alpha=ALPHA_GRID, lw=1.3)
+            ax.spines["left"].set_linewidth(1)
+            ax.spines["right"].set_linewidth(1)
+            ax.spines["top"].set_linewidth(1)
+            ax.spines["bottom"].set_linewidth(1)
+            ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+            ax.set_xlim(0, 1)
+            ax.set_xlabel("Normalized depth")
+            if j == 0:
+                ax.set_ylabel(f"{dataset_name} \n Accuracy")
+            ax.set_title(model_name)
+    sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
 
     # Common legend
     plt.legend()
     plt.tight_layout()
     if save:
-        figname = f"cdf_multimodal_{filename}"
+        figname = f"probing_depth_all_multimodal_{filename}"
         save_plot(figname=figname)
 
 
-# ------------------------------------------------------------------------------
-# Language plotting functions
-# ------------------------------------------------------------------------------
-def plot_cdf_language(filename: str, save: bool = False) -> None:
-    r"""
-    Plot the percentage of runs over LLMs for which the gain is bigger than a certain level.
-
-    Three types of gains over standard probing (over the output of the last transformer block) are considered:
-        - gain by optimizing over layers (probing done on the output of transformer blocks)
-        - gain by optimizing over modules (probing done over modules of the last transformer block)
-        - gain by optimizing over layers and modules (probing done over modules inside transformer blocks)
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    save: bool, default=False
-        Whether to save the plot.
-    """
-    # Recover results
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
-    print(f"Results are presented over a total of {len(df)} runs.")
-
-    # Figure
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
-    for col, label in [("gain_layer", "Layer"), ("gain_module", "Module"), ("gain", "Location")]:
-        gains = np.sort(df[col].to_numpy())
-        percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
-        plt.plot(gains, percentage, linewidth=LINEWIDTH, label=label)
-
-    # Visualization
-    ax = fig.axes[0]
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xlabel("Gain over standard probing", fontsize=FONTSIZE)
-    ax.set_ylabel(r"Percentage of runs with gain $\geq x$", fontsize=FONTSIZE)
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    # Common legend
-    plt.legend()
-    plt.tight_layout()
-    if save:
-        figname = f"cdf_language_{filename}"
-        save_plot(figname=figname)
-
-
-def plot_layer_winning_frequency_vision(
+def plot_winning_module_frequency_multimodal(
     filename: str,
     save: bool = False,
 ) -> None:
@@ -1841,12 +1579,16 @@ def plot_layer_winning_frequency_vision(
     path = RESULT_DIR / "analysis"
     df = pd.read_csv(path / f"{filename}.csv").copy()
 
+    # Keep only vision foundation models
+    pattern = "|".join(VLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
     # Figure
     figsize = 2 * WIDTH, 2 * HEIGHT
     fig, ax = plt.subplots(figsize=figsize)
 
     # Results
-    freq = df["best_layer"].value_counts(normalize=True).mul(100).sort_values(ascending=False)
+    freq = df["best_module"].value_counts(normalize=True).mul(100).sort_values(ascending=False)
     sns.barplot(
         x=freq.index,
         y=freq.values,
@@ -1879,19 +1621,55 @@ def plot_layer_winning_frequency_vision(
     # Common legend
     plt.tight_layout()
     if save:
-        figname = f"winning_frequency_language_{filename}"
+        figname = f"winning_module_frequency_multimodal_{filename}"
         save_plot(figname=figname)
+
+
+# ------------------------------------------------------------------------------
+# VFMs and LLMs table functions
+# ------------------------------------------------------------------------------
+def table_winning_module_frequency_multimodal(filenames: list[str]) -> pd.DataFrame:
+    r"""
+    Frequency with which each transformer module is selected as the
+    optimal probing module, compared across vision, VLM, and LLM
+    experiments. Modules are reported in natural architectural order
+    (not sorted by frequency) to allow direct cross-modality comparison.
+    """
+    # Recover results
+    vision_filename, language_filename = filenames
+    path = RESULT_DIR / "analysis"
+    df_vfm = pd.read_csv(path / f"{vision_filename}.csv").copy()
+    pattern = "|".join(VFMs)
+    df_vfm = df_vfm[df_vfm["model_name"].str.contains(pattern, case=False, na=False)]
+    df_vlm = pd.read_csv(path / f"{vision_filename}.csv").copy()
+    pattern = "|".join(VLMs)
+    df_vlm = df_vlm[df_vlm["model_name"].str.contains(pattern, case=False, na=False)]
+    df_llm = pd.read_csv(path / f"{language_filename}.csv").copy()
+    pattern = "|".join(LLMs)
+    df_llm = df_llm[~df_llm["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Results
+    modalities = {"VFM": df_vfm, "VLM": df_vlm, "LLM": df_llm}
+    rows = {}
+    for name, df in modalities.items():
+        freq = df["best_module"].value_counts(normalize=True).mul(100)
+        rows[name] = freq.reindex(MODULE_ORDER, fill_value=0)
+
+    # Rearrange table
+    table = pd.DataFrame(rows).T
+    table = table[MODULE_ORDER]
+    print(table.to_latex(float_format="%.2f", multirow=True, bold_rows=True))
+    return table
 
 
 # ------------------------------------------------------------------------------
 # Results functions
 # ------------------------------------------------------------------------------
 def plot_figures() -> None:
+    r"""VFMs plots."""
     # # CDF
     # save = True
     # plot_cdf_vision(filename="cls", save=save)
-    # plot_cdf_multimodal(filename="cls", save=save)
-    # plot_cdf_language(filename="mteb", save=save)
 
     # # Dataset difficulty
     # save = True
@@ -1927,41 +1705,45 @@ def plot_figures() -> None:
     # for model_name in ["vit", "dinov2", "aimv2", "dinov3"]:
     #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
-    # Heuristic
-    save = True
-    filename = "cls"
-    plot_oracle_recovery(filename=filename, save=save)
-
     # # Heuristic
     # save = True
     # filename = "cls"
-    # compare_heuristic_vs_standard(filename=filename, save=save)
+    # plot_oracle_recovery(filename=filename, save=save)
+    # plot_oracle_recovery_all(filename=filename, save=save)
 
-    # # Location gain
-    # save = True
-    # filename = "cls"
-    # plot_act_gain_vision(filename=filename, save=save)
+    r"""VLMs and LLMs plots."""
+    # CDF
+    save = True
+    filenames = ("cls", "mteb")
+    plot_cdf_vlm_llm(filenames=filenames, save=save)
 
-    # # Module gain
-    # save = True
-    # filename = "cls"
-    # plot_layer_gain_vision(filename=filename, save=save)
+    # Module winning frequency
+    save = True
+    filenames = ("cls", "mteb")
+    plot_winning_module_frequency_vlm_llm(filenames=filenames, save=save)
 
-    # # Layer winning frequency
-    # save = True
-    # filename = "mteb"
-    # plot_layer_winning_frequency_vision(filename=filename, save=save)
+    # Probing depth
+    save = True
+    filename = "mteb"
+    plot_probing_depth_language(filename=filename, save=save)
+    filename = "cls"
+    plot_probing_depth_all_multimodal(filename=filename, save=save)
 
 
 def get_tables() -> None:
-    # Model size
-    filename = "cls"
-    table_model_size(filename=filename)
+    r"""VFMs tables."""
+    # # Model size
+    # filename = "cls"
+    # table_model_size(filename=filename)
 
-    # Performance comparions
-    filename = "cls"
-    table_performance_comparison(filename=filename)
-    table_performance_comparison_all(filename=filename)
+    # # Performance comparions
+    # filename = "cls"
+    # table_performance_comparison(filename=filename)
+    # table_performance_comparison_all(filename=filename)
+
+    r"""VLMs and LLMs tables."""
+    filenames = ["cls", "mteb"]
+    table_winning_module_frequency_multimodal(filenames=filenames)
 
 
 # %% Main
