@@ -37,7 +37,7 @@ import torch
 import torch.nn as nn
 from mteb.models.model_meta import ModelMeta, ScoringFunction
 from torch.nn import ModuleList
-from transformers import AutoTokenizer, Gemma3TextModel, PreTrainedModel, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, Gemma3Model, Gemma3TextModel, PreTrainedModel, PreTrainedTokenizerBase
 from transformers.models.gemma3.modeling_gemma3 import Gemma3MLP
 
 from ..pooling import mean_pooling
@@ -234,6 +234,9 @@ class Gemma3(BaseLanguageModel):
 
         Notes
         -----
+        The 1b model is purely a language model while the other sizes are multimodal. As such, the
+        1b model must be loaded with Gemma3TextModel, while Gemma3Model can be used for the others
+        In that case, we recover the purely language model using the language_model attribute.
         The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
         running statistics). Call `model.train()` explicitly if you intend to fine-tune.
         The model is loaded in bfloat16 to reduce memory footprint.
@@ -246,11 +249,19 @@ class Gemma3(BaseLanguageModel):
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
-        model = Gemma3TextModel.from_pretrained(
-            model_name,
-            dtype=dtype,
-            device_map=device,
-        )
+        if model_name == "gemma-3-1b-pt":
+            model = Gemma3TextModel.from_pretrained(
+                model_name,
+                dtype=dtype,
+                device_map=device,
+            )
+        else:
+            multimodal_model = Gemma3Model.from_pretrained(
+                model_name,
+                dtype=dtype,
+                device_map=device,
+            )
+            model = multimodal_model.language_model
         model.eval()
         return model
 
