@@ -344,8 +344,6 @@ def get_mteb_results() -> None:
         # Recover model config
         config = json.loads(config_path.read_text(encoding="utf-8"))
         model_name, layer, module = parse_model_config(name=config["name"])
-        # if model_name in MISSING_MODELS:
-        #     continue
 
         # Recover results
         folder_path = config_path.parent
@@ -357,9 +355,11 @@ def get_mteb_results() -> None:
                 task_name = data["task_name"]
                 _, scores = data["scores"].popitem()
                 accuracy = 100 * scores[0]["accuracy"]
+                languages = scores[0]["languages"]
                 results.append(
                     {
                         "task_name": task_name,
+                        "languages": json.dumps(languages),
                         "model_name": model_name,
                         "layer": layer,
                         "module": module,
@@ -369,10 +369,11 @@ def get_mteb_results() -> None:
 
     # Aggregate results
     df = pd.DataFrame(results)
-    column_order = ["task_name", "model_name", "layer", "module"]
+    column_order = ["task_name", "languages", "model_name", "layer", "module"]
     df = df.sort_values(by=column_order, ascending=True)
     columns = [
         "task_name",
+        "languages",
         "model_name",
         "layer",
         "module",
@@ -658,25 +659,38 @@ def analysis_cifar10_c_results() -> None:
 
 def analysis_mteb_results() -> None:
     r"""
-    Aggregate MTEB results by recovering the best probing location,
-    the corresponding accuracy, the baseline accuracy, defined as the probing accuracy of the rc2 module
-    at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
-    of the baseline probing.
+    Aggregate MTEB results for each model, layer, module choices.
+
+    Notes
+    -----
+    In the literature, the performance on MTEB is computed as the average over all tasks and over families of tasks
+    such as classification, ranking, clustering, etc (see [1, 2, 3, 4]_). We follow this convention to report the
+    performance of each model for a given choice of layer and module.
+
+    References
+    ----------
+    .. [1] N. Muennighoff et al. MTEB: Massive Text Embedding Benchmark. In ACL 2023
+
+    .. [2] K. Enevoldsen et al. MMTEB: Massive Multilingual Text Embedding Benchmark. In ICLR 2025
+
+    .. [3] J. Lee et al. Gemini Embedding: Generalizable Embeddings from Gemini. In arXiv 2025
+
+    .. [4] O. Skean et al. Layer by Layer: Uncovering Hidden Representations in Language Models. In ICML 2025
+
     """
     path = RESULT_DIR / "mteb.csv"
     df = pd.read_csv(path)
-    grouping_cols = [
-        "task_name",
-        "model_name",
-    ]
 
-    # Recover resoluts
+    # Average accuracy across tasks per (model, layer, module)
+    df_avg = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
+    grouping_cols = ["model_name"]
+
+    # Recover results
     results = []
-    for keys, group in tqdm(
-        df.groupby(grouping_cols),
+    for model_name, group in tqdm(
+        df_avg.groupby(grouping_cols),
         desc="Building analysis table",
     ):
-        dataset_name, model_name = keys
         n_layers = int(group["layer"].max()) + 1
 
         # Baseline probe
@@ -709,7 +723,6 @@ def analysis_mteb_results() -> None:
         # Update results
         results.append(
             {
-                "task_name": dataset_name,
                 "model_name": model_name,
                 "n_layers": n_layers,
                 "baseline_accuracy": baseline_accuracy,
@@ -727,7 +740,7 @@ def analysis_mteb_results() -> None:
         )
 
     df_out = pd.DataFrame(results)
-    df_out = df_out.sort_values(by=["task_name", "model_name"])
+    df_out = df_out.sort_values(by=["model_name"])
     save_path = RESULT_DIR / "analysis" / "mteb.csv"
     save_path.parent.mkdir(parents=True, exist_ok=True)
     df_out.to_csv(save_path, index=False, encoding="utf-8")
@@ -744,14 +757,14 @@ def main() -> None:
 
     fire.Fire(
         {
-            "mteb": get_mteb_results,
             "cls": get_cls_results,
             "domainnet": get_domainnet_results,
             "cifar10_c": get_cifar10_c_results,
-            "analysis_mteb": analysis_mteb_results,
+            "mteb": get_mteb_results,
             "analysis_cls": analysis_cls_results,
             "analysis_domainnet": analysis_domainnet_results,
             "analysis_cifar10_c": analysis_cifar10_c_results,
+            "analysis_mteb": analysis_mteb_results,
         }
     )
 
