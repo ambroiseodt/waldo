@@ -35,20 +35,25 @@ DATASETS = {
     "food101": "Food-101",
     "pet": "Pet",
 }
+MODULE_ORDER = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 VFMs = ["aim", "dino", "vit"]
-VLMs = ["clip", "siglip"]
-LLMs = ["gemma", "llama", "qwen"]
-REPRESENTATIVE_VFMS = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
-REPRESENTATIVE_VLMS = {"clip": "large", "siglip2": "large"}
-REPRESENTATIVE_LLMS = ["gemma3-1b-pt", "Llama-3.2-1B", "Qwen3-1B"]
-REPRESENTATIVE_DATASETS = ["aircraft", "domainnet-sketch", "food101", "flowers102"]
-MODEL_SIZES = {
+REPRESENTATIVE_VFMs = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
+VFM_SIZES = {
     "vit": ["base", "large", "huge"],
     "dinov2": ["small", "base", "large", "giant"],
     "aimv2": ["large", "huge", "1B", "3B"],
     "dinov3": ["vits16", "vitb16", "vitl16", "vit7b16"],
 }
-MODULE_ORDER = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
+LLMs = ["gemma3", "llama3", "qwen3"]
+REPRESENTATIVE_LLMs = {
+    "gemma3": ["gemma-3-1b-pt"],
+    "llama3": ["Llama-3.2-1B", "Llama-3.2-3B", "Llama-3.1-8B"],
+    "qwen3": ["Qwen3-0.6B", "Qwen3-1.7B", "Qwen3-4B", "Qwen3-8B"],
+}
+LLM_SIZES = {"gemma3": [1], "llama3": [1, 3, 8], "qwen3": [0.6, 1.7, 4, 8]}
+REPRESENTATIVE_DATASETS = ["aircraft", "domainnet-sketch", "food101", "flowers102"]
+VLMs = ["clip", "siglip"]
+REPRESENTATIVE_VLMS = {"clip": "large", "siglip2": "large"}
 
 # Plot aesthetic
 WIDTH = 4
@@ -405,7 +410,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMS.items():
+    for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
@@ -525,7 +530,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMS.items():
+    for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
@@ -533,7 +538,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
     N = len(REPRESENTATIVE_DATASETS)
     figsize = 2 * N * WIDTH, 2 * HEIGHT
     fig, axes = plt.subplots(1, N, figsize=figsize, sharey=True)
-    model_order = list(REPRESENTATIVE_VFMS.keys())
+    model_order = list(REPRESENTATIVE_VFMs.keys())
     gain_types = ["gain_layer", "gain_module", "gain"]
     gain_labels = ["Layer", "Module", "Both"]
 
@@ -664,12 +669,12 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMS.items():
+    for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
     # Figure
-    ncols = len(REPRESENTATIVE_VFMS)
+    ncols = len(REPRESENTATIVE_VFMs)
     figsize = ncols * 2 * WIDTH, 2 * HEIGHT
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
 
@@ -681,12 +686,12 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
 
     # Results
     dataset_name = "domainnet-sketch"
-    for i, model_name in enumerate(REPRESENTATIVE_VFMS):
+    for i, model_name in enumerate(REPRESENTATIVE_VFMs):
         ax = axes[i]
         axins = None
         if i:
             axins = ax.inset_axes((*positions, *format[i]))
-        model_size = REPRESENTATIVE_VFMS[model_name]
+        model_size = REPRESENTATIVE_VFMs[model_name]
         acc_level = 0
         for module in ["act", "rc2"]:
             subset = df[
@@ -765,21 +770,21 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMS.items():
+    for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
     # Figure
     nrows = len(REPRESENTATIVE_DATASETS)
-    ncols = len(REPRESENTATIVE_VFMS)
+    ncols = len(REPRESENTATIVE_VFMs)
     figsize = ncols * 2 * WIDTH, nrows * 2 * HEIGHT
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
 
     # Results
     for i, dataset_name in enumerate(REPRESENTATIVE_DATASETS):
-        for j, model_name in enumerate(REPRESENTATIVE_VFMS):
+        for j, model_name in enumerate(REPRESENTATIVE_VFMs):
             ax = axes[i, j]
-            model_size = REPRESENTATIVE_VFMS[model_name]
+            model_size = REPRESENTATIVE_VFMs[model_name]
             for module in ["act", "rc2"]:
                 subset = df[
                     (df["model_name"] == model_name)
@@ -838,7 +843,7 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
 
     # Recover model family
     df = df[df["model_name"] == model_name]
-    model_sizes = MODEL_SIZES[model_name]
+    model_sizes = VFM_SIZES[model_name]
 
     # Figure
     nrows = len(model_sizes)
@@ -915,7 +920,7 @@ def plot_oracle_recovery(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMS.items():
+    for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
@@ -1116,7 +1121,7 @@ def table_model_size(filename: str) -> None:
 
     # Results
     results = []
-    for family, sizes in MODEL_SIZES.items():
+    for family, sizes in VFM_SIZES.items():
         sub = df[df["model_name"] == family]
 
         # Build matrix: rows=datasets, cols=sizes
@@ -1159,7 +1164,7 @@ def table_performance_comparison(filename: str) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMS.items():
+    for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
@@ -1286,81 +1291,19 @@ def table_performance_comparison_all(filename: str) -> None:
 
 
 # ------------------------------------------------------------------------------
-# VLMs and LLMs plotting functions
+# LLMs plotting functions
 # ------------------------------------------------------------------------------
-def plot_gain_decomposition_llm(filename: str, save: bool = False) -> None:
-    r"""
-    Per-model decomposition of probing gains (LLM, MTEB classification
-    average). Left: accuracy at baseline, layer-only optimum, module-
-    only optimum, and joint optimum, one group of bars per model.
-    Right: relative depth (best_layer / n_layers) per model, with the
-    dashed line marking the median as a candidate practical heuristic.
-    Individual models are shown directly (n=8), not aggregated with
-    error bars, given the small number of models.
-    """
-    # Recover results
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep vision models
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    df["relative_depth"] = df["best_layer"] / df["n_layers"]
-    df["model_name"] = df["model_name"].str.extract(r"'([^']+)'")  # clean tuple-string artifact
-    fig, axes = plt.subplots(1, 2, figsize=(4 * WIDTH, 2 * HEIGHT))
-
-    # Left panel: accuracy decomposition per model
-    ax = axes[0]
-    x = np.arange(len(df))
-    width = 0.2
-    ax.bar(x - 1.5 * width, df["baseline_accuracy"], width, label="Baseline (last, rc2)", edgecolor="black")
-    ax.bar(x - 0.5 * width, df["layer_accuracy"], width, label="Layer only (rc2 fixed)", edgecolor="black")
-    ax.bar(x + 0.5 * width, df["module_accuracy"], width, label="Module only (last layer)", edgecolor="black")
-    ax.bar(x + 1.5 * width, df["best_accuracy"], width, label="Joint optimum", edgecolor="black")
-    ax.set_xticks(x)
-    ax.set_xticklabels(df["model_name"], rotation=30, ha="right", fontsize=FONTSIZE - 1)
-    ax.set_ylabel("MTEB classification accuracy", fontsize=FONTSIZE)
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
-    ax.legend(frameon=False, fontsize=FONTSIZE - 2)
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-
-    # Right panel: relative depth of joint optimum per model
-    ax2 = axes[1]
-    ax2.bar(x, df["relative_depth"], color=sns.color_palette()[2], edgecolor="black")
-    median_depth = df["relative_depth"].median()
-    ax2.axhline(median_depth, color="black", lw=1.5, ls="--", label=f"Median = {median_depth:.2f}")
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(df["model_name"], rotation=30, ha="right", fontsize=FONTSIZE - 1)
-    ax2.set_ylabel("Relative depth of joint optimum", fontsize=FONTSIZE)
-    ax2.set_ylim(0, 1)
-    ax2.grid(alpha=ALPHA_GRID, lw=1.3)
-    ax2.legend(frameon=False, fontsize=FONTSIZE)
-    ax2.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-
-    for ax_ in axes:
-        ax_.spines["left"].set_linewidth(1)
-        ax_.spines["right"].set_linewidth(1)
-        ax_.spines["top"].set_linewidth(1)
-        ax_.spines["bottom"].set_linewidth(1)
-
-    sns.despine(fig, right=True, offset=10)
-    plt.tight_layout()
-    if save:
-        figname = f"gain_decomposition_llm_{filename}"
-        save_plot(figname=figname)
-
-
 def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3) -> None:
     r"""
-    Plot the gain over standard probing for each model family.
+    Plot the gain over standard probing for each LLM family, one subplot
+    per family, with grouped bars (layer/module/both) for each model
+    size within that family.
 
-    Three types of gains over standard probing (over the output of the last transformer block) are considered:
-        - gain by optimizing over layers (probing done on the output of transformer blocks)
-        - gain by optimizing over modules (probing done over modules of the last transformer block)
-        - gain by optimizing over layers and modules (probing done over modules inside transformer blocks)
+    Three types of gains over standard probing (over the last-layer rc2
+    output) are considered:
+        - gain by optimizing over layers (rc2 fixed)
+        - gain by optimizing over modules (last layer fixed)
+        - gain by optimizing over layers and modules jointly
 
     Parameters
     ----------
@@ -1376,31 +1319,21 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3)
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
-    # Keep vision models
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    # Recover representative models
-    mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMS.items():
-        mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
+    # Clean model_name (e.g., "('Llama-3.1-8B',)" -> "Llama-3.1-8B")
+    df["model_name"] = df["model_name"].str.extract(r"'([^']+)'")
+    logger.info(f"Results are presented over a total of {len(df)} models.")
 
     # Figure
-    N = len(REPRESENTATIVE_DATASETS)
-    figsize = 2 * N * WIDTH, 2 * HEIGHT
-    fig, axes = plt.subplots(1, N, figsize=figsize, sharey=True)
-    model_order = list(REPRESENTATIVE_VFMS.keys())
+    ncols = len(REPRESENTATIVE_LLMs)
+    figsize = ncols * 2 * WIDTH, 2 * HEIGHT
+    fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
     gain_types = ["gain_layer", "gain_module", "gain"]
     gain_labels = ["Layer", "Module", "Both"]
-
     colors = sns.color_palette("Set2", 3)
 
     # Results
-    for ax, dataset in zip(axes, REPRESENTATIVE_DATASETS, strict=False):
-        sub = df[df["dataset_name"] == dataset]
-        agg = sub.groupby("model_name")[gain_types].mean().reindex(model_order)
+    for ax, (family_name, model_order) in zip(axes, REPRESENTATIVE_LLMs.items(), strict=True):
+        agg = df[df["model_name"].isin(model_order)].set_index("model_name").reindex(model_order)
         x = np.arange(len(model_order))
         for i, (g, label, color) in enumerate(zip(gain_types, gain_labels, colors, strict=False)):
             ax.bar(x + i * BARWIDTH, agg[g].values, width=BARWIDTH, label=label, color=color)
@@ -1412,12 +1345,12 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3)
         ax.spines["top"].set_linewidth(1)
         ax.spines["bottom"].set_linewidth(1)
         ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-        ax.set_title(dataset, fontsize=FONTSIZE)
+        ax.set_title(family_name, fontsize=FONTSIZE)
         ax.set_xticks(x + BARWIDTH)
         ax.set_xticklabels(model_order, rotation=20)
         if ax == axes[0]:
-            ax.set_ylabel("Gain over standard probing", fontsize=FONTSIZE)
-        sns.despine(fig, ax, trim=True, right=True, offset=10)
+            ax.set_ylabel("Gain over standard probing (MTEB avg.)", fontsize=FONTSIZE)
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
     lines_labels = [fig.axes[0].get_legend_handles_labels()]
@@ -1439,6 +1372,199 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3)
     plt.tight_layout()
     if save:
         figname = f"model_family_language_{filename}"
+        save_plot(figname=figname)
+
+
+def plot_probing_depth_language(filename: str, save: bool = False) -> None:
+    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Figure
+    models = [model_names[0] for model_names in REPRESENTATIVE_LLMs.values()]
+    ncols = len(models)
+    tasks = df["task_name"].unique()
+    figsize = ncols * 2 * WIDTH, 2 * HEIGHT
+    fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
+
+    # Results
+    for i, model_name in enumerate(models):
+        ax = axes[i]
+        for module in ["ln2", "rc2"]:
+            subset = df[(df["model_name"] == model_name) & (df["module"] == module)].copy()
+            values = []
+            depth = []
+            for task_name in tasks:
+                df_task = subset[subset.task_name == task_name]
+                values.append(df_task["accuracy"])
+                df_task = df_task.sort_values("layer")
+                n_layers = df_task["layer"].max()
+                if len(depth) == 0:
+                    depth = df_task["layer"] / n_layers
+            values = np.asarray(values)
+            acc = values.mean(axis=0)
+            ax.plot(depth, acc, label=module)
+
+            # Mark the highest fc1 performance
+            if module == "ln2":
+                depth = np.asarray(depth)
+                index = np.argmax(acc)
+                ax.scatter(
+                    depth[index],
+                    acc[index],
+                    s=MARKER_SIZE,
+                    color="black",
+                )
+
+            # Visualization
+            ax.grid(alpha=ALPHA_GRID, lw=1.3)
+            ax.spines["left"].set_linewidth(1)
+            ax.spines["right"].set_linewidth(1)
+            ax.spines["top"].set_linewidth(1)
+            ax.spines["bottom"].set_linewidth(1)
+            ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+            ax.set_xlim(0, 1)
+            ax.set_xlabel("Normalized depth")
+            ax.set_title(model_name)
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.legend()
+    plt.tight_layout()
+    if save:
+        figname = f"probing_depth_language_{filename}"
+        save_plot(figname=figname)
+
+
+def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
+    r"""Evolution of the act and rc2 probing accuracy along with the depth over all LLMs."""
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    #     nrows = 4
+    #     ncols = 3
+    #     width = 5
+    #     height = 4
+    #     figsize = (ncols * width, nrows * height)
+    #     fig = plt.figure(figsize=figsize)
+    #     gs = gridspec.GridSpec(4, 6)  # Use 6 units to allow half-column shifts
+
+    #     # Validation loss for y-axis visualization
+    #     acc_range = {
+    #         "cifar10": [50, 75, 100],
+    #         "cifar100": [25, 60, 95],
+    #         "cifar10_c_contrast_5": [40, 70, 100],
+    #         "cifar10_c_gaussian_noise_5": [30, 60, 90],
+    #         "cifar10_c_motion_blur_5": [40, 68, 96],
+    #         "cifar10_c_snow_5": [36, 66, 96],
+    #         "cifar10_c_speckle_noise_5": [30, 60, 90],
+    #         "domainnet_clipart": [4, 42, 80],
+    #         "domainnet_sketch": [0, 35, 70],
+    #         "flowers102": [14, 57, 100],
+    #         "pet": [10, 53, 96],
+    #     }
+
+    #     n_layers = 12
+    #     x_range = np.arange(n_layers) / (n_layers - 1) * 100
+    #     colors = ["#c6a4e4", "#5b6da9"]
+
+    #     # Results
+    #     for i, dataset_name in enumerate(dataset_names):
+    #         # Rows 1 & 1: Each plot takes 2 units (3 plots * 2 = 6 units)
+    #         if i < 9:
+    #             if i < 3:
+    #                 j = 0
+    #             elif i >= 3 and i < 6:
+    #                 j = 1
+    #                 i -= 3
+    #             elif i >= 6:
+    #                 j = 2
+    #                 i -= 6
+    #             ax = fig.add_subplot(gs[j, i * 2 : (i + 1) * 2])
+    #             if i + j == 0:
+    #                 ax_leg = ax
+
+    #         # Row 3: Each plot takes 2 units, but we start at index 1 to center them
+    #         # (1 + 2 + 2 + 1 = 6 units used, leaving 1 unit on each side)
+    #         else:
+    #             j = 3
+    #             i -= 9
+    #             ax = fig.add_subplot(gs[j, (i * 2) + 1 : (i * 2) + 3])
+
+    # Figure
+    nrows = len(REPRESENTATIVE_LLMs)
+    ncols = 3
+    tasks = df["task_name"].unique()
+    figsize = ncols * 2 * WIDTH, nrows * 2 * HEIGHT
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharey="row")
+
+    # Results
+    for i, family_name in enumerate(REPRESENTATIVE_LLMs):
+        models = REPRESENTATIVE_LLMs[family_name]
+        for j, model_name in enumerate(models):
+            ax = axes[i, j]
+            for module in ["ln2", "rc2"]:
+                subset = df[(df["model_name"] == model_name) & (df["module"] == module)].copy()
+                values = []
+                depth = []
+                for task_name in tasks:
+                    df_task = subset[subset.task_name == task_name]
+                    values.append(df_task["accuracy"])
+                    df_task = df_task.sort_values("layer")
+                    n_layers = df_task["layer"].max()
+                    if len(depth) == 0:
+                        depth = df_task["layer"] / n_layers
+                values = np.asarray(values)
+                acc = values.mean(axis=0)
+                ax.plot(depth, acc, label=module)
+
+                # Mark the highest fc1 performance
+                if module == "ln2":
+                    depth = np.asarray(depth)
+                    index = np.argmax(acc)
+                    ax.scatter(
+                        depth[index],
+                        acc[index],
+                        s=MARKER_SIZE,
+                        color="black",
+                    )
+
+                # Visualization
+                ax.grid(alpha=ALPHA_GRID, lw=1.3)
+                ax.spines["left"].set_linewidth(1)
+                ax.spines["right"].set_linewidth(1)
+                ax.spines["top"].set_linewidth(1)
+                ax.spines["bottom"].set_linewidth(1)
+                ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+                ax.set_xlim(0, 1)
+                ax.set_xlabel("Normalized depth")
+                ax.set_title(model_name)
+    sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.legend()
+    plt.tight_layout()
+    if save:
+        figname = f"probing_depth_language_all_{filename}"
+        save_plot(figname=figname)
+
+
+def plot_model_size_language(filename: str, save: bool = False) -> None:
+    r"""TBD"""
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Common legend
+    plt.legend()
+    plt.tight_layout()
+    if save:
+        figname = f"probing_depth_language_{filename}"
         save_plot(figname=figname)
 
 
@@ -1583,73 +1709,6 @@ def plot_winning_module_frequency_vlm_llm(
     plt.tight_layout()
     if save:
         figname = "winning_module_frequency_vlm_llm"
-        save_plot(figname=figname)
-
-
-def plot_probing_depth_language(filename: str, save: bool = False) -> None:
-    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Figure
-    models = df["model_name"].unique()
-    tasks = df["task_name"].unique()
-    ncols = len(models)
-    figsize = ncols * 2 * WIDTH, 2 * HEIGHT
-    fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
-
-    # Results
-    for i, model_name in enumerate(models):
-        for module in ["fc1", "rc2"]:
-            subset = df[(df["model_name"] == model_name) & (df["module"] == module)].copy()
-            ax = axes[i]
-            values = []
-            depth = []
-            for task_name in tasks:
-                df_task = subset[subset.task_name == task_name]
-                values.append(df_task["accuracy"])
-                df_task = df_task.sort_values("layer")
-                n_layers = df_task["layer"].max()
-                if len(depth) == 0:
-                    depth = df_task["layer"] / n_layers
-            values = np.asarray(values)
-            acc = values.mean(axis=0)
-            std = values.std(axis=0)
-            n_samples = len(values)
-            ci = 1.96 * std / np.sqrt(n_samples)
-            ax.plot(depth, acc, label=module)
-            ax.fill_between(depth, acc - ci, acc + ci, alpha=0.2)
-
-            # Mark the highest fc1 performance
-            if module == "fc1":
-                depth = np.asarray(depth)
-                index = np.argmax(acc)
-                ax.scatter(
-                    depth[index],
-                    acc[index],
-                    s=MARKER_SIZE,
-                    color="black",
-                )
-
-            # Visualization
-            ax.grid(alpha=ALPHA_GRID, lw=1.3)
-            ax.spines["left"].set_linewidth(1)
-            ax.spines["right"].set_linewidth(1)
-            ax.spines["top"].set_linewidth(1)
-            ax.spines["bottom"].set_linewidth(1)
-            ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-            ax.set_xlim(0, 1)
-            ax.set_xlabel("Normalized depth")
-            ax.set_title(model_name)
-    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
-
-    # Common legend
-    plt.legend()
-    plt.tight_layout()
-    if save:
-        figname = f"probing_depth_language_{filename}"
         save_plot(figname=figname)
 
 
@@ -1872,19 +1931,17 @@ def plot_figures() -> None:
     # plot_oracle_recovery(filename=filename, save=save)
     # plot_oracle_recovery_all(filename=filename, save=save)
 
-    r"""VLMs and LLMs plots."""
-    filename = "mteb"
+    r"""LLMs plots."""
+    # Model family
     save = True
-    plot_gain_decomposition_llm(filename=filename, save=save)
-    # # CDF
-    # save = True
-    # filenames = ("cls", "mteb")
-    # plot_cdf_vlm_llm(filenames=filenames, save=save)
+    filename = "mteb"
+    plot_model_family_language(filename=filename, save=save)
 
-    # # Module winning frequency
-    # save = True
-    # filenames = ("cls", "mteb")
-    # plot_winning_module_frequency_vlm_llm(filenames=filenames, save=save)
+    # Probing depth
+    save = True
+    filename = "mteb"
+    plot_probing_depth_language(filename=filename, save=save)
+    plot_probing_depth_all_language(filename=filename, save=save)
 
     # Probing depth
     # save = True
