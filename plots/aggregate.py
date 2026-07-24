@@ -683,7 +683,7 @@ def analysis_mteb_results() -> None:
 
     # Average accuracy across tasks per (model, layer, module)
     df_avg = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
-    grouping_cols = ["model_name"]
+    grouping_cols = "model_name"
 
     # Recover results
     results = []
@@ -740,10 +740,11 @@ def analysis_mteb_results() -> None:
         )
 
     df_out = pd.DataFrame(results)
-    df_out = df_out.sort_values(by=["model_name"])
+    column_order = ["model_name"]
+    df_out = df_out.sort_values(by=column_order)
     save_path = RESULT_DIR / "analysis" / "mteb.csv"
     save_path.parent.mkdir(parents=True, exist_ok=True)
-    df_out.to_csv(save_path, index=False, encoding="utf-8")
+    df_out.to_csv(save_path, index=False, na_rep="N/A", encoding="utf-8")
     logger.info(f"Saved table to {save_path}")
 
 
