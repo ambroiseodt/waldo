@@ -166,7 +166,7 @@ class BaseVisionLanguageModel(nn.Module, ABC):
     def _make_pre_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
         r"""
         Create a forward pre-hook that captures the INPUT of a module.
-        The pooling is done at the hood level for efficiency.
+        The pooling is done at the hook level for efficiency.
 
         Parameters
         ----------
@@ -194,7 +194,7 @@ class BaseVisionLanguageModel(nn.Module, ABC):
     def _make_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
         r"""
         Create a forward hook that captures the OUTPUT of a module.
-        The pooling is done at the hood level for efficiency.
+        The pooling is done at the hook level for efficiency.
 
         Parameters
         ----------

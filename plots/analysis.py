@@ -51,12 +51,12 @@ REPRESENTATIVE_LLMs = {"qwen3": "Qwen3-1.7B", "llama3": "Llama-3.2-1B", "gemma3"
 LLM_FAMILIES = {
     "qwen3": ["Qwen3-1.7B", "Qwen3-4B", "Qwen3-8B"],
     "llama3": ["Llama-3.2-1B", "Llama-3.2-3B", "Llama-3.1-8B"],
-    "gemma3": ["gemma-3-1b-pt"],
+    "gemma3": ["gemma-3-1b-pt", "gemma-3-4b-pt"],
 }
 LLM_SIZES = {
     "Qwen3": {"Qwen3-1.7B": 1.7, "Qwen3-4B": 4, "Qwen3-8B": 8},
     "Llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
-    "Gemma3": {"gemma-3-1b-pt": 1},
+    "Gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4},
 }
 VLMs = ["clip", "siglip"]
 REPRESENTATIVE_VLMS = {"clip": "large", "siglip2": "large"}
@@ -1596,21 +1596,21 @@ def plot_figures() -> None:
     #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
     r"""LLMs plots."""
-    # # Model family
-    # save = True
-    # filename = "mteb"
-    # plot_model_family_language(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "mteb"
+    plot_model_family_language(filename=filename, save=save)
 
-    # # Probing depth
-    # save = True
-    # filename = "mteb"
-    # plot_probing_depth_language(filename=filename, save=save)
-    # plot_probing_depth_all_language(filename=filename, save=save)
+    # Probing depth
+    save = True
+    filename = "mteb"
+    plot_probing_depth_language(filename=filename, save=save)
+    plot_probing_depth_all_language(filename=filename, save=save)
 
-    # # Model size
-    # save = True
-    # filename = "mteb"
-    # plot_model_size_language(filename=filename, save=save)
+    # Model size
+    save = True
+    filename = "mteb"
+    plot_model_size_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
@@ -1635,10 +1635,6 @@ def get_tables() -> None:
     # Oracle recovery
     filename = "mteb"
     table_oracle_recovery_language(filename=filename)
-
-    # # Best module
-    # filename = "mteb"
-    # lomo_depth_heuristic(filename=filename)
 
 
 # %% Main
