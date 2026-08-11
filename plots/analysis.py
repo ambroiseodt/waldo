@@ -243,7 +243,16 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     summary["best_error"] = 100 - summary["max_accuracy"]
 
     # Plotting
-    ax.scatter(summary["best_error"], summary["mean_gain"], s=MARKER_SIZE, zorder=3, color="#a291e1")
+    ax.scatter(
+        summary["best_error"],
+        summary["mean_gain"],
+        s=50,
+        zorder=3,
+        color="#a291e1",
+        edgecolors="#333333",  # Marker border color
+        linewidths=1,
+        # alpha=0.8,
+    )
 
     # Regression
     rho, pval = spearmanr(summary["max_accuracy"], summary["mean_gain"])
@@ -254,13 +263,16 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         color="#a291e1",
         scatter=False,
         ci=None,
-        line_kws={"linewidth": 2},
+        line_kws={"linewidth": 2, "alpha": 0.8},
         ax=ax,
     )
-    handle = Line2D([0], [0], color="#a291e1", linewidth=2, label=f"$\\rho$: {rho:.2f}\np-value: {pval:.1e}")
+    handle = Line2D(
+        [0], [0], color="#a291e1", linewidth=2, label=rf"$\rho= {rho:.2f}$" + "\n" + rf"$\text{{p-value}}= {pval:.3f}$"
+    )
     ax.legend(
         handles=[handle],
-        loc="upper left",
+        loc="upper center",
+        bbox_to_anchor=(0.275, 0.9),
         fancybox=True,
         borderaxespad=0,
         shadow=False,
@@ -278,9 +290,12 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         ax.annotate(
             DATASETS[row["dataset_name"]],
             (row["best_error"], row["mean_gain"]),
-            xytext=(4, 4),
+            xytext=(8, 0),
             textcoords="offset points",
+            color="#333333",
             fontsize=15,
+            va="center",
+            ha="left",
         )
 
     # Visualization
@@ -290,7 +305,7 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    xticks = [0, 10, 20, 25]
+    xticks = [0, 6, 12, 18, 24]
     ax.set_xticks(xticks)
     yticks = [0, 2, 4, 6]
     ax.set_yticks(yticks)
@@ -337,23 +352,12 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         order=severity_order,
         estimator=np.mean,
         errorbar=("ci", 95),
-        palette=["#d0c6f5", "#a291e1", "#6a589e"],
+        palette=["#a291e1", "#a291e1", "#a291e1"],
         legend=False,
-        edgecolor="#333333",
-        linewidth=0.5,
-        err_kws={"color": "#333333", "linewidth": 0.5},
+        err_kws={"color": "#333333", "linewidth": 1.5},
         capsize=0.15,
         ax=ax,
     )
-
-    # Customize stems to dashed ('--') and caps to solid ('-')
-    for line in ax.lines:
-        x, y = line.get_xdata(), line.get_ydata()
-        if len(x) == 2:
-            if x[0] == x[1]:  # Vertical stem
-                line.set_linestyle("--")
-            elif y[0] == y[1]:  # Horizontal cap
-                line.set_linestyle("-")
 
     # Visualization
     ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
