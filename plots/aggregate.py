@@ -748,6 +748,81 @@ def analysis_mteb_results() -> None:
     logger.info(f"Saved table to {save_path}")
 
 
+def analysis_mteb_detailed_results() -> None:
+    r"""Aggregate MTEB results for each model, layer, module choices, detailed over tasks."""
+    path = RESULT_DIR / "mteb.csv"
+    df = pd.read_csv(path)
+    grouping_cols = [
+        "task_name",
+        "languages",
+        "model_name",
+    ]
+
+    # Recover results
+    results = []
+    for keys, group in tqdm(
+        df.groupby(grouping_cols),
+        desc="Building analysis table",
+    ):
+        task_name, languages, model_name = keys
+        n_layers = int(group["layer"].max()) + 1
+
+        # Baseline probe
+        last_layer = int(group["layer"].max())
+        baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
+        baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
+
+        # Best probe
+        best_idx = group["accuracy"].idxmax()
+        best_row = group.loc[best_idx]
+        best_layer = best_row["layer"]
+        best_module = best_row["module"]
+        best_accuracy = best_row["accuracy"]
+        gain = best_accuracy - baseline_accuracy
+
+        # Best layer with rc2 fixed
+        rc2_df = group[group["module"] == "rc2"]
+        best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
+        best_layer_rc2 = best_layer_rc2_row["layer"]
+        layer_accuracy = best_layer_rc2_row["accuracy"]
+        gain_layer = layer_accuracy - baseline_accuracy
+
+        # Best module at last layer
+        last_layer_df = group[group["layer"] == last_layer]
+        best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
+        best_module_last_layer = best_module_last_row["module"]
+        module_accuracy = best_module_last_row["accuracy"]
+        gain_module = module_accuracy - baseline_accuracy
+
+        # Update results
+        results.append(
+            {
+                "task_name": task_name,
+                "model_name": model_name,
+                "n_layers": n_layers,
+                "baseline_accuracy": baseline_accuracy,
+                "best_layer": best_layer,
+                "best_module": best_module,
+                "best_accuracy": best_accuracy,
+                "gain": gain,
+                "best_layer_rc2": best_layer_rc2,
+                "layer_accuracy": layer_accuracy,
+                "gain_layer": gain_layer,
+                "best_module_last_layer": best_module_last_layer,
+                "module_accuracy": module_accuracy,
+                "gain_module": gain_module,
+            }
+        )
+
+    df_out = pd.DataFrame(results)
+    column_order = ["model_name"]
+    df_out = df_out.sort_values(by=column_order)
+    save_path = RESULT_DIR / "analysis" / "mteb_detailed.csv"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    df_out.to_csv(save_path, index=False, na_rep="N/A", encoding="utf-8")
+    logger.info(f"Saved table to {save_path}")
+
+
 # %% Main
 def main() -> None:
     logging.basicConfig(
@@ -766,6 +841,7 @@ def main() -> None:
             "analysis_domainnet": analysis_domainnet_results,
             "analysis_cifar10_c": analysis_cifar10_c_results,
             "analysis_mteb": analysis_mteb_results,
+            "analysis_detailed_mteb": analysis_mteb_detailed_results,
         }
     )
 

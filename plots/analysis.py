@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.lines import Line2D
 from scipy.stats import friedmanchisquare, spearmanr
 
 from waldo.infra import FIGURE_DIR, RESULT_DIR
@@ -24,6 +25,14 @@ from waldo.infra import FIGURE_DIR, RESULT_DIR
 logger = logging.getLogger("waldo.analysis")
 
 # Variables
+MODULE_ORDER = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
+LABEL = {
+    "oracle": r"$\mathscr{G}_\mathrm{oracle}$",
+    "layer": r"$\mathscr{G}_\mathrm{layer}$",
+    "module": r"$\mathscr{G}_\mathrm{module}$",
+}
+
+# VFMs
 DATASETS = {
     "aircraft": "Aircraft",
     "cifar10": "Cifar10",
@@ -36,7 +45,6 @@ DATASETS = {
     "food101": "Food-101",
     "pet": "Pet",
 }
-MODULE_ORDER = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 VFMs = ["aim", "dino", "vit"]
 REPRESENTATIVE_VFMs = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
 VFM_SIZES = {
@@ -46,6 +54,8 @@ VFM_SIZES = {
     "dinov3": ["vits16", "vitb16", "vitl16", "vit7b16"],
 }
 REPRESENTATIVE_DATASETS = ["aircraft", "domainnet-sketch", "food101", "flowers102"]
+
+# LLMs
 LLMs = ["qwen3", "llama3", "gemma3"]
 REPRESENTATIVE_LLMs = {"qwen3": "Qwen3-1.7B", "llama3": "Llama-3.2-1B", "gemma3": "gemma-3-1b-pt"}
 LLM_FAMILIES = {
@@ -58,27 +68,29 @@ LLM_SIZES = {
     "Llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
     "Gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4},
 }
-VLMs = ["clip", "siglip"]
-REPRESENTATIVE_VLMS = {"clip": "large", "siglip2": "large"}
 
 # Plot aesthetic
-WIDTH = 4
-HEIGHT = WIDTH
 FONTSIZE = 19
-LEGFONTSIZE = 10
-LINEWIDTH = 3
+LEG_FONTSIZE = 19
+LINEWIDTH = 4
 BARWIDTH = 0.25
 MARKER_SIZE = 150
 ALPHA_GRID = 0.8
+ZOOM_SCALE = 0.7
 PALETTE = {
-    "vit": "#4C72B0",
-    "dinov2": "#DD8452",
-    "aimv2": "#C44E52",
-    "dinov3": "#55A868",
-    "qwen3": "#7B5EA7",
-    "llama3": "#F0A860",
-    "gemma3": "#4C72B0",
+    "oracle": "#a291e1",
+    "layer": "#37abb5",
+    "module": "#b153a1",
 }
+
+# Visual parameters
+palette = sns.cubehelix_palette()
+custom_params = {"axes.grid": False}
+sns.set_theme(style="ticks", palette=palette, rc=custom_params)
+sns.set_context("talk")
+plt.rcParams.update({"figure.autolayout": True})
+plt.rcParams["mathtext.fontset"] = "stix"
+plt.rcParams["font.family"] = "STIXGeneral"
 
 
 # ------------------------------------------------------------------------------
@@ -97,7 +109,7 @@ def save_plot(figname: str, dirname: str | None = None, format: str = "pdf", dpi
 # ------------------------------------------------------------------------------
 # VFMs plotting functions
 # ------------------------------------------------------------------------------
-def plot_cdf_vision(filename: str, save: bool = False) -> None:
+def plot_cdf_vision(filename: str, ncol: int = 3, save: bool = False) -> None:
     r"""
     Plot the percentage of runs over VFMs for which the gain is strictly above a certain threshold.
 
@@ -110,9 +122,23 @@ def plot_cdf_vision(filename: str, save: bool = False) -> None:
     ----------
     filename: str
         Name of the result file to use.
+    ncol: int, default=3
+        Number of legend columns.
     save: bool, default=False
         Whether to save the plot.
     """
+    # Figure
+    width = 6
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
+
+    # Zoomed window (x and y axis are padded to avoid overlapping splines)
+    ZOOM_XLIM = (-0.05, 0.45)
+    ZOOM_YLIM = (70, 100)
+    axins = ax.inset_axes((0.35, 0.38, 0.24, 0.44))
+
     # Recover results
     path = RESULT_DIR / "analysis"
     df = pd.read_csv(path / f"{filename}.csv")
@@ -123,28 +149,20 @@ def plot_cdf_vision(filename: str, save: bool = False) -> None:
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
-    # Figure
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
-    ax = fig.gca()
-
-    # Zoomed window (x and y axis are padded to avoid overlapping splines)
-    ZOOM_XLIM = (-0.05, 0.2)
-    ZOOM_YLIM = (80, 100)
-    axins = ax.inset_axes((0.25, 0.48, 0.24, 0.44))
-
     # Results
-    for col, label in [("gain_layer", "Layer"), ("gain_module", "Module"), ("gain", "Location")]:
+    for col, label in [("gain_layer", "layer"), ("gain_module", "module"), ("gain", "oracle")]:
         gains = np.sort(df[col].to_numpy())
         percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
-        ax.plot(gains, percentage, linewidth=LINEWIDTH, label=label)
-        axins.plot(gains, percentage, linewidth=LINEWIDTH)
+        ax.plot(gains, percentage, linewidth=LINEWIDTH, color=PALETTE[label], label=LABEL[label])
+        axins.plot(gains, percentage, linewidth=LINEWIDTH, color=PALETTE[label])
 
     # Subplot limits
     axins.set_xlim(*ZOOM_XLIM)
     axins.set_ylim(*ZOOM_YLIM)
+    yticks = [70, 80, 90, 100]
+    axins.set_yticks(yticks)
     axins.grid(alpha=ALPHA_GRID, lw=1.0)
-    axins.tick_params(axis="both", direction="out", length=3, width=1, labelsize=FONTSIZE * 0.6)
+    axins.tick_params(axis="both", direction="out", length=3, width=1, labelsize=FONTSIZE * ZOOM_SCALE)
     for spine in axins.spines.values():
         spine.set_linewidth(0.8)
         spine.set_edgecolor("0.6")
@@ -159,12 +177,29 @@ def plot_cdf_vision(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xlabel("Gain over standard probing", fontsize=FONTSIZE)
+    ax.set_xlim(-0.1, 10)
+    ax.set_ylim(-1, 101)
+    yticks = [0, 25, 50, 75, 100]
+    ax.set_yticks(yticks)
+    ax.set_xlabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
     ax.set_ylabel(r"Percentage of runs with gain $> x$", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
-    ax.legend()
+    lines_labels = [fig.axes[0].get_legend_handles_labels()]
+    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
+    fig.legend(
+        lines,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.53, 1.05),
+        fancybox=True,
+        borderaxespad=0,
+        ncol=ncol,
+        shadow=False,
+        frameon=False,
+        fontsize=LEG_FONTSIZE,
+    )
     plt.tight_layout()
     if save:
         figname = f"cdf_vision_{filename}"
@@ -183,6 +218,13 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     save: bool, default=False
         Whether to save the plot.
     """
+    # Figure
+    width = 6
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
+
     # Recover results
     path = RESULT_DIR / "analysis"
     df = pd.read_csv(path / f"{filename}.csv")
@@ -191,49 +233,72 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     # Keep vision models
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
 
-    # Figure
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
-
-    # Results
+    # Dataset difficulty
     summary = (
         df.groupby("dataset_name")
-        .agg(
-            max_accuracy=("baseline_accuracy", "max"),
-            mean_gain=("gain", "mean"),
-        )
+        .agg(max_accuracy=("baseline_accuracy", "max"), mean_gain=("gain", "mean"))
         .reset_index()
     )
-    rho, pval = spearmanr(summary["max_accuracy"], summary["mean_gain"])
-    sns.regplot(data=summary, x="max_accuracy", y="mean_gain", scatter=False, ci=None, line_kws={"linewidth": 2})
-    plt.scatter(summary["max_accuracy"], summary["mean_gain"], s=60, zorder=3)
+    summary["best_error"] = 100 - summary["max_accuracy"]
 
-    for _, row in summary.iterrows():
-        plt.annotate(
+    # Plotting
+    ax.scatter(summary["best_error"], summary["mean_gain"], s=MARKER_SIZE, zorder=3, color="#a291e1")
+
+    # Regression
+    rho, pval = spearmanr(summary["max_accuracy"], summary["mean_gain"])
+    sns.regplot(
+        data=summary,
+        x="best_error",
+        y="mean_gain",
+        color="#a291e1",
+        scatter=False,
+        ci=None,
+        line_kws={"linewidth": 2},
+        ax=ax,
+    )
+    handle = Line2D([0], [0], color="#a291e1", linewidth=2, label=f"$\\rho$: {rho:.2f}\np-value: {pval:.1e}")
+    ax.legend(
+        handles=[handle],
+        loc="upper left",
+        fancybox=True,
+        borderaxespad=0,
+        shadow=False,
+        frameon=True,
+        handlelength=1.9,
+        fontsize=12,
+    )
+
+    # Annotate
+    summary_subset = summary.copy()
+    summary_subset = summary_subset[
+        summary_subset["dataset_name"].isin(["aircraft", "domainnet-sketch", "food101", "flowers102"])
+    ]
+    for _, row in summary_subset.iterrows():
+        ax.annotate(
             DATASETS[row["dataset_name"]],
-            (row["max_accuracy"], row["mean_gain"]),
+            (row["best_error"], row["mean_gain"]),
             xytext=(4, 4),
             textcoords="offset points",
-            fontsize=LEGFONTSIZE,
+            fontsize=15,
         )
 
     # Visualization
-    ax = fig.axes[0]
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xlabel("Maximum achievable accuracy", fontsize=FONTSIZE)
-    ax.set_ylabel("Mean probing gain", fontsize=FONTSIZE)
-    ax.set_title(f"Dataset difficulty vs gain\nSpearman ρ = {rho:.2f}, p = {pval:.2e}", fontsize=FONTSIZE)
+    xticks = [0, 10, 20, 25]
+    ax.set_xticks(xticks)
+    yticks = [0, 2, 4, 6]
+    ax.set_yticks(yticks)
+    ax.set_xlabel(r"Lowest achievable error ($\%$)", fontsize=FONTSIZE)
+    ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
-    plt.legend()
     plt.tight_layout()
     if save:
         figname = f"dataset_difficulty_vision_{filename}"
@@ -247,6 +312,12 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
     Each curve corresponds to one representative vision model.
     Results are averaged over corruption types.
     """
+    # Figure
+    width = 6
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
 
     # Recover results
     path = RESULT_DIR / "analysis"
@@ -257,11 +328,7 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
-    # Figure
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
-
-    # Results
+    # Corruption severity
     severity_order = [1, 3, 5]
     sns.barplot(
         data=df,
@@ -270,95 +337,41 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         order=severity_order,
         estimator=np.mean,
         errorbar=("ci", 95),
+        palette=["#d0c6f5", "#a291e1", "#6a589e"],
+        legend=False,
+        edgecolor="#333333",
+        linewidth=0.5,
+        err_kws={"color": "#333333", "linewidth": 0.5},
         capsize=0.15,
-        color="steelblue",
+        ax=ax,
     )
 
+    # Customize stems to dashed ('--') and caps to solid ('-')
+    for line in ax.lines:
+        x, y = line.get_xdata(), line.get_ydata()
+        if len(x) == 2:
+            if x[0] == x[1]:  # Vertical stem
+                line.set_linestyle("--")
+            elif y[0] == y[1]:  # Horizontal cap
+                line.set_linestyle("-")
+
     # Visualization
-    ax = fig.axes[0]
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
+    yticks = [0, 1, 2]
+    ax.set_yticks(yticks)
     ax.set_xlabel("Corruption severity", fontsize=FONTSIZE)
-    ax.set_ylabel("Mean probing gain", fontsize=FONTSIZE)
+    ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
     plt.tight_layout()
     if save:
         save_plot(figname=f"cifar10c_severity_{filename}")
-
-
-def plot_cifar10c_severity_all(
-    filename: str,
-    save: bool = False,
-) -> None:
-    """
-    Plot probing gain as a function of corruption severity
-    for each CIFAR10-C corruption separately.
-
-    Each curve is averaged over
-        - model families
-        - model sizes
-    """
-
-    # Recover results
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    severity_order = [1, 3, 5]
-    corruptions = sorted(df["corruption"].unique())
-
-    # Figure
-    ncols = 5
-    nrows = int(np.ceil(len(corruptions) / ncols))
-    figsize = (ncols * WIDTH, nrows * HEIGHT)
-    fig, axes = plt.subplots(
-        nrows,
-        ncols,
-        figsize=figsize,
-        sharex=True,
-        sharey=True,
-    )
-
-    # Results
-    axes = np.asarray(axes).flatten()
-    color = sns.color_palette()[0]
-    for i, (ax, corruption) in enumerate(zip(axes, corruptions, strict=True)):
-        sub = df[df["corruption"] == corruption]
-        stats = sub.groupby("severity")["gain"].mean().reindex(severity_order)
-        ax.plot(
-            severity_order,
-            stats.values,
-            color=color,
-            marker="o",
-            lw=2,
-            ms=5,
-        )
-
-        # Visualization
-        ax.grid(alpha=ALPHA_GRID, lw=1.3)
-        ax.spines["left"].set_linewidth(1)
-        ax.spines["right"].set_linewidth(1)
-        ax.spines["top"].set_linewidth(1)
-        ax.spines["bottom"].set_linewidth(1)
-        ax.tick_params(axis="both", direction="out", length=5, width=1)
-        ax.set_xlabel("Corruption severity", fontsize=FONTSIZE)
-        if i == 0:
-            ax.set_ylabel("Mean probing gain", fontsize=FONTSIZE)
-        ax.set_title(corruption, fontsize=FONTSIZE - 2)
-    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
-
-    # Common legend
-    plt.tight_layout()
-    if save:
-        save_plot(f"cifar10c_severity_all_{filename}")
 
 
 def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
@@ -1096,6 +1109,103 @@ def table_oracle_recovery_vision(filename: str) -> None:
 # ------------------------------------------------------------------------------
 # LLMs plotting functions
 # ------------------------------------------------------------------------------
+def plot_cdf_language(filename: str, ncol: int = 3, save: bool = False) -> None:
+    r"""
+    Plot the percentage of runs over LLMs for which the gain is strictly above a certain threshold.
+
+    Three types of gains over standard probing (over the output of the last transformer block) are considered:
+        - gain by optimizing over layers (probing done on the output of transformer blocks)
+        - gain by optimizing over modules (probing done over modules of the last transformer block)
+        - gain by optimizing over layers and modules (probing done over modules inside transformer blocks)
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    ncol: int, default=3
+        Number of legend columns.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 6
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
+
+    # # Zoomed window (x and y axis are padded to avoid overlapping splines)
+    # ZOOM_XLIM = (-0.05, 0.45)
+    # ZOOM_YLIM = (70, 100)
+    # axins = ax.inset_axes((0.35, 0.38, 0.24, 0.44))
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Results
+    for col, label in [("gain_layer", "layer"), ("gain_module", "module"), ("gain", "oracle")]:
+        gains = np.sort(df[col].to_numpy())
+        percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
+        ax.plot(gains, percentage, linewidth=LINEWIDTH, color=PALETTE[label], label=LABEL[label])
+        # axins.plot(gains, percentage, linewidth=LINEWIDTH, color=PALETTE[label])
+
+    # # Subplot limits
+    # axins.set_xlim(*ZOOM_XLIM)
+    # axins.set_ylim(*ZOOM_YLIM)
+    # yticks = [70, 80, 90, 100]
+    # axins.set_yticks(yticks)
+    # axins.grid(alpha=ALPHA_GRID, lw=1.0)
+    # axins.tick_params(axis="both", direction="out", length=3, width=1, labelsize=FONTSIZE * ZOOM_SCALE)
+    # for spine in axins.spines.values():
+    #     spine.set_linewidth(0.8)
+    #     spine.set_edgecolor("0.6")
+
+    # # Align zoomed window and subplot
+    # ax.indicate_inset_zoom(axins, edgecolor="0.15", linewidth=1.0, linestyle="--")
+
+    # Visualization (parent)
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    # ax.set_xlim(-0.1, 10)
+    ax.set_ylim(-1, 101)
+    yticks = [0, 25, 50, 75, 100]
+    ax.set_yticks(yticks)
+    ax.set_xlabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+    ax.set_ylabel(r"Percentage of runs with gain $> x$", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Common legend
+    lines_labels = [fig.axes[0].get_legend_handles_labels()]
+    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
+    fig.legend(
+        lines,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.53, 1.05),
+        fancybox=True,
+        borderaxespad=0,
+        ncol=ncol,
+        shadow=False,
+        frameon=False,
+        fontsize=LEG_FONTSIZE,
+    )
+    plt.tight_layout()
+    if save:
+        figname = f"cdf_language_{filename}"
+        save_plot(figname=figname)
+
+
 def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3) -> None:
     r"""
     Plot the gain over standard probing for each LLM family, one subplot
@@ -1561,16 +1671,15 @@ def plot_figures() -> None:
     # save = True
     # plot_cdf_vision(filename="cls", save=save)
 
-    # # Dataset difficulty
-    # save = True
-    # filename = "cls"
-    # plot_dataset_difficulty_vision(filename=filename, save=save)
+    # Dataset difficulty
+    save = True
+    filename = "cls"
+    plot_dataset_difficulty_vision(filename=filename, save=save)
 
-    # # Cifar10-C
-    # save = True
-    # filename = "cifar10_c"
-    # plot_cifar10c_severity(filename=filename, save=save)
-    # plot_cifar10c_severity_all(filename=filename, save=save)
+    # Cifar10-C
+    save = True
+    filename = "cifar10_c"
+    plot_cifar10c_severity(filename=filename, save=save)
 
     # # Pretraining scale
     # save = True
@@ -1596,36 +1705,40 @@ def plot_figures() -> None:
     #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
     r"""LLMs plots."""
-    # Model family
-    save = True
-    filename = "mteb"
-    plot_model_family_language(filename=filename, save=save)
+    # # CDF
+    # save = True
+    # plot_cdf_language(filename="mteb_detailed", save=save)
 
-    # Probing depth
-    save = True
-    filename = "mteb"
-    plot_probing_depth_language(filename=filename, save=save)
-    plot_probing_depth_all_language(filename=filename, save=save)
+    # # Model family
+    # save = True
+    # filename = "mteb"
+    # plot_model_family_language(filename=filename, save=save)
 
-    # Model size
-    save = True
-    filename = "mteb"
-    plot_model_size_language(filename=filename, save=save)
+    # # Probing depth
+    # save = True
+    # filename = "mteb"
+    # plot_probing_depth_language(filename=filename, save=save)
+    # plot_probing_depth_all_language(filename=filename, save=save)
+
+    # # Model size
+    # save = True
+    # filename = "mteb"
+    # plot_model_size_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
     r"""VFMs tables."""
-    # # Model size
-    # filename = "cls"
-    # table_model_size_vision(filename=filename)
+    # Model size
+    filename = "cls"
+    table_model_size_vision(filename=filename)
 
-    # # Performance comparions
-    # filename = "cls"
-    # table_performance_comparison_vision(filename=filename)
+    # Performance comparions
+    filename = "cls"
+    table_performance_comparison_vision(filename=filename)
 
-    # # Oracle recovery
-    # filename = "cls"
-    # table_oracle_recovery_vision(filename=filename)
+    # Oracle recovery
+    filename = "cls"
+    table_oracle_recovery_vision(filename=filename)
 
     r"""LLMs tables."""
     # Performance comparions
