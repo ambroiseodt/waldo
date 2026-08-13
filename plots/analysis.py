@@ -47,6 +47,7 @@ DATASETS = {
 }
 VFMs = ["aim", "dino", "vit"]
 REPRESENTATIVE_VFMs = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
+VFM_NAMES = {"vit": "ViT", "dinov2": "DINOV2", "aimv2": "AIMv2", "dinov3": "DINOV3"}
 VFM_SIZES = {
     "vit": ["base", "large", "huge"],
     "dinov2": ["small", "base", "large", "giant"],
@@ -54,6 +55,18 @@ VFM_SIZES = {
     "dinov3": ["vits16", "vitb16", "vitl16", "vit7b16"],
 }
 REPRESENTATIVE_DATASETS = ["aircraft", "domainnet-sketch", "food101", "flowers102"]
+VFM_MARKERS = {
+    "vit": "o",
+    "dinov2": "^",
+    "aimv2": "*",
+    "dinov3": "v",
+}
+VFM_MARKER_SIZE = {
+    "vit": 150,
+    "dinov2": 150,
+    "aimv2": 220,
+    "dinov3": 150,
+}
 
 # LLMs
 LLMs = ["qwen3", "llama3", "gemma3"]
@@ -74,7 +87,7 @@ FONTSIZE = 19
 LEG_FONTSIZE = 19
 LINEWIDTH = 4
 BARWIDTH = 0.25
-MARKER_SIZE = 150
+MARKER_LINEWIDTH = 0.5
 ALPHA_GRID = 0.8
 ZOOM_SCALE = 0.7
 PALETTE = {
@@ -249,9 +262,8 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         s=50,
         zorder=3,
         color="#a291e1",
-        edgecolors="#333333",  # Marker border color
-        linewidths=1,
-        # alpha=0.8,
+        edgecolors="#333333",
+        linewidths=MARKER_LINEWIDTH,
     )
 
     # Regression
@@ -269,7 +281,7 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     handle = Line2D(
         [0], [0], color="#a291e1", linewidth=2, label=rf"$\rho= {rho:.2f}$" + "\n" + rf"$\text{{p-value}}= {pval:.3f}$"
     )
-    ax.legend(
+    legend = ax.legend(
         handles=[handle],
         loc="upper center",
         bbox_to_anchor=(0.275, 0.9),
@@ -280,6 +292,10 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         handlelength=1.9,
         fontsize=12,
     )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
 
     # Annotate
     summary_subset = summary.copy()
@@ -354,7 +370,7 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         errorbar=("ci", 95),
         palette=["#a291e1", "#a291e1", "#a291e1"],
         legend=False,
-        err_kws={"color": "#333333", "linewidth": 1.5},
+        err_kws={"color": "#333333", "linewidth": 1},
         capsize=0.15,
         ax=ax,
     )
@@ -378,9 +394,9 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         save_plot(figname=f"cifar10c_severity_{filename}")
 
 
-def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
+def plot_pretraining_scale_vision(filename: str, ncol: int = 3, save: bool = False) -> None:
     r"""
-    Plot the Mean probing gain for different pretraining scales.
+    Plot the average gains over standard probing for different pretraining scales.
 
     We follow the scaling law literature for LLMs [1, 2]_ and consider the total amount of tokens seen during
     pretraining. Notably, this takes into considerations multiple epochs, i.e., the number of image exposure, and
@@ -392,6 +408,8 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     ----------
     filename: str
         Name of the result file to use.
+    ncol: int, default=3
+        Number of columns for the legend.
     save: bool, default=False
         Whether to save the plot.
 
@@ -424,6 +442,12 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
 
     .. [6] E. Fini et al. Multimodal Autoregressive Pre-training of Large Vision Encoders. In CVPR 2025
     """
+    # Figure
+    width = 6
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
 
     # Recover results
     path = RESULT_DIR / "analysis"
@@ -441,85 +465,92 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     df = df[mask]
 
     # Pretraining scale
-    pretraining_tokens = {
-        "vit": 2.5e11,
-        "dinov2": 1.80e12,
-        "aimv2": 3.15e12,
-        "dinov3": 3.91e12,
-    }
-    token_labels = {"vit": "250B", "dinov2": "1.8T", "aimv2": "3.2T", "dinov3": "3.9T"}
+    pretraining_tokens = {"vit": 2.5e11, "dinov2": 1.80e12, "aimv2": 3.15e12, "dinov3": 3.91e12}
     df["pretraining_tokens"] = df["model_name"].map(pretraining_tokens)
-
-    # Figure
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
 
     # Results
     stats = {}
     models = ["vit", "dinov2", "aimv2", "dinov3"]
-    for model in models:
-        vals = df[df["model_name"] == model]["gain"].to_numpy()
-        stats[model] = {
-            "median": np.median(vals),
-            "q25": np.percentile(vals, 25),
-            "q75": np.percentile(vals, 75),
-        }
+    stats["layer"] = [np.mean(df[df["model_name"] == model]["gain_layer"].to_numpy()) for model in models]
+    stats["module"] = [np.mean(df[df["model_name"] == model]["gain_module"].to_numpy()) for model in models]
+    stats["oracle"] = [np.mean(df[df["model_name"] == model]["gain"].to_numpy()) for model in models]
+    scales = list(pretraining_tokens.values())
+    for key, values in stats.items():
+        ax.plot(scales, values, linewidth=LINEWIDTH, color=PALETTE[key], label=LABEL[key])
+        for model_name, x, y in zip(models, scales, values, strict=True):
+            ax.scatter(
+                x,
+                y,
+                s=VFM_MARKER_SIZE[model_name],
+                color=PALETTE[key],
+                edgecolor="#333333",
+                linewidth=MARKER_LINEWIDTH,
+                marker=VFM_MARKERS[model_name],
+                zorder=2,
+            )
 
-    scales = np.arange(len(models))
-    medians = [stats[model]["median"] for model in models]
-    q25s = [stats[model]["q25"] for model in models]
-    q75s = [stats[model]["q75"] for model in models]
-    plt.plot(
-        scales,
-        medians,
-        color="#2D3A8C",
-        lw=1.8,
-        zorder=3,
-        linestyle="--",
-        alpha=0.5,
-    )
-    plt.fill_between(
-        scales,
-        q25s,
-        q75s,
-        color="#2D3A8C",
-        alpha=0.15,
-        zorder=2,
-        label="IQR across datasets (Q1–Q3)",
-    )
-
-    # One coloured marker per model family
-    models = ["vit", "dinov2", "aimv2", "dinov3"]
-    for scale, model in zip(scales, models, strict=True):
-        plt.scatter(
-            scale,
-            stats[model]["median"],
-            color=PALETTE[model],
-            s=100,
-            zorder=4,
-            edgecolors="white",
-            linewidths=1.2,
-            label=model,
-        )
-
-    # Visualization
-    ax = fig.axes[0]
+    # Visualization (parent)
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xticks(scales)
-    ax.set_xticklabels([f"{model}\n{token_labels[model]}" for model in models], fontsize=FONTSIZE)
-    ax.set_ylabel("Probing gain", fontsize=FONTSIZE)
-    ax.set_xlabel("Model family  /  Pretraining scale", fontsize=FONTSIZE)
-    ax.set_xlim(-0.4, len(models) - 0.6)
-    ax.set_ylim(bottom=0)
+    xticks = [2.5e11, 1.5e12, 2.75e12, 4e12]
+    ax.set_xticks(xticks)
+    ax.set_xticklabels([r"$250$B", r"$1.5$T", r"$2.75$T", r"$4$T"])
+    yticks = [0.5, 2.5, 4.5]
+    ax.set_yticks(yticks)
+    ax.set_xlabel("Number of pretraining tokens", fontsize=FONTSIZE)
+    ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
+    # Marker legend
+    handles = [
+        Line2D(
+            [0],
+            [0],
+            linestyle="",
+            marker=m,
+            markerfacecolor="#e0e0e0",
+            markeredgecolor="#333333",
+            markersize=10 if "aim" not in model else 14,
+            label=VFM_NAMES[model],
+        )
+        for model, m in VFM_MARKERS.items()
+    ]
+    legend = ax.legend(
+        handles=handles,
+        loc="upper center",
+        bbox_to_anchor=(0.82, 0.9),
+        fancybox=True,
+        borderaxespad=0,
+        shadow=False,
+        frameon=True,
+        handlelength=1.9,
+        fontsize=12,
+    )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
+    ax.add_artist(legend)
+
     # Common legend
-    plt.legend()
+    lines_labels = [fig.axes[0].get_legend_handles_labels()]
+    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
+    fig.legend(
+        lines,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.53, 1.05),
+        fancybox=True,
+        borderaxespad=0,
+        ncol=ncol,
+        shadow=False,
+        frameon=False,
+        fontsize=LEG_FONTSIZE,
+    )
     plt.tight_layout()
     if save:
         figname = f"pretraining_scale_vision_{filename}"
@@ -562,7 +593,9 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
 
     # Figure
     N = len(REPRESENTATIVE_DATASETS)
-    figsize = 2 * N * WIDTH, 2 * HEIGHT
+    width = 6
+    height = 5
+    figsize = N * width, height
     fig, axes = plt.subplots(1, N, figsize=figsize, sharey=True)
     model_order = list(REPRESENTATIVE_VFMs.keys())
     gain_types = ["gain_layer", "gain_module", "gain"]
@@ -932,7 +965,7 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
 def table_model_size_vision(filename: str) -> None:
     r"""
     Friedman test to determine whether the model size has a significant impact on the gain
-    per model family. The null hypothesis is that it influences the gain.
+    per model family. The null hypothesis is that model size does not influence the gain.
     """
     # Recover results
     path = RESULT_DIR / "analysis"
@@ -963,12 +996,12 @@ def table_model_size_vision(filename: str) -> None:
         W = stat / (k * (n - 1))  # = chi2 / (k*(n-1)) for Friedman
         results.append(
             {
-                "family": family,
+                "Family": family,
                 "n_sizes": k,
                 "n_datasets": n,
                 "chi2": stat,
-                "p": p,
-                "W": W,
+                "p-value": p,
+                "Kendall's W": W,
             }
         )
 
@@ -1675,20 +1708,20 @@ def plot_figures() -> None:
     # save = True
     # plot_cdf_vision(filename="cls", save=save)
 
-    # Dataset difficulty
-    save = True
-    filename = "cls"
-    plot_dataset_difficulty_vision(filename=filename, save=save)
-
-    # Cifar10-C
-    save = True
-    filename = "cifar10_c"
-    plot_cifar10c_severity(filename=filename, save=save)
-
-    # # Pretraining scale
+    # # Dataset difficulty
     # save = True
     # filename = "cls"
-    # plot_pretraining_scale_vision(filename=filename, save=save)
+    # plot_dataset_difficulty_vision(filename=filename, save=save)
+
+    # # Cifar10-C
+    # save = True
+    # filename = "cifar10_c"
+    # plot_cifar10c_severity(filename=filename, save=save)
+
+    # Pretraining scale
+    save = True
+    filename = "cls"
+    plot_pretraining_scale_vision(filename=filename, save=save)
 
     # # Model family
     # save = True
@@ -1736,22 +1769,22 @@ def get_tables() -> None:
     filename = "cls"
     table_model_size_vision(filename=filename)
 
-    # Performance comparions
-    filename = "cls"
-    table_performance_comparison_vision(filename=filename)
+    # # Performance comparions
+    # filename = "cls"
+    # table_performance_comparison_vision(filename=filename)
 
-    # Oracle recovery
-    filename = "cls"
-    table_oracle_recovery_vision(filename=filename)
+    # # Oracle recovery
+    # filename = "cls"
+    # table_oracle_recovery_vision(filename=filename)
 
-    r"""LLMs tables."""
-    # Performance comparions
-    filename = "mteb"
-    table_performance_comparison_language(filename=filename)
+    # r"""LLMs tables."""
+    # # Performance comparions
+    # filename = "mteb"
+    # table_performance_comparison_language(filename=filename)
 
-    # Oracle recovery
-    filename = "mteb"
-    table_oracle_recovery_language(filename=filename)
+    # # Oracle recovery
+    # filename = "mteb"
+    # table_oracle_recovery_language(filename=filename)
 
 
 # %% Main
