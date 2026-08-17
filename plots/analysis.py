@@ -90,11 +90,7 @@ BARWIDTH = 0.25
 MARKER_LINEWIDTH = 0.5
 ALPHA_GRID = 0.8
 ZOOM_SCALE = 0.7
-GAIN_PALETTE = {
-    "oracle": "#a291e1",
-    "layer": "#37abb5",
-    "module": "#b153a1",
-}
+GAIN_PALETTE = {"layer": "#7987b8", "module": "#9fc9b1", "oracle": "#c6a4e4"}
 MODULE_PALETTE = {
     "ln1": "#daa4ac",
     "mha": "#37abb5",
