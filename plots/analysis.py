@@ -986,19 +986,19 @@ def table_performance_comparison_vision(filename: str) -> None:
                 {
                     "dataset": dataset,
                     "family": family,
-                    "strategy": "Standard",
+                    "strategy": "standard",
                     "accuracy": standard,
                 },
                 {
                     "dataset": dataset,
                     "family": family,
-                    "strategy": "Heuristic",
+                    "strategy": "heuristic",
                     "accuracy": heuristic,
                 },
                 {
                     "dataset": dataset,
                     "family": family,
-                    "strategy": "Oracle",
+                    "strategy": "oracle",
                     "accuracy": oracle,
                 },
             ]
@@ -1016,7 +1016,66 @@ def table_performance_comparison_vision(filename: str) -> None:
     table = pd.concat([table, overall_rows])
 
     # Latex table
-    print(table.to_latex(float_format="%.2f", multirow=True, bold_rows=True))
+    print(table.to_latex(float_format="%.1f", multirow=True, bold_rows=True))
+
+
+def table_performance_comparison_all_vision(filename: str) -> None:
+    r"""Performance comparison across all model sizes."""
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep only vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Results
+    rows = []
+    groups = ["dataset_name", "model_name", "model_size"]
+    for (dataset, family, size), sub in df.groupby(groups):
+        last_layer = sub.layer.max()
+        standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
+        heuristic = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
+        oracle = sub.accuracy.max()
+        rows.extend(
+            [
+                {
+                    "dataset": dataset,
+                    "family": family,
+                    "size": size,
+                    "strategy": "standard",
+                    "accuracy": standard,
+                },
+                {
+                    "dataset": dataset,
+                    "family": family,
+                    "size": size,
+                    "strategy": "heuristic",
+                    "accuracy": heuristic,
+                },
+                {
+                    "dataset": dataset,
+                    "family": family,
+                    "size": size,
+                    "strategy": "oracle",
+                    "accuracy": oracle,
+                },
+            ]
+        )
+    summary = pd.DataFrame(rows)
+    table = summary.groupby(["family", "size", "strategy", "dataset"])["accuracy"].mean().unstack("dataset")
+    table["Average"] = table.mean(axis=1)
+
+    # Overall rows across all models, sizes, and datasets
+    overall_rows = summary.groupby(["strategy", "dataset"])["accuracy"].mean().unstack("dataset")
+    overall_rows["Average"] = overall_rows.mean(axis=1)
+
+    # Add the family/size level (Overall has no size, so use a placeholder)
+    overall_rows = pd.concat({("Overall", ""): overall_rows}, names=["family", "size"])
+    table = pd.concat([table, overall_rows])
+
+    # Latex table
+    print(table.to_latex(float_format="%.1f", multirow=True, bold_rows=True))
 
 
 def table_oracle_recovery_vision(filename: str) -> None:
@@ -1652,40 +1711,40 @@ def lomo_depth_heuristic(filename: str) -> None:
 # ------------------------------------------------------------------------------
 def plot_figures() -> None:
     r"""VFMs plots."""
-    # CDF
-    save = True
-    plot_cdf_vision(filename="cls", save=save)
-
-    # Dataset difficulty
-    save = True
-    filename = "cls"
-    plot_dataset_difficulty_vision(filename=filename, save=save)
-
-    # Cifar10-C
-    save = True
-    filename = "cifar10_c"
-    plot_cifar10c_severity(filename=filename, save=save)
-
-    # Pretraining scale
-    save = True
-    filename = "cls"
-    plot_pretraining_scale_vision(filename=filename, save=save)
-
-    # Model family
-    save = True
-    filename = "cls"
-    plot_model_family_vision(filename=filename, save=save)
-
-    # Probing depth
-    save = True
-    filename = "cls"
-    plot_probing_depth_vision(filename=filename, save=save)
-    plot_probing_depth_all_vision(filename=filename, save=save)
-
-    r"""LLMs plots."""
     # # CDF
     # save = True
-    # plot_cdf_language(filename="mteb_detailed", save=save)
+    # plot_cdf_vision(filename="cls", save=save)
+
+    # # Dataset difficulty
+    # save = True
+    # filename = "cls"
+    # plot_dataset_difficulty_vision(filename=filename, save=save)
+
+    # # Cifar10-C
+    # save = True
+    # filename = "cifar10_c"
+    # plot_cifar10c_severity(filename=filename, save=save)
+
+    # # Pretraining scale
+    # save = True
+    # filename = "cls"
+    # plot_pretraining_scale_vision(filename=filename, save=save)
+
+    # # Model family
+    # save = True
+    # filename = "cls"
+    # plot_model_family_vision(filename=filename, save=save)
+
+    # # Probing depth
+    # save = True
+    # filename = "cls"
+    # plot_probing_depth_vision(filename=filename, save=save)
+    # plot_probing_depth_all_vision(filename=filename, save=save)
+
+    r"""LLMs plots."""
+    # CDF
+    save = True
+    plot_cdf_language(filename="mteb_detailed", save=save)
 
     # # Model family
     # save = True
@@ -1710,17 +1769,18 @@ def get_tables() -> None:
     # filename = "cls"
     # table_model_size_vision(filename=filename)
 
-    # Winning module frequency
-    filename = "cls"
-    table_winning_module_frequency_vision(filename=filename)
+    # # Winning module frequency
+    # filename = "cls"
+    # table_winning_module_frequency_vision(filename=filename)
 
     # # Performance comparions
     # filename = "cls"
     # table_performance_comparison_vision(filename=filename)
+    # table_performance_comparison_all_vision(filename=filename)
 
-    # # Oracle recovery
-    # filename = "cls"
-    # table_oracle_recovery_vision(filename=filename)
+    # Oracle recovery
+    filename = "cls"
+    table_oracle_recovery_vision(filename=filename)
 
     # r"""LLMs tables."""
     # # Performance comparions
