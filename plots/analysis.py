@@ -69,17 +69,17 @@ VFM_MARKER_SIZE = {
 }
 
 # LLMs
-LLMs = ["qwen3", "llama3", "gemma3"]
+LLMs = ["Qwen3", "Llama-3", "gemma-3"]
 REPRESENTATIVE_LLMs = {"qwen3": "Qwen3-1.7B", "llama3": "Llama-3.2-1B", "gemma3": "gemma-3-1b-pt"}
 LLM_FAMILIES = {
     "qwen3": ["Qwen3-1.7B", "Qwen3-4B", "Qwen3-8B"],
     "llama3": ["Llama-3.2-1B", "Llama-3.2-3B", "Llama-3.1-8B"],
-    "gemma3": ["gemma-3-1b-pt", "gemma-3-4b-pt"],
+    "gemma3": ["gemma-3-1b-pt", "gemma-3-4b-pt", "gemma-3-12b-pt"],
 }
 LLM_SIZES = {
-    "Qwen3": {"Qwen3-1.7B": 1.7, "Qwen3-4B": 4, "Qwen3-8B": 8},
-    "Llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
-    "Gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4},
+    "qwen3": {"Qwen3-1.7B": 1.7, "Qwen3-4B": 4, "Qwen3-8B": 8},
+    "llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
+    "gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4, "gemma-3-12b-pt": 12},
 }
 
 # Plot aesthetic
@@ -90,7 +90,7 @@ BARWIDTH = 0.25
 MARKER_LINEWIDTH = 0.5
 ALPHA_GRID = 0.8
 ZOOM_SCALE = 0.7
-GAIN_PALETTE = {"layer": "#7987b8", "module": "#9fc9b1", "oracle": "#c6a4e4"}
+GAIN_PALETTE = {"layer": "#7987b8", "module": "#9fc9b1", "oracle": "#c6a4e4", "heuristic": "red"}
 MODULE_PALETTE = {
     "ln1": "#daa4ac",
     "mha": "#37abb5",
@@ -346,6 +346,13 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
 
     Each curve corresponds to one representative vision model.
     Results are averaged over corruption types.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
     """
     # Figure
     width = 6
@@ -669,7 +676,16 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
 
 
 def plot_probing_depth_vision(filename: str, ncol: int = 2, save: bool = False) -> None:
-    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
+    r"""
+    Evolution of the act and rc2 probing accuracy along with the depth.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
     # Figure
     width = 6
     height = 5
@@ -767,7 +783,16 @@ def plot_probing_depth_vision(filename: str, ncol: int = 2, save: bool = False) 
 
 
 def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
-    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
+    r"""
+    Evolution of the act and rc2 probing accuracy along with the depth.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
     # Figure
     width = 6
     height = 5
@@ -883,6 +908,112 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
     if save:
         figname = f"probing_depth_all_vision_{filename}"
         save_plot(figname=figname)
+
+
+def plot_oracle_recovery(filename: str, save: bool = False) -> None:
+    r"""
+    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
+
+    Strategies:
+        - Best layer on rc2
+        - Heuristic (last layer on act)
+        - Best layer on act
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 6
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
+
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Results
+    order = ["Best RC2", "Heuristic", "Best ACT"]
+    groups = ["dataset_name", "model_name", "model_size"]
+    rows = []
+    for key, sub in df.groupby(groups):
+        last_layer = sub["layer"].max()
+
+        # Standard
+        baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
+
+        # Best RC2, heuristic, best act
+        rc2_best = sub[sub.module == "rc2"].accuracy.max()
+        heuristic = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
+        act_best = sub[sub.module == "act"].accuracy.max()
+        strategies = {
+            "Best RC2": rc2_best,
+            "Heuristic": heuristic,
+            "Best ACT": act_best,
+        }
+
+        # Recover oracle recovery
+        oracle = sub.accuracy.max()
+        oracle_gain = oracle - baseline
+
+        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
+        if oracle_gain < 0.5:
+            continue
+
+        for strategy, acc in strategies.items():
+            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
+            gain = np.max((acc - baseline, 0))
+            recovery = gain / oracle_gain if gain > 0 else 0
+            rows.append(
+                {
+                    "dataset": key[0],
+                    "family": key[1],
+                    "size": key[2],
+                    "strategy": strategy,
+                    "recovery": recovery * 100,
+                }
+            )
+    summary = pd.DataFrame(rows)
+    sns.barplot(
+        data=summary,
+        x="strategy",
+        y="recovery",
+        order=order,
+        estimator=np.mean,
+        errorbar=("ci", 95),
+        palette=[MODULE_PALETTE["rc2"], GAIN_PALETTE["heuristic"], MODULE_PALETTE["act"]],
+        legend=False,
+        err_kws={"color": "#333333", "linewidth": 1},
+        capsize=0.15,
+        ax=ax,
+    )
+
+    # Visualization
+    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    ax.set_xticklabels(["Best RC2", "Heuristic", "Best Act"])
+    ax.set_xlabel("")
+    ax.set_ylabel(r"Oracle recovery ($\%$)", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        save_plot(figname=f"oracle_recovery_{filename}")
 
 
 # ------------------------------------------------------------------------------
@@ -1078,78 +1209,6 @@ def table_performance_comparison_all_vision(filename: str) -> None:
     print(table.to_latex(float_format="%.1f", multirow=True, bold_rows=True))
 
 
-def table_oracle_recovery_vision(filename: str) -> None:
-    r"""
-    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
-
-    Strategies:
-        - Best layer on rc2
-        - Heuristic (last layer on act)
-        - Best layer on act
-    """
-
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep vision models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Results
-    order = ["Best RC2", "Heuristic", "Best ACT"]
-    groups = ["dataset_name", "model_name", "model_size"]
-    rows = []
-    for key, sub in df.groupby(groups):
-        last_layer = sub["layer"].max()
-
-        # Standard
-        baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-
-        # Best RC2, heuristic, best act
-        rc2_best = sub[sub.module == "rc2"].accuracy.max()
-        heuristic = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
-        act_best = sub[sub.module == "act"].accuracy.max()
-        strategies = {
-            "Best RC2": rc2_best,
-            "Heuristic": heuristic,
-            "Best ACT": act_best,
-        }
-
-        # Recover oracle recovery
-        oracle = sub.accuracy.max()
-        oracle_gain = oracle - baseline
-
-        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
-        if oracle_gain < 0.5:
-            continue
-
-        for strategy, acc in strategies.items():
-            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
-            gain = np.max((acc - baseline, 0))
-            recovery = gain / oracle_gain if gain > 0 else 0
-            rows.append(
-                {
-                    "dataset": key[0],
-                    "family": key[1],
-                    "size": key[2],
-                    "strategy": strategy,
-                    "recovery": recovery * 100,
-                }
-            )
-    summary = pd.DataFrame(rows)
-
-    # Pooled mean recovery per strategy, single-row table
-    pooled_recovery = summary.groupby("strategy")["recovery"].mean().reindex(order)
-    table = pd.DataFrame({"Oracle recovery (%)": pooled_recovery}).T
-    latex_str = table.round(1).to_latex(
-        caption="Average gain and oracle gain recovery (\\%) per strategy, pooled over all datasets and models.",
-        label=f"tab:oracle_recovery_{filename}",
-        column_format="l" + "c" * len(order),
-        escape=False,
-    )
-    print(latex_str)
-
-
 # ------------------------------------------------------------------------------
 # LLMs plotting functions
 # ------------------------------------------------------------------------------
@@ -1178,11 +1237,6 @@ def plot_cdf_language(filename: str, ncol: int = 3, save: bool = False) -> None:
     fig = plt.figure(figsize=figsize)
     ax = fig.gca()
 
-    # # Zoomed window (x and y axis are padded to avoid overlapping splines)
-    # ZOOM_XLIM = (-0.05, 0.45)
-    # ZOOM_YLIM = (70, 100)
-    # axins = ax.inset_axes((0.35, 0.38, 0.24, 0.44))
-
     # Recover results
     path = RESULT_DIR / "analysis"
     df = pd.read_csv(path / f"{filename}.csv")
@@ -1198,21 +1252,6 @@ def plot_cdf_language(filename: str, ncol: int = 3, save: bool = False) -> None:
         gains = np.sort(df[col].to_numpy())
         percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
         ax.plot(gains, percentage, linewidth=LINEWIDTH, color=GAIN_PALETTE[label], label=LABEL[label])
-        # axins.plot(gains, percentage, linewidth=LINEWIDTH, color=GAIN_PALETTE[label])
-
-    # # Subplot limits
-    # axins.set_xlim(*ZOOM_XLIM)
-    # axins.set_ylim(*ZOOM_YLIM)
-    # yticks = [70, 80, 90, 100]
-    # axins.set_yticks(yticks)
-    # axins.grid(alpha=ALPHA_GRID, lw=1.0)
-    # axins.tick_params(axis="both", direction="out", length=3, width=1, labelsize=FONTSIZE * ZOOM_SCALE)
-    # for spine in axins.spines.values():
-    #     spine.set_linewidth(0.8)
-    #     spine.set_edgecolor("0.6")
-
-    # # Align zoomed window and subplot
-    # ax.indicate_inset_zoom(axins, edgecolor="0.15", linewidth=1.0, linestyle="--")
 
     # Visualization (parent)
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
@@ -1221,7 +1260,7 @@ def plot_cdf_language(filename: str, ncol: int = 3, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    # ax.set_xlim(-0.1, 10)
+    ax.set_xlim(-0.1, 25)
     ax.set_ylim(-1, 101)
     yticks = [0, 25, 50, 75, 100]
     ax.set_yticks(yticks)
@@ -1741,10 +1780,15 @@ def plot_figures() -> None:
     # plot_probing_depth_vision(filename=filename, save=save)
     # plot_probing_depth_all_vision(filename=filename, save=save)
 
-    r"""LLMs plots."""
-    # CDF
+    # Oracle recovery
     save = True
-    plot_cdf_language(filename="mteb_detailed", save=save)
+    filename = "cls"
+    plot_oracle_recovery(filename=filename, save=save)
+
+    r"""LLMs plots."""
+    # # CDF
+    # save = True
+    # plot_cdf_language(filename="mteb_detailed", save=save)
 
     # # Model family
     # save = True
@@ -1777,10 +1821,6 @@ def get_tables() -> None:
     # filename = "cls"
     # table_performance_comparison_vision(filename=filename)
     # table_performance_comparison_all_vision(filename=filename)
-
-    # Oracle recovery
-    filename = "cls"
-    table_oracle_recovery_vision(filename=filename)
 
     # r"""LLMs tables."""
     # # Performance comparions
