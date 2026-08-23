@@ -12,7 +12,6 @@ in the root directory of this source tree.
 import logging
 
 import fire
-import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -78,9 +77,15 @@ LLM_FAMILIES = {
     "gemma3": ["gemma-3-1b-pt", "gemma-3-4b-pt", "gemma-3-12b-pt"],
 }
 LLM_SIZES = {
-    "qwen3": {"Qwen3-1.7B": 1.7, "Qwen3-4B": 4, "Qwen3-8B": 8},
-    "llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
-    "gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4, "gemma-3-12b-pt": 12},
+    "Qwen3-1.7B": 1.7,
+    "Qwen3-4B": 4,
+    "Qwen3-8B": 8,
+    "Llama-3.2-1B": 1,
+    "Llama-3.2-3B": 3,
+    "Llama-3.1-8B": 8,
+    "gemma-3-1b-pt": 1,
+    "gemma-3-4b-pt": 4,
+    "gemma-3-12b-pt": 12,
 }
 
 # Plot aesthetic
@@ -102,6 +107,7 @@ MODULE_PALETTE = {
     "fc2": "#858ec2",
     "rc2": "#428379",
 }
+LLM_PALETTE = {"qwen3": "#7987b8", "llama3": "#9fc9b1", "gemma3": "#c6a4e4"}
 
 # Visual parameters
 palette = sns.cubehelix_palette()
@@ -953,10 +959,16 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         # Standard
         baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
 
-        # Best RC2, heuristic, best act
+        # Best RC2
         rc2_best = sub[sub.module == "rc2"].accuracy.max()
+        
+        # Heuristic: last layer act
         heuristic = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
+        
+        # Best act
         act_best = sub[sub.module == "act"].accuracy.max()
+        
+        # Recover strategies
         strategies = {
             "Best RC2": rc2_best,
             "Heuristic": heuristic,
@@ -1246,7 +1258,7 @@ def plot_cdf_language(filename: str, ncol: int = 3, save: bool = False) -> None:
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
-    # Keep vision models
+    # Keep language models
     pattern = "|".join(LLMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
     logger.info(f"Results are presented over a total of {len(df)} runs.")
@@ -1325,17 +1337,21 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3)
     path = RESULT_DIR / "analysis"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
-    logger.info(f"Results are presented over a total of {len(df)} models.")
+
+    # Keep language models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
     gain_types = ["gain_layer", "gain_module", "gain"]
     gain_labels = ["layer", "module", "oracle"]
-    model_sizes = {
+    model_labels = {
         "qwen3": ["Qwen3 1.7B", "Qwen3 4B", "Qwen3 8B"],
         "llama3": ["Llama3.2 1B", "Llama3.2 3B", "Llama3.1 8B"],
         "gemma3": ["Gemma3 1B", "Gemma3 4B", "Gemma3 12B"],
     }
-    for ax, (family_name, model_order) in zip(axes, LLM_FAMILIES.items(), strict=True):
+    for ax, (model_family, model_order) in zip(axes, LLM_FAMILIES.items(), strict=True):
         sub = df[df["model_name"].isin(model_order)].set_index("model_name").reindex(model_order)
         agg_long = sub.reset_index().melt(
             id_vars="model_name",
@@ -1365,10 +1381,10 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3)
         ax.spines["bottom"].set_linewidth(1)
         ax.tick_params(axis="both", direction="out", length=5, width=1)
         ax.legend().remove()
-        ax.set_title(LLM_NAMES[family_name], fontsize=FONTSIZE)
+        ax.set_title(LLM_NAMES[model_family], fontsize=FONTSIZE)
         ax.set_xlabel("")
         ax.set_xticks(range(len(model_order)))
-        ax.set_xticklabels([model_name for model_name in model_sizes[family_name]])
+        ax.set_xticklabels([model_name for model_name in model_labels[model_family]])
         if ax == axes[0]:
             ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
@@ -1395,8 +1411,130 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3)
         save_plot(figname=figname)
 
 
+def plot_model_size_language(filename: str, save: bool = False, ncol: int = 3) -> None:
+    r"""
+    Evolution of gain as a function of model size in billions of parameters.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    ncol: int, default=3
+        Number of columns in the legend.
+    """
+    # Figure
+    width = 6
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep language models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Create bins for model sizes
+    model_bins = {
+        "Llama-3.2-1B": "1-2B",
+        "gemma-3-1b-pt": "1-2B",
+        "Qwen3-1.7B": "1-2B",
+        "Llama-3.2-3B": "3-4B",
+        "Qwen3-4B": "3-4B",
+        "gemma-3-4b-pt": "3-4B",
+        "Llama-3.1-8B": "8-12B",
+        "Qwen3-8B": "8-12B",
+        "gemma-3-12b-pt": "8-12B",
+    }
+    bin_order = ["1-2B", "3-4B", "8-12B"]
+    bins = {b: i for i, b in enumerate(bin_order)}
+    df["size"] = df["model_name"].map(LLM_SIZES)
+    df["model_bin"] = df["model_name"].map(model_bins)
+    df["bin"] = df["model_bin"].map(bins)
+ 
+    # Results
+    rng = np.random.default_rng(0)
+    for col, label in [("gain_layer", "layer"), ("gain_module", "module"), ("gain", "oracle")]:
+        # Individual points jittered slightly for readability
+        jitter = rng.uniform(-0.08, 0.08, size=len(df))
+        ax.scatter(
+            df["bin"] + jitter,
+            df[col],
+            s=150,
+            color=GAIN_PALETTE[label],
+            edgecolor="none",
+            alpha=0.5,
+            zorder=2,
+        )
+
+        # Mean per bin
+        means = df.groupby("bin")[col].mean().reindex(range(len(bin_order)))
+        index = list(means.index)
+        values = list(means.values)
+        ax.plot(index, values, color=GAIN_PALETTE[label], label=LABEL[label], linewidth=LINEWIDTH, zorder=3)
+        ax.scatter(
+            index,
+            values,
+            s=150,
+            color=GAIN_PALETTE[label],
+            edgecolor="#333333",
+            linewidth=MARKER_LINEWIDTH,
+            zorder=4,
+        )
+
+    # Visualization
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    ax.set_xticks(range(len(bin_order)))
+    ax.set_xticklabels(bin_order)
+    ax.set_yticks([0, 2, 4])
+    ax.set_xlabel("Model size (grouped)", fontsize=FONTSIZE)
+    ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Common legend
+    lines_labels = [fig.axes[0].get_legend_handles_labels()]
+    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
+    fig.legend(
+        lines,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.53, 1.08),
+        fancybox=True,
+        borderaxespad=0,
+        ncol=ncol,
+        shadow=False,
+        frameon=False,
+        fontsize=22,
+    )
+    plt.tight_layout()
+    if save:
+        figname = f"model_size_language_{filename}"
+        save_plot(figname=figname)
+
+
 def plot_probing_depth_language(filename: str, save: bool = False) -> None:
-    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
+    r"""
+    Evolution of the act and rc2 probing accuracy along with the depth.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
     # Figure
     width = 6
     height = 5
@@ -1409,9 +1547,14 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
+    # Keep language models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
     # Results
     tasks = df["task_name"].unique()
-    for i, (family_name, model_name) in enumerate(REPRESENTATIVE_LLMs.items()):
+    for i, (model_family, model_name) in enumerate(REPRESENTATIVE_LLMs.items()):
         ax = axes[i]
         for module in ["ln2", "rc2"]:
             subset = df[(df["model_name"] == model_name) & (df["module"] == module)].copy()
@@ -1435,7 +1578,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
                 label=module.upper(),
             )
 
-            # Mark the highest fc1 performance
+            # Mark the highest ln2 performance
             if module == "ln2":
                 depth = np.asarray(depth)
                 index = np.argmax(acc)
@@ -1466,7 +1609,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
         ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
         if i == 0:
             ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
-        ax.set_title(LLM_NAMES[family_name], fontsize=FONTSIZE)
+        ax.set_title(LLM_NAMES[model_family], fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
@@ -1491,127 +1634,330 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
 
 
 def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
-    r"""Evolution of the act and rc2 probing accuracy along with the depth over all LLMs."""
+    r"""
+    Evolution of the act and rc2 probing accuracy along with the depth.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 6
+    height = 5
+    nrows = 3
+    ncols = 3
+    figsize = ncols * width, nrows * height
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharex=True)
+
     # Recover results
     path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
-    # Figure
-    nrows = 3
-    ncols = 4
-    unit_width = 2  # each subplot spans 2 grid units
-    figsize = ncols * 2 * WIDTH, nrows * 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
-    gs = gridspec.GridSpec(nrows, ncols * unit_width)
+    # Keep language models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
+    model_labels = {
+        "qwen3": ["Qwen3 1.7B", "Qwen3 4B", "Qwen3 8B"],
+        "llama3": ["Llama3.2 1B", "Llama3.2 3B", "Llama3.1 8B"],
+        "gemma3": ["Gemma3 1B", "Gemma3 4B", "Gemma3 12B"],
+    }
     tasks = df["task_name"].unique()
-    for i, models in enumerate(LLM_FAMILIES.values()):
-        n_models = len(models)
-        total_units = ncols * unit_width
-        row_units = n_models * unit_width
-        offset = (total_units - row_units) // 2
-        for j, model_name in enumerate(models):
-            start = offset + j * unit_width
-            end = start + unit_width
-            ax = fig.add_subplot(gs[i, start:end])
+    for i, (model_family, model_names) in enumerate(LLM_FAMILIES.items()):
+        for j, model_name in enumerate(model_names):
+            ax = axes[i, j]
             for module in ["ln2", "rc2"]:
                 subset = df[(df["model_name"] == model_name) & (df["module"] == module)].copy()
-                values = []
                 depth = []
+                values = []
                 for task_name in tasks:
                     df_task = subset[subset.task_name == task_name]
-                    values.append(df_task["accuracy"])
                     df_task = df_task.sort_values("layer")
                     n_layers = df_task["layer"].max()
                     if len(depth) == 0:
                         depth = df_task["layer"] / n_layers
-                values = np.asarray(values)
-                acc = values.mean(axis=0)
-                ax.plot(depth, acc, label=module)
+                    values.append(df_task["accuracy"])
+                depth = 100 * depth
+                acc = np.asarray(values).mean(axis=0)
+                ax.plot(
+                    depth,
+                    acc,
+                    color=MODULE_PALETTE[module],
+                    linewidth=LINEWIDTH,
+                    linestyle="-" if module != "rc2" else "--",
+                    label=module.upper(),
+                )
 
-                # Mark the highest fc1 performance
+                # Mark the highest ln2 performance
                 if module == "ln2":
                     depth = np.asarray(depth)
                     index = np.argmax(acc)
                     ax.scatter(
                         depth[index],
                         acc[index],
-                        s=MARKER_SIZE,
-                        color="black",
+                        edgecolor="#333333",
+                        s=300,
+                        c=MODULE_PALETTE[module],
+                        marker="*",
+                        zorder=3,
                     )
 
-                # Visualization
-                ax.grid(alpha=ALPHA_GRID, lw=1.3)
-                ax.spines["left"].set_linewidth(1)
-                ax.spines["right"].set_linewidth(1)
-                ax.spines["top"].set_linewidth(1)
-                ax.spines["bottom"].set_linewidth(1)
-                ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-                ax.set_xlim(0, 1)
-                ax.set_xlabel("Normalized depth")
-                ax.set_title(model_name)
-    sns.despine(fig, fig.axes[0], trim=True, right=True, offset=10)
+            # Visualization
+            ax.grid(alpha=ALPHA_GRID, lw=1.3)
+            ax.spines["left"].set_linewidth(1)
+            ax.spines["right"].set_linewidth(1)
+            ax.spines["top"].set_linewidth(1)
+            ax.spines["bottom"].set_linewidth(1)
+            ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+            if i == 0:
+                if j == 0:
+                    yticks = [47, 53, 59]
+                elif j == 1:
+                    yticks = [47, 54, 61]
+                else:
+                    yticks = [47, 55, 63]
+
+            elif i == 1:
+                if j == 0:
+                    yticks = [46, 53, 60]
+                elif j == 1:
+                    yticks = [46, 54, 62]
+                else:
+                    yticks = [46, 55, 64]
+            else:
+                if j == 0:
+                    yticks = [47, 55, 63]
+                elif j == 1:
+                    yticks = [47, 56, 65]
+                else:
+                    yticks = [47, 56, 65]
+            ax.set_yticks(yticks)
+            if i == nrows - 1:
+                ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
+            if j == 0:
+                ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
+            ax.set_title(model_labels[model_family][j], fontsize=FONTSIZE)
+    sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
 
     # Common legend
-    plt.legend()
+    legend = axes[0, 0].legend(
+        loc="upper center",
+        bbox_to_anchor=(0.75, 0.3),
+        fancybox=True,
+        borderaxespad=0,
+        shadow=False,
+        frameon=True,
+        handlelength=1.9,
+        fontsize=LEG_FONTSIZE,
+    )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
     plt.tight_layout()
     if save:
-        figname = f"probing_depth_language_all_{filename}"
+        figname = f"probing_depth_all_language_{filename}"
         save_plot(figname=figname)
 
 
-def plot_model_size_language(filename: str, save: bool = False) -> None:
-    r"""Evolution of gain as a funnction of model size in billions of parameters."""
-    path = RESULT_DIR / "analysis"
+def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
+    r"""
+    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
+
+    Strategies:
+        - Best layer on rc2
+        - Heuristic (fixed 60% of depth on ln2)
+        - Best layer on ln2
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 6
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
+
+    # Recover results
+    path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
+    df = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
 
-    # Figure
-    figsize = 2 * WIDTH, 2 * HEIGHT
-    fig = plt.figure(figsize=figsize)
+    # Keep LLM models
+    all_models = [m for models in LLM_FAMILIES.values() for m in models]
+    df = df[df["model_name"].isin(all_models)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
-    for family, size_map in LLM_SIZES.items():
-        sub = df[df["model_name"].isin(size_map.keys())].copy()
-        sub["size"] = sub["model_name"].map(size_map)
-        sub = sub.sort_values("size")
-        color = GAIN_PALETTE[family.lower()]
-        plt.plot(
-            sub["size"],
-            sub["gain"],
-            linestyle="--",
-            color="black",
-            linewidth=1.3,
-            zorder=1,
-        )
-        plt.scatter(
-            sub["size"],
-            sub["gain"],
-            s=220,
-            color=color,
-            edgecolor="black",
-            linewidth=1.3,
-            label=family,
-            zorder=2,
-        )
-    ax = fig.axes[0]
-    ax.set_xlabel("Model size (B parameters)", fontsize=FONTSIZE)
-    ax.set_ylabel("Gain over standard probing", fontsize=FONTSIZE)
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    order = ["Best RC2", "Heuristic", "Best LN2"]
+    groups = "model_name"
+    rows = []
+    for key, sub in df.groupby(groups):
+        last_layer = sub["layer"].max()
+
+        # Standard
+        baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
+
+        # Best RC2
+        rc2_best = sub[sub.module == "rc2"].accuracy.max()
+        
+        # Heuristic: 60% of depth on ln2
+        heuristic_depth = 0.6
+        heuristic_layer = int(heuristic_depth * last_layer)
+        heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
+        
+        # Best ln2
+        ln2_best = sub[sub.module == "ln2"].accuracy.max()
+        
+        # Recover strategies
+        strategies = {
+            "Best RC2": rc2_best,
+            "Heuristic": heuristic,
+            "Best LN2": ln2_best,
+        }
+
+        # Recover oracle recovery
+        oracle = sub.accuracy.max()
+        oracle_gain = oracle - baseline
+
+        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
+        if oracle_gain < 0.5:
+            continue
+
+        for strategy, acc in strategies.items():
+            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
+            gain = np.max((acc - baseline, 0))
+            recovery = gain / oracle_gain if gain > 0 else 0
+            rows.append(
+                {
+                    "model_name": key,
+                    "strategy": strategy,
+                    "recovery": recovery * 100,
+                }
+            )
+    summary = pd.DataFrame(rows)
+    sns.barplot(
+        data=summary,
+        x="strategy",
+        y="recovery",
+        order=order,
+        estimator=np.mean,
+        errorbar=("ci", 95),
+        palette=[MODULE_PALETTE["rc2"], MODULE_PALETTE["ln2"], MODULE_PALETTE["ln2"]],
+        legend=False,
+        err_kws={"color": "#333333", "linewidth": 1},
+        capsize=0.15,
+        ax=ax,
+    )
+    heuristic_idx = order.index("Heuristic")
+    bar = ax.patches[heuristic_idx]
+    bar.set_hatch("//")
+
+    # Visualization
+    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-    ax.legend(frameon=True, fontsize=FONTSIZE, loc="lower right")
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    ax.set_xticklabels(["Best RC2", "Heuristic", "Best LN2"])
+    ax.set_xlabel("")
+    ax.set_ylabel(r"Oracle recovery ($\%$)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
+    # Common legend
     plt.tight_layout()
     if save:
-        figname = f"model_size_language_{filename}"
-        save_plot(figname=figname)
+        save_plot(figname=f"oracle_recovery_language_{filename}")
+
+
+def table_oracle_recovery_language(filename: str) -> None:
+    r"""
+    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all models.
+
+    Strategies:
+        - Best layer on rc2
+        - Heuristic (60% depth on ln2)
+        - Best layer on ln2
+    """
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+    df = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
+
+    # Keep LLM models
+    all_models = [m for models in LLM_FAMILIES.values() for m in models]
+    df = df[df["model_name"].isin(all_models)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Heuristic depth
+    heuristic_depth = 0.6
+
+    # Results
+    order = ["Best RC2", "Heuristic", "Best LN2"]
+    groups = "model_name"
+    rows = []
+    for key, sub in df.groupby(groups):
+        last_layer = sub["layer"].max()
+
+        # Standard
+        baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
+
+        # Best RC2, last layer act, best act
+        rc2_best = sub[sub.module == "rc2"].accuracy.max()
+        heuristic_layer = int(heuristic_depth * last_layer)
+        heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
+        ln2_best = sub[sub.module == "ln2"].accuracy.max()
+        strategies = {
+            "Best RC2": rc2_best,
+            "Heuristic": heuristic,
+            "Best LN2": ln2_best,
+        }
+
+        # Recover oracle recovery
+        oracle = sub.accuracy.max()
+        oracle_gain = oracle - baseline
+
+        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
+        if oracle_gain < 0.5:
+            continue
+
+        for strategy, acc in strategies.items():
+            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
+            gain = np.max((acc - baseline, 0))
+            recovery = gain / oracle_gain if gain > 0 else 0
+            rows.append(
+                {
+                    "model_name": key,
+                    "strategy": strategy,
+                    "recovery": recovery * 100,
+                }
+            )
+    summary = pd.DataFrame(rows)
+
+    # Pooled mean recovery per strategy, single-row table
+    pooled_recovery = summary.groupby("strategy")["recovery"].mean().reindex(order)
+    table = pd.DataFrame({"Oracle recovery (%)": pooled_recovery}).T
+    latex_str = table.round(1).to_latex(
+        caption="Average gain and oracle gain recovery (\\%) per strategy, pooled over all models.",
+        label=f"tab:oracle_recovery_{filename}",
+        column_format="l" + "c" * len(order),
+        escape=False,
+    )
+    print(latex_str)
 
 
 # ------------------------------------------------------------------------------
@@ -1748,123 +2094,71 @@ def table_oracle_recovery_language(filename: str) -> None:
     print(latex_str)
 
 
-def lomo_depth_heuristic(filename: str) -> None:
-    r"""
-    Leave-one-model-out estimate of a fixed relative-depth heuristic
-    (module fixed at ln2). For each model, the heuristic depth is the
-    median relative depth of the joint optimum across all other models;
-    recovered gain is then evaluated on the held-out model at that
-    depth, averaged over all MTEB tasks, avoiding data leakage.
-    """
-    # Recover raw per-task results, then average over tasks per (model, layer, module)
-    path = RESULT_DIR
-    full_df = pd.read_csv(path / f"{filename}.csv")
-    full_df = full_df.copy()
-    full_avg = full_df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
-
-    # Recover aggregated per-model analysis table
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-    df["relative_depth"] = df["best_layer"] / df["n_layers"]
-
-    # Keep LLM models
-    all_models = [m for models in LLM_FAMILIES.values() for m in models]
-    df = df[df["model_name"].isin(all_models)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    # Results
-    results = []
-    for held_out in df["model_name"]:
-        other = df[df["model_name"] != held_out]
-        heuristic_depth = 0.6  # other["relative_depth"].median()
-        row = df[df["model_name"] == held_out].iloc[0]
-        n_layers = row["n_layers"]
-        heuristic_layer = round(heuristic_depth * (n_layers - 1))
-
-        sub = full_avg[
-            (full_avg["model_name"] == held_out)
-            & (full_avg["module"] == "ln2")
-            & (full_avg["layer"] == heuristic_layer)
-        ]
-
-        heuristic_accuracy = float(sub["accuracy"].iloc[0])
-        heuristic_gain = heuristic_accuracy - row["baseline_accuracy"]
-
-        results.append(
-            {
-                "model_name": held_out,
-                "heuristic_depth": heuristic_depth,
-                "heuristic_layer": heuristic_layer,
-                "heuristic_gain": heuristic_gain,
-                "oracle_gain": row["gain"],
-                "recovery": heuristic_gain / row["gain"],
-            }
-        )
-    results = pd.DataFrame(results)
-    print(results)
-
-
 # ------------------------------------------------------------------------------
 # Results functions
 # ------------------------------------------------------------------------------
 def plot_figures() -> None:
     r"""VFMs plots."""
-    # # CDF
-    # save = True
-    # plot_cdf_vision(filename="cls", save=save)
+    # CDF
+    save = True
+    plot_cdf_vision(filename="cls", save=save)
 
-    # # Dataset difficulty
-    # save = True
-    # filename = "cls"
-    # plot_dataset_difficulty_vision(filename=filename, save=save)
+    # Dataset difficulty
+    save = True
+    filename = "cls"
+    plot_dataset_difficulty_vision(filename=filename, save=save)
 
-    # # Cifar10-C
-    # save = True
-    # filename = "cifar10_c"
-    # plot_cifar10c_severity(filename=filename, save=save)
+    # Cifar10-C
+    save = True
+    filename = "cifar10_c"
+    plot_cifar10c_severity(filename=filename, save=save)
 
-    # # Pretraining scale
-    # save = True
-    # filename = "cls"
-    # plot_pretraining_scale_vision(filename=filename, save=save)
+    # Pretraining scale
+    save = True
+    filename = "cls"
+    plot_pretraining_scale_vision(filename=filename, save=save)
 
-    # # Model family
-    # save = True
-    # filename = "cls"
-    # plot_model_family_vision(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "cls"
+    plot_model_family_vision(filename=filename, save=save)
 
-    # # Probing depth
-    # save = True
-    # filename = "cls"
-    # plot_probing_depth_vision(filename=filename, save=save)
-    # plot_probing_depth_all_vision(filename=filename, save=save)
+    # Probing depth
+    save = True
+    filename = "cls"
+    plot_probing_depth_vision(filename=filename, save=save)
+    plot_probing_depth_all_vision(filename=filename, save=save)
 
-    # # Oracle recovery
-    # save = True
-    # filename = "cls"
-    # plot_oracle_recovery_vision(filename=filename, save=save)
+    # Oracle recovery
+    save = True
+    filename = "cls"
+    plot_oracle_recovery_vision(filename=filename, save=save)
 
     r"""LLMs plots."""
-    # # CDF
-    # save = True
-    # plot_cdf_language(filename="mteb_detailed", save=save)
+    # CDF
+    save = True
+    plot_cdf_language(filename="mteb_detailed", save=save)
 
-    # # Model family
-    # save = True
-    # filename = "mteb"
-    # plot_model_family_language(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "mteb"
+    plot_model_family_language(filename=filename, save=save)
+
+    # Model size
+    save = True
+    filename = "mteb"
+    plot_model_size_language(filename=filename, save=save)
 
     # Probing depth
     save = True
     filename = "mteb"
     plot_probing_depth_language(filename=filename, save=save)
-    # plot_probing_depth_all_language(filename=filename, save=save)
+    plot_probing_depth_all_language(filename=filename, save=save)
 
-    # # Model size
-    # save = True
-    # filename = "mteb"
-    # plot_model_size_language(filename=filename, save=save)
+    # Oracle recovery
+    save = True
+    filename = "mteb"
+    plot_oracle_recovery_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
@@ -1883,9 +2177,9 @@ def get_tables() -> None:
     # table_performance_comparison_all_vision(filename=filename)
 
     r"""LLMs tables."""
-    # Performance comparions
-    filename = "mteb"
-    table_performance_comparison_language(filename=filename)
+    # # Performance comparions
+    # filename = "mteb"
+    # table_performance_comparison_language(filename=filename)
 
     # Oracle recovery
     filename = "mteb"
