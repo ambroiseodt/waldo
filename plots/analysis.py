@@ -279,12 +279,28 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         linewidths=MARKER_LINEWIDTH,
     )
 
-    # Regression
-    rho, pval = spearmanr(summary["max_accuracy"], summary["mean_gain"])
+    # Annotate
+    summary_subset = summary.copy()
+    summary_subset = summary_subset[summary_subset["dataset_name"].isin(REPRESENTATIVE_DATASETS)]
+    for _, row in summary_subset.iterrows():
+        ax.annotate(
+            DATASETS[row["dataset_name"]],
+            (row["best_error"], row["mean_gain"]),
+            xytext=(8, 0),
+            textcoords="offset points",
+            color="#333333",
+            fontsize=15,
+            va="center",
+            ha="left",
+        )
+
+    # Regression on all models x dataset points
+    df_full = df.merge(summary[["dataset_name", "best_error"]], on="dataset_name")
+    rho, pval = spearmanr(df_full["best_error"], df_full["gain"])
     sns.regplot(
-        data=summary,
+        data=df_full,
         x="best_error",
-        y="mean_gain",
+        y="gain",
         color="#a291e1",
         scatter=False,
         ci=None,
@@ -292,7 +308,7 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         ax=ax,
     )
     handle = Line2D(
-        [0], [0], color="#a291e1", linewidth=2, label=rf"$\rho= {rho:.2f}$" + "\n" + rf"$\text{{p-value}}= {pval:.3f}$"
+        [0], [0], color="#a291e1", linewidth=2, label=rf"$\rho= {rho:.2f}$" + "\n" + rf"$\text{{p-value}}= {pval:.1e}$"
     )
     legend = ax.legend(
         handles=[handle],
@@ -309,21 +325,6 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     legend.get_frame().set_facecolor("white")
     legend.get_frame().set_alpha(1.0)
     legend.set_zorder(10)
-
-    # Annotate
-    summary_subset = summary.copy()
-    summary_subset = summary_subset[summary_subset["dataset_name"].isin(REPRESENTATIVE_DATASETS)]
-    for _, row in summary_subset.iterrows():
-        ax.annotate(
-            DATASETS[row["dataset_name"]],
-            (row["best_error"], row["mean_gain"]),
-            xytext=(8, 0),
-            textcoords="offset points",
-            color="#333333",
-            fontsize=15,
-            va="center",
-            ha="left",
-        )
 
     # Visualization
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
@@ -961,13 +962,13 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
 
         # Best RC2
         rc2_best = sub[sub.module == "rc2"].accuracy.max()
-        
+
         # Heuristic: last layer act
         heuristic = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
-        
+
         # Best act
         act_best = sub[sub.module == "act"].accuracy.max()
-        
+
         # Recover strategies
         strategies = {
             "Best RC2": rc2_best,
@@ -1022,6 +1023,8 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
     ax.set_xticklabels(["Best RC2", "Heuristic", "Best Act"])
+    ax.set_ylim(20, 100)
+    ax.set_yticks([20, 40, 60, 80, 100])
     ax.set_xlabel("")
     ax.set_ylabel(r"Oracle recovery ($\%$)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
@@ -1458,7 +1461,7 @@ def plot_model_size_language(filename: str, save: bool = False, ncol: int = 3) -
     df["size"] = df["model_name"].map(LLM_SIZES)
     df["model_bin"] = df["model_name"].map(model_bins)
     df["bin"] = df["model_bin"].map(bins)
- 
+
     # Results
     rng = np.random.default_rng(0)
     for col, label in [("gain_layer", "layer"), ("gain_module", "module"), ("gain", "oracle")]:
@@ -1812,15 +1815,15 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
 
         # Best RC2
         rc2_best = sub[sub.module == "rc2"].accuracy.max()
-        
+
         # Heuristic: 60% of depth on ln2
         heuristic_depth = 0.6
         heuristic_layer = int(heuristic_depth * last_layer)
         heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
-        
+
         # Best ln2
         ln2_best = sub[sub.module == "ln2"].accuracy.max()
-        
+
         # Recover strategies
         strategies = {
             "Best RC2": rc2_best,
@@ -1873,6 +1876,8 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
     ax.set_xticklabels(["Best RC2", "Heuristic", "Best LN2"])
+    ax.set_ylim(20, 100)
+    ax.set_yticks([20, 40, 60, 80, 100])
     ax.set_xlabel("")
     ax.set_ylabel(r"Oracle recovery ($\%$)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
@@ -1881,83 +1886,6 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     plt.tight_layout()
     if save:
         save_plot(figname=f"oracle_recovery_language_{filename}")
-
-
-def table_oracle_recovery_language(filename: str) -> None:
-    r"""
-    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all models.
-
-    Strategies:
-        - Best layer on rc2
-        - Heuristic (60% depth on ln2)
-        - Best layer on ln2
-    """
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-    df = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
-
-    # Keep LLM models
-    all_models = [m for models in LLM_FAMILIES.values() for m in models]
-    df = df[df["model_name"].isin(all_models)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    # Heuristic depth
-    heuristic_depth = 0.6
-
-    # Results
-    order = ["Best RC2", "Heuristic", "Best LN2"]
-    groups = "model_name"
-    rows = []
-    for key, sub in df.groupby(groups):
-        last_layer = sub["layer"].max()
-
-        # Standard
-        baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-
-        # Best RC2, last layer act, best act
-        rc2_best = sub[sub.module == "rc2"].accuracy.max()
-        heuristic_layer = int(heuristic_depth * last_layer)
-        heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
-        ln2_best = sub[sub.module == "ln2"].accuracy.max()
-        strategies = {
-            "Best RC2": rc2_best,
-            "Heuristic": heuristic,
-            "Best LN2": ln2_best,
-        }
-
-        # Recover oracle recovery
-        oracle = sub.accuracy.max()
-        oracle_gain = oracle - baseline
-
-        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
-        if oracle_gain < 0.5:
-            continue
-
-        for strategy, acc in strategies.items():
-            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
-            gain = np.max((acc - baseline, 0))
-            recovery = gain / oracle_gain if gain > 0 else 0
-            rows.append(
-                {
-                    "model_name": key,
-                    "strategy": strategy,
-                    "recovery": recovery * 100,
-                }
-            )
-    summary = pd.DataFrame(rows)
-
-    # Pooled mean recovery per strategy, single-row table
-    pooled_recovery = summary.groupby("strategy")["recovery"].mean().reindex(order)
-    table = pd.DataFrame({"Oracle recovery (%)": pooled_recovery}).T
-    latex_str = table.round(1).to_latex(
-        caption="Average gain and oracle gain recovery (\\%) per strategy, pooled over all models.",
-        label=f"tab:oracle_recovery_{filename}",
-        column_format="l" + "c" * len(order),
-        escape=False,
-    )
-    print(latex_str)
 
 
 # ------------------------------------------------------------------------------
@@ -1976,15 +1904,13 @@ def table_performance_comparison_language(filename: str) -> None:
     df = df[df["model_name"].isin(all_models)]
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
-    # Heuristic depth
-    heuristic_depth = 0.6
-
     # Results
     rows = []
     groups = "model_name"
     for model_name, sub in df.groupby(groups):
         last_layer = sub.layer.max()
         standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
+        heuristic_depth = 0.6
         heuristic_layer = int(heuristic_depth * last_layer)
         heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
         oracle = sub.accuracy.max()
@@ -2015,83 +1941,6 @@ def table_performance_comparison_language(filename: str) -> None:
     ordered_models = [m for m in ordered_models if m in table.columns]
     table = table[ordered_models + ["Average"]]
     print(table.to_latex(float_format="%.2f", bold_rows=True, escape=False))
-
-
-def table_oracle_recovery_language(filename: str) -> None:
-    r"""
-    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all models.
-
-    Strategies:
-        - Best layer on rc2
-        - Heuristic (60% depth on ln2)
-        - Best layer on ln2
-    """
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-    df = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
-
-    # Keep LLM models
-    all_models = [m for models in LLM_FAMILIES.values() for m in models]
-    df = df[df["model_name"].isin(all_models)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    # Heuristic depth
-    heuristic_depth = 0.6
-
-    # Results
-    order = ["Best RC2", "Heuristic", "Best LN2"]
-    groups = "model_name"
-    rows = []
-    for key, sub in df.groupby(groups):
-        last_layer = sub["layer"].max()
-
-        # Standard
-        baseline = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-
-        # Best RC2, last layer act, best act
-        rc2_best = sub[sub.module == "rc2"].accuracy.max()
-        heuristic_layer = int(heuristic_depth * last_layer)
-        heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
-        ln2_best = sub[sub.module == "ln2"].accuracy.max()
-        strategies = {
-            "Best RC2": rc2_best,
-            "Heuristic": heuristic,
-            "Best LN2": ln2_best,
-        }
-
-        # Recover oracle recovery
-        oracle = sub.accuracy.max()
-        oracle_gain = oracle - baseline
-
-        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
-        if oracle_gain < 0.5:
-            continue
-
-        for strategy, acc in strategies.items():
-            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
-            gain = np.max((acc - baseline, 0))
-            recovery = gain / oracle_gain if gain > 0 else 0
-            rows.append(
-                {
-                    "model_name": key,
-                    "strategy": strategy,
-                    "recovery": recovery * 100,
-                }
-            )
-    summary = pd.DataFrame(rows)
-
-    # Pooled mean recovery per strategy, single-row table
-    pooled_recovery = summary.groupby("strategy")["recovery"].mean().reindex(order)
-    table = pd.DataFrame({"Oracle recovery (%)": pooled_recovery}).T
-    latex_str = table.round(1).to_latex(
-        caption="Average gain and oracle gain recovery (\\%) per strategy, pooled over all models.",
-        label=f"tab:oracle_recovery_{filename}",
-        column_format="l" + "c" * len(order),
-        escape=False,
-    )
-    print(latex_str)
 
 
 # ------------------------------------------------------------------------------
@@ -2163,27 +2012,23 @@ def plot_figures() -> None:
 
 def get_tables() -> None:
     r"""VFMs tables."""
-    # # Model size
-    # filename = "cls"
-    # table_model_size_vision(filename=filename)
+    # Model size
+    filename = "cls"
+    table_model_size_vision(filename=filename)
 
-    # # Winning module frequency
-    # filename = "cls"
-    # table_winning_module_frequency_vision(filename=filename)
+    # Winning module frequency
+    filename = "cls"
+    table_winning_module_frequency_vision(filename=filename)
 
-    # # Performance comparions
-    # filename = "cls"
-    # table_performance_comparison_vision(filename=filename)
-    # table_performance_comparison_all_vision(filename=filename)
+    # Performance comparions
+    filename = "cls"
+    table_performance_comparison_vision(filename=filename)
+    table_performance_comparison_all_vision(filename=filename)
 
     r"""LLMs tables."""
-    # # Performance comparions
-    # filename = "mteb"
-    # table_performance_comparison_language(filename=filename)
-
-    # Oracle recovery
+    # Performance comparions
     filename = "mteb"
-    table_oracle_recovery_language(filename=filename)
+    table_performance_comparison_language(filename=filename)
 
 
 # %% Main
