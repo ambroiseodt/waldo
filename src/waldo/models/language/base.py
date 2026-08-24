@@ -438,7 +438,6 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
                 batch_embeddings = self._encode_sentences(sentences=batch["text"])
                 all_embeddings.append(batch_embeddings)
             return torch.cat(all_embeddings, dim=0)
-
         elif isinstance(inputs, list):
             return self._encode_sentences(inputs)
         else:
