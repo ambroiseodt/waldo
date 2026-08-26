@@ -135,7 +135,7 @@ def save_plot(figname: str, dirname: str | None = None, format: str = "pdf", dpi
 # ------------------------------------------------------------------------------
 # VFMs plotting functions
 # ------------------------------------------------------------------------------
-def plot_cdf_vision(filename: str, ncol: int = 3, save: bool = False) -> None:
+def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
     r"""
     Plot the percentage of runs over VFMs for which the gain is strictly above a certain threshold.
 
@@ -148,22 +148,17 @@ def plot_cdf_vision(filename: str, ncol: int = 3, save: bool = False) -> None:
     ----------
     filename: str
         Name of the result file to use.
-    ncol: int, default=3
+    ncol: int, default=1
         Number of legend columns.
     save: bool, default=False
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     figsize = width, height
     fig = plt.figure(figsize=figsize)
     ax = fig.gca()
-
-    # Zoomed window (x and y axis are padded to avoid overlapping splines)
-    ZOOM_XLIM = (-0.05, 0.45)
-    ZOOM_YLIM = (70, 100)
-    axins = ax.inset_axes((0.35, 0.38, 0.24, 0.44))
 
     # Recover results
     path = RESULT_DIR / "analysis"
@@ -180,21 +175,6 @@ def plot_cdf_vision(filename: str, ncol: int = 3, save: bool = False) -> None:
         gains = np.sort(df[col].to_numpy())
         percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
         ax.plot(gains, percentage, linewidth=LINEWIDTH, color=GAIN_PALETTE[label], label=LABEL[label])
-        axins.plot(gains, percentage, linewidth=LINEWIDTH, color=GAIN_PALETTE[label])
-
-    # Subplot limits
-    axins.set_xlim(*ZOOM_XLIM)
-    axins.set_ylim(*ZOOM_YLIM)
-    yticks = [70, 80, 90, 100]
-    axins.set_yticks(yticks)
-    axins.grid(alpha=ALPHA_GRID, lw=1.0)
-    axins.tick_params(axis="both", direction="out", length=3, width=1, labelsize=FONTSIZE * ZOOM_SCALE)
-    for spine in axins.spines.values():
-        spine.set_linewidth(0.8)
-        spine.set_edgecolor("0.6")
-
-    # Align zoomed window and subplot
-    ax.indicate_inset_zoom(axins, edgecolor="0.15", linewidth=1.0, linestyle="--")
 
     # Visualization (parent)
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
@@ -214,18 +194,23 @@ def plot_cdf_vision(filename: str, ncol: int = 3, save: bool = False) -> None:
     # Common legend
     lines_labels = [fig.axes[0].get_legend_handles_labels()]
     lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
-    fig.legend(
+    lines, labels = lines[::-1], labels[::-1]
+    legend = fig.legend(
         lines,
         labels,
         loc="upper center",
-        bbox_to_anchor=(0.53, 1.05),
+        bbox_to_anchor=(0.72, 0.9),
         fancybox=True,
         borderaxespad=0,
         ncol=ncol,
         shadow=False,
-        frameon=False,
+        frameon=True,
         fontsize=LEG_FONTSIZE,
     )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
     plt.tight_layout()
     if save:
         figname = f"cdf_vision_{filename}"
@@ -245,7 +230,7 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     figsize = width, height
     fig = plt.figure(figsize=figsize)
@@ -283,17 +268,28 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     summary_subset = summary.copy()
     summary_subset = summary_subset[summary_subset["dataset_name"].isin(REPRESENTATIVE_DATASETS)]
     for _, row in summary_subset.iterrows():
-        ax.annotate(
-            DATASETS[row["dataset_name"]],
-            (row["best_error"], row["mean_gain"]),
-            xytext=(8, 0),
-            textcoords="offset points",
-            color="#333333",
-            fontsize=15,
-            va="center",
-            ha="left",
-        )
-
+        if "aircraft" == row["dataset_name"]:
+            ax.annotate(
+                DATASETS[row["dataset_name"]],
+                (row["best_error"], row["mean_gain"]),
+                xytext=(-56, 0),
+                textcoords="offset points",
+                color="#333333",
+                fontsize=15,
+                va="center",
+                ha="left",
+            )
+        else:
+            ax.annotate(
+                DATASETS[row["dataset_name"]],
+                (row["best_error"], row["mean_gain"]),
+                xytext=(8, 0),
+                textcoords="offset points",
+                color="#333333",
+                fontsize=15,
+                va="center",
+                ha="left",
+            )
     # Regression on all models x dataset points
     df_full = df.merge(summary[["dataset_name", "best_error"]], on="dataset_name")
     rho, pval = spearmanr(df_full["best_error"], df_full["gain"])
@@ -363,7 +359,7 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     figsize = width, height
     fig = plt.figure(figsize=figsize)
@@ -401,7 +397,7 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    yticks = [0, 1, 2]
+    yticks = [0.0, 1.25, 2.5]
     ax.set_yticks(yticks)
     ax.set_xlabel("Corruption severity", fontsize=FONTSIZE)
     ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
@@ -413,9 +409,9 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         save_plot(figname=f"cifar10c_severity_{filename}")
 
 
-def plot_pretraining_scale_vision(filename: str, ncol: int = 3, save: bool = False) -> None:
+def plot_pretraining_scale_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
     r"""
-    Plot the average gains over standard probing for different pretraining scales.
+    Plot the average oracle gains over standard probing for different pretraining scales.
 
     We follow the scaling law literature for LLMs [1, 2]_ and consider the total amount of tokens seen during
     pretraining. Notably, this takes into considerations multiple epochs, i.e., the number of image exposure, and
@@ -427,7 +423,7 @@ def plot_pretraining_scale_vision(filename: str, ncol: int = 3, save: bool = Fal
     ----------
     filename: str
         Name of the result file to use.
-    ncol: int, default=3
+    ncol: int, default=1
         Number of columns for the legend.
     save: bool, default=False
         Whether to save the plot.
@@ -462,7 +458,7 @@ def plot_pretraining_scale_vision(filename: str, ncol: int = 3, save: bool = Fal
     .. [6] E. Fini et al. Multimodal Autoregressive Pre-training of Large Vision Encoders. In CVPR 2025
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     figsize = width, height
     fig = plt.figure(figsize=figsize)
@@ -477,36 +473,44 @@ def plot_pretraining_scale_vision(filename: str, ncol: int = 3, save: bool = Fal
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
-    # Recover representative models
-    mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMs.items():
-        mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
-
     # Pretraining scale
     pretraining_tokens = {"vit": 2.5e11, "dinov2": 1.80e12, "aimv2": 3.15e12, "dinov3": 3.91e12}
     df["pretraining_tokens"] = df["model_name"].map(pretraining_tokens)
 
     # Results
-    stats = {}
     models = ["vit", "dinov2", "aimv2", "dinov3"]
-    stats["layer"] = [np.mean(df[df["model_name"] == model]["gain_layer"].to_numpy()) for model in models]
-    stats["module"] = [np.mean(df[df["model_name"] == model]["gain_module"].to_numpy()) for model in models]
-    stats["oracle"] = [np.mean(df[df["model_name"] == model]["gain"].to_numpy()) for model in models]
+    oracle_gains = [np.mean(df[df["model_name"] == model]["gain"].to_numpy()) for model in models]
     scales = list(pretraining_tokens.values())
-    for key, values in stats.items():
-        ax.plot(scales, values, linewidth=LINEWIDTH, color=GAIN_PALETTE[key], label=LABEL[key])
-        for model_name, x, y in zip(models, scales, values, strict=True):
-            ax.scatter(
-                x,
-                y,
-                s=VFM_MARKER_SIZE[model_name],
-                color=GAIN_PALETTE[key],
-                edgecolor="#333333",
-                linewidth=MARKER_LINEWIDTH,
-                marker=VFM_MARKERS[model_name],
-                zorder=2,
-            )
+    ax.plot(scales, oracle_gains, linewidth=LINEWIDTH, color=GAIN_PALETTE["oracle"])
+    for model_name, x, y in zip(models, scales, oracle_gains, strict=True):
+        ax.scatter(
+            x,
+            y,
+            s=VFM_MARKER_SIZE[model_name],
+            color=GAIN_PALETTE["oracle"],
+            edgecolor="#333333",
+            linewidth=MARKER_LINEWIDTH,
+            marker=VFM_MARKERS[model_name],
+            zorder=2,
+        )
+
+    # Label model families below the oracle markers
+    oracle_values = stats["oracle"]
+    label_offsets = {"vit": (0, 25), "dinov2": (0, 25), "aimv2": (0, 25), "dinov3": (0, 25)}
+    for model_name, x, y in zip(models, scales, oracle_values, strict=True):
+        dx, dy = label_offsets[model_name]
+        ax.annotate(
+            VFM_NAMES[model_name],
+            xy=(float(x), float(y)),
+            xytext=(dx, dy),
+            textcoords="offset points",
+            ha="center",
+            va="top",
+            fontsize=15,
+            color="#333333",
+            zorder=10,
+            bbox=dict(facecolor="white", edgecolor="none", pad=0.0),
+        )
 
     # Visualization
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
@@ -518,65 +522,39 @@ def plot_pretraining_scale_vision(filename: str, ncol: int = 3, save: bool = Fal
     xticks = [2.5e11, 1.5e12, 2.75e12, 4e12]
     ax.set_xticks(xticks)
     ax.set_xticklabels([r"$250$B", r"$1.5$T", r"$2.75$T", r"$4$T"])
-    yticks = [0.5, 2.5, 4.5]
+    yticks = [0, 2.5, 5]
     ax.set_yticks(yticks)
     ax.set_xlabel("Number of pretraining tokens", fontsize=FONTSIZE)
     ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
-    # Marker legend
-    handles = [
-        Line2D(
-            [0],
-            [0],
-            linestyle="",
-            marker=m,
-            markerfacecolor="#e0e0e0",
-            markeredgecolor="#333333",
-            markersize=10 if "aim" not in model else 14,
-            label=VFM_NAMES[model],
-        )
-        for model, m in VFM_MARKERS.items()
-    ]
-    legend = ax.legend(
-        handles=handles,
+    # Common legend
+    lines_labels = [fig.axes[0].get_legend_handles_labels()]
+    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
+    lines, labels = lines[::-1], labels[::-1]
+    legend = fig.legend(
+        lines,
+        labels,
         loc="upper center",
-        bbox_to_anchor=(0.82, 0.9),
+        bbox_to_anchor=(0.72, 0.9),
         fancybox=True,
         borderaxespad=0,
+        ncol=ncol,
         shadow=False,
         frameon=True,
-        handlelength=1.9,
-        fontsize=12,
+        fontsize=LEG_FONTSIZE,
     )
     legend.get_frame().set_edgecolor("none")
     legend.get_frame().set_facecolor("white")
     legend.get_frame().set_alpha(1.0)
     legend.set_zorder(10)
-    ax.add_artist(legend)
-
-    # Common legend
-    lines_labels = [fig.axes[0].get_legend_handles_labels()]
-    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
-    fig.legend(
-        lines,
-        labels,
-        loc="upper center",
-        bbox_to_anchor=(0.53, 1.05),
-        fancybox=True,
-        borderaxespad=0,
-        ncol=ncol,
-        shadow=False,
-        frameon=False,
-        fontsize=LEG_FONTSIZE,
-    )
     plt.tight_layout()
     if save:
         figname = f"pretraining_scale_vision_{filename}"
         save_plot(figname=figname)
 
 
-def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -> None:
+def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -> None:
     r"""
     Plot the gain over standard probing for each model family.
 
@@ -591,11 +569,11 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
         Name of the result file to use.
     save: bool, default=False
         Whether to save the plot.
-    ncol: int, default=3
+    ncol: int, default=1
         Number of columns in the legend.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     ncols = len(REPRESENTATIVE_DATASETS)
     figsize = ncols * width, height
@@ -664,19 +642,24 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 3) -
     # Common legend
     lines_labels = [fig.axes[0].get_legend_handles_labels()]
     lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
+    lines, labels = lines[::-1], labels[::-1]
     labels = [LABEL[key] for key in gain_labels]
-    fig.legend(
+    legend = fig.legend(
         lines,
         labels,
         loc="upper center",
-        bbox_to_anchor=(0.53, 1.08),
+        bbox_to_anchor=(0.91, 0.78),
         fancybox=True,
         borderaxespad=0,
         ncol=ncol,
         shadow=False,
-        frameon=False,
-        fontsize=22,
+        frameon=True,
+        fontsize=LEG_FONTSIZE,
     )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
     plt.tight_layout()
     if save:
         figname = f"model_family_vision_{filename}"
@@ -695,7 +678,7 @@ def plot_probing_depth_vision(filename: str, ncol: int = 2, save: bool = False) 
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5
     height = 5
     ncols = len(REPRESENTATIVE_VFMs)
     figsize = ncols * width, height
@@ -802,7 +785,7 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     nrows = len(REPRESENTATIVE_DATASETS)
     ncols = len(REPRESENTATIVE_VFMs)
@@ -893,7 +876,7 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
             if i == nrows - 1:
                 ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
             if j == 0:
-                ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
+                ax.set_ylabel(f"{DATASETS[dataset_name]}\n" + r"Accuracy ($\%$)", fontsize=FONTSIZE)
             ax.set_title(VFM_NAMES[model_name], fontsize=FONTSIZE)
     sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
 
@@ -935,7 +918,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     figsize = width, height
     fig = plt.figure(figsize=figsize)
@@ -1024,7 +1007,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     ax.tick_params(axis="both", direction="out", length=5, width=1)
     ax.set_xticklabels(["Best RC2", "Heuristic", "Best Act"])
     ax.set_ylim(20, 100)
-    ax.set_yticks([20, 40, 60, 80, 100])
+    ax.set_yticks([20, 40, 60, 80])
     ax.set_xlabel("")
     ax.set_ylabel(r"Oracle recovery ($\%$)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
@@ -1231,7 +1214,7 @@ def table_performance_comparison_all_vision(filename: str) -> None:
 # ------------------------------------------------------------------------------
 # LLMs plotting functions
 # ------------------------------------------------------------------------------
-def plot_cdf_language(filename: str, ncol: int = 3, save: bool = False) -> None:
+def plot_cdf_language(filename: str, ncol: int = 1, save: bool = False) -> None:
     r"""
     Plot the percentage of runs over LLMs for which the gain is strictly above a certain threshold.
 
@@ -1244,13 +1227,13 @@ def plot_cdf_language(filename: str, ncol: int = 3, save: bool = False) -> None:
     ----------
     filename: str
         Name of the result file to use.
-    ncol: int, default=3
+    ncol: int, default=1
         Number of legend columns.
     save: bool, default=False
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     figsize = width, height
     fig = plt.figure(figsize=figsize)
@@ -1290,25 +1273,30 @@ def plot_cdf_language(filename: str, ncol: int = 3, save: bool = False) -> None:
     # Common legend
     lines_labels = [fig.axes[0].get_legend_handles_labels()]
     lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
-    fig.legend(
+    lines, labels = lines[::-1], labels[::-1]
+    legend = fig.legend(
         lines,
         labels,
         loc="upper center",
-        bbox_to_anchor=(0.53, 1.05),
+        bbox_to_anchor=(0.75, 0.9),
         fancybox=True,
         borderaxespad=0,
         ncol=ncol,
         shadow=False,
-        frameon=False,
+        frameon=True,
         fontsize=LEG_FONTSIZE,
     )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
     plt.tight_layout()
     if save:
         figname = f"cdf_language_{filename}"
         save_plot(figname=figname)
 
 
-def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3) -> None:
+def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1) -> None:
     r"""
     Plot the gain over standard probing for each LLM family, one subplot
     per family, with grouped bars (layer/module/both) for each model
@@ -1326,11 +1314,11 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3)
         Name of the result file to use.
     save: bool, default=False
         Whether to save the plot.
-    ncol: int, default=3
+    ncol: int, default=1
         Number of columns in the legend.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     ncols = len(LLM_FAMILIES)
     figsize = ncols * width, height
@@ -1395,19 +1383,24 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 3)
     # Common legend
     lines_labels = [fig.axes[0].get_legend_handles_labels()]
     lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
+    lines, labels = lines[::-1], labels[::-1]
     labels = [LABEL[key] for key in gain_labels]
-    fig.legend(
+    legend = fig.legend(
         lines,
         labels,
         loc="upper center",
-        bbox_to_anchor=(0.53, 1.08),
+        bbox_to_anchor=(0.94, 0.9),
         fancybox=True,
         borderaxespad=0,
         ncol=ncol,
         shadow=False,
-        frameon=False,
-        fontsize=22,
+        frameon=True,
+        fontsize=LEG_FONTSIZE,
     )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
     plt.tight_layout()
     if save:
         figname = f"model_family_language_{filename}"
@@ -1428,7 +1421,7 @@ def plot_model_size_language(filename: str, save: bool = False, ncol: int = 3) -
         Number of columns in the legend.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     figsize = width, height
     fig = plt.figure(figsize=figsize)
@@ -1539,7 +1532,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     ncols = len(REPRESENTATIVE_LLMs)
     figsize = ncols * width, height
@@ -1648,7 +1641,7 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     nrows = 3
     ncols = 3
@@ -1786,7 +1779,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 6
+    width = 5.5
     height = 5
     figsize = width, height
     fig = plt.figure(figsize=figsize)
@@ -1851,6 +1844,8 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
                 }
             )
     summary = pd.DataFrame(rows)
+    avg = summary.groupby("strategy")["recovery"].mean()
+    print(avg)
     sns.barplot(
         data=summary,
         x="strategy",
@@ -1943,92 +1938,119 @@ def table_performance_comparison_language(filename: str) -> None:
     print(table.to_latex(float_format="%.2f", bold_rows=True, escape=False))
 
 
+def table_runs() -> None:
+    r"""Compute the number of runs in our experiments."""
+    path = RESULT_DIR
+
+    # Vision
+    comp = 0
+    for filename in ["cls", "cifar10_c"]:
+        df = pd.read_csv(path / f"{filename}.csv")
+        df = df.copy()
+        pattern = "|".join(VFMs)
+        df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+        print(f"There are {len(df)} runs for {filename}.")
+        comp += len(df)
+    print(f"There are {comp} VFMs runs.")
+
+    # Language
+    filename = "mteb"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    print(f"There are {len(df)} LLMs runs.")
+
+
 # ------------------------------------------------------------------------------
 # Results functions
 # ------------------------------------------------------------------------------
 def plot_figures() -> None:
     r"""VFMs plots."""
-    # CDF
-    save = True
-    plot_cdf_vision(filename="cls", save=save)
+    # # CDF
+    # save = True
+    # plot_cdf_vision(filename="cls", save=save)
 
-    # Dataset difficulty
-    save = True
-    filename = "cls"
-    plot_dataset_difficulty_vision(filename=filename, save=save)
+    # # Dataset difficulty
+    # save = True
+    # filename = "cls"
+    # plot_dataset_difficulty_vision(filename=filename, save=save)
 
-    # Cifar10-C
-    save = True
-    filename = "cifar10_c"
-    plot_cifar10c_severity(filename=filename, save=save)
+    # # Cifar10-C
+    # save = True
+    # filename = "cifar10_c"
+    # plot_cifar10c_severity(filename=filename, save=save)
 
     # Pretraining scale
     save = True
     filename = "cls"
     plot_pretraining_scale_vision(filename=filename, save=save)
 
-    # Model family
-    save = True
-    filename = "cls"
-    plot_model_family_vision(filename=filename, save=save)
+    # # Model family
+    # save = True
+    # filename = "cls"
+    # plot_model_family_vision(filename=filename, save=save)
 
-    # Probing depth
-    save = True
-    filename = "cls"
-    plot_probing_depth_vision(filename=filename, save=save)
-    plot_probing_depth_all_vision(filename=filename, save=save)
+    # # Probing depth
+    # save = True
+    # filename = "cls"
+    # plot_probing_depth_vision(filename=filename, save=save)
+    # plot_probing_depth_all_vision(filename=filename, save=save)
 
-    # Oracle recovery
-    save = True
-    filename = "cls"
-    plot_oracle_recovery_vision(filename=filename, save=save)
+    # # Oracle recovery
+    # save = True
+    # filename = "cls"
+    # plot_oracle_recovery_vision(filename=filename, save=save)
 
     r"""LLMs plots."""
-    # CDF
-    save = True
-    plot_cdf_language(filename="mteb_detailed", save=save)
+    # # CDF
+    # save = True
+    # plot_cdf_language(filename="mteb_detailed", save=save)
 
-    # Model family
-    save = True
-    filename = "mteb"
-    plot_model_family_language(filename=filename, save=save)
+    # # Model family
+    # save = True
+    # filename = "mteb"
+    # plot_model_family_language(filename=filename, save=save)
 
     # Model size
     save = True
     filename = "mteb"
     plot_model_size_language(filename=filename, save=save)
 
-    # Probing depth
-    save = True
-    filename = "mteb"
-    plot_probing_depth_language(filename=filename, save=save)
-    plot_probing_depth_all_language(filename=filename, save=save)
+    # # Probing depth
+    # save = True
+    # filename = "mteb"
+    # plot_probing_depth_language(filename=filename, save=save)
+    # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # Oracle recovery
-    save = True
-    filename = "mteb"
-    plot_oracle_recovery_language(filename=filename, save=save)
+    # # Oracle recovery
+    # save = True
+    # filename = "mteb"
+    # plot_oracle_recovery_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
-    r"""VFMs tables."""
-    # Model size
-    filename = "cls"
-    table_model_size_vision(filename=filename)
+    # r"""VFMs tables."""
+    # # Model size
+    # filename = "cls"
+    # table_model_size_vision(filename=filename)
 
-    # Winning module frequency
-    filename = "cls"
-    table_winning_module_frequency_vision(filename=filename)
+    # # Winning module frequency
+    # filename = "cls"
+    # table_winning_module_frequency_vision(filename=filename)
 
-    # Performance comparions
-    filename = "cls"
-    table_performance_comparison_vision(filename=filename)
-    table_performance_comparison_all_vision(filename=filename)
+    # # Performance comparions
+    # filename = "cls"
+    # table_performance_comparison_vision(filename=filename)
+    # table_performance_comparison_all_vision(filename=filename)
 
-    r"""LLMs tables."""
-    # Performance comparions
-    filename = "mteb"
-    table_performance_comparison_language(filename=filename)
+    # r"""LLMs tables."""
+    # # Performance comparions
+    # filename = "mteb"
+    # table_performance_comparison_language(filename=filename)
+
+    r"""Number of runs"""
+    table_runs()
 
 
 # %% Main
