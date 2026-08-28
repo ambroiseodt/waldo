@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.lines import Line2D
-from scipy.stats import friedmanchisquare, spearmanr
+from scipy.stats import friedmanchisquare, spearmanr, t
 
 from waldo.infra import FIGURE_DIR, RESULT_DIR
 
@@ -259,7 +259,7 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         summary["mean_gain"],
         s=50,
         zorder=3,
-        color="#a291e1",
+        color=GAIN_PALETTE["oracle"],
         edgecolors="#333333",
         linewidths=MARKER_LINEWIDTH,
     )
@@ -297,14 +297,18 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
         data=df_full,
         x="best_error",
         y="gain",
-        color="#a291e1",
+        color=GAIN_PALETTE["oracle"],
         scatter=False,
         ci=None,
         line_kws={"linewidth": 2, "alpha": 0.8},
         ax=ax,
     )
     handle = Line2D(
-        [0], [0], color="#a291e1", linewidth=2, label=rf"$\rho= {rho:.2f}$" + "\n" + rf"$\text{{p-value}}= {pval:.1e}$"
+        [0],
+        [0],
+        color=GAIN_PALETTE["oracle"],
+        linewidth=2,
+        label=rf"$\rho= {rho:.2f}$" + "\n" + rf"$\text{{p-value}}= {pval:.1e}$",
     )
     legend = ax.legend(
         handles=[handle],
@@ -383,7 +387,7 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         order=severity_order,
         estimator=np.mean,
         errorbar=("ci", 95),
-        palette=["#a291e1", "#a291e1", "#a291e1"],
+        color=GAIN_PALETTE["oracle"],
         legend=False,
         err_kws={"color": "#333333", "linewidth": 1},
         capsize=0.15,
@@ -409,9 +413,11 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         save_plot(figname=f"cifar10c_severity_{filename}")
 
 
-def plot_pretraining_scale_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
+def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     r"""
-    Plot the average oracle gains over standard probing for different pretraining scales.
+    Plot the average oracle gain over standard probing for different pretraining scales,
+    as a barplot with 95% confidence intervals computed over all (model, dataset) pairs
+    within each family.
 
     We follow the scaling law literature for LLMs [1, 2]_ and consider the total amount of tokens seen during
     pretraining. Notably, this takes into considerations multiple epochs, i.e., the number of image exposure, and
@@ -423,8 +429,6 @@ def plot_pretraining_scale_vision(filename: str, ncol: int = 1, save: bool = Fal
     ----------
     filename: str
         Name of the result file to use.
-    ncol: int, default=1
-        Number of columns for the legend.
     save: bool, default=False
         Whether to save the plot.
 
@@ -473,81 +477,55 @@ def plot_pretraining_scale_vision(filename: str, ncol: int = 1, save: bool = Fal
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
-    # Pretraining scale
-    pretraining_tokens = {"vit": 2.5e11, "dinov2": 1.80e12, "aimv2": 3.15e12, "dinov3": 3.91e12}
-    df["pretraining_tokens"] = df["model_name"].map(pretraining_tokens)
-
     # Results
-    models = ["vit", "dinov2", "aimv2", "dinov3"]
-    oracle_gains = [np.mean(df[df["model_name"] == model]["gain"].to_numpy()) for model in models]
-    scales = list(pretraining_tokens.values())
-    ax.plot(scales, oracle_gains, linewidth=LINEWIDTH, color=GAIN_PALETTE["oracle"])
-    for model_name, x, y in zip(models, scales, oracle_gains, strict=True):
-        ax.scatter(
-            x,
-            y,
-            s=VFM_MARKER_SIZE[model_name],
-            color=GAIN_PALETTE["oracle"],
-            edgecolor="#333333",
-            linewidth=MARKER_LINEWIDTH,
-            marker=VFM_MARKERS[model_name],
-            zorder=2,
-        )
+    pretraining_labels = {"vit": r"$250$B", "dinov2": r"$1.8$T", "aimv2": r"$3.15$T", "dinov3": r"$3.9$T"}
+    family_order = ["vit", "dinov2", "aimv2", "dinov3"]
+    sns.barplot(
+        data=df,
+        x="model_name",
+        y="gain",
+        order=family_order,
+        estimator=np.mean,
+        errorbar=("ci", 95),
+        color=GAIN_PALETTE["oracle"],
+        legend=False,
+        err_kws={"color": "#333333", "linewidth": 1},
+        capsize=0.15,
+        ax=ax,
+    )
 
-    # Label model families below the oracle markers
-    oracle_values = stats["oracle"]
-    label_offsets = {"vit": (0, 25), "dinov2": (0, 25), "aimv2": (0, 25), "dinov3": (0, 25)}
-    for model_name, x, y in zip(models, scales, oracle_values, strict=True):
-        dx, dy = label_offsets[model_name]
+    # Annotate model family name above each bar
+    bar_heights = [df[df["model_name"] == m]["gain"].mean() for m in family_order]
+    for i, (model_name, height) in enumerate(zip(family_order, bar_heights, strict=True)):
+        xytext = (0, 16)
         ax.annotate(
             VFM_NAMES[model_name],
-            xy=(float(x), float(y)),
-            xytext=(dx, dy),
+            xy=(i, height),
+            xytext=xytext,
             textcoords="offset points",
             ha="center",
             va="top",
             fontsize=15,
             color="#333333",
             zorder=10,
-            bbox=dict(facecolor="white", edgecolor="none", pad=0.0),
+            bbox=dict(facecolor="white", edgecolor="none", pad=0.5),
         )
 
     # Visualization
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    xticks = [2.5e11, 1.5e12, 2.75e12, 4e12]
-    ax.set_xticks(xticks)
-    ax.set_xticklabels([r"$250$B", r"$1.5$T", r"$2.75$T", r"$4$T"])
     yticks = [0, 2.5, 5]
     ax.set_yticks(yticks)
+    ax.set_xticklabels(list(pretraining_labels.values()))
     ax.set_xlabel("Number of pretraining tokens", fontsize=FONTSIZE)
-    ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+    ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
-    lines_labels = [fig.axes[0].get_legend_handles_labels()]
-    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
-    lines, labels = lines[::-1], labels[::-1]
-    legend = fig.legend(
-        lines,
-        labels,
-        loc="upper center",
-        bbox_to_anchor=(0.72, 0.9),
-        fancybox=True,
-        borderaxespad=0,
-        ncol=ncol,
-        shadow=False,
-        frameon=True,
-        fontsize=LEG_FONTSIZE,
-    )
-    legend.get_frame().set_edgecolor("none")
-    legend.get_frame().set_facecolor("white")
-    legend.get_frame().set_alpha(1.0)
-    legend.set_zorder(10)
     plt.tight_layout()
     if save:
         figname = f"pretraining_scale_vision_{filename}"
@@ -1407,117 +1385,131 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
         save_plot(figname=figname)
 
 
-def plot_model_size_language(filename: str, save: bool = False, ncol: int = 3) -> None:
-    r"""
-    Evolution of gain as a function of model size in billions of parameters.
+def plot_model_size_language(filename: str, save: bool = False) -> None:
+    r"""Plot oracle gain for checkpoints grouped by LLM family with size labels."""
+    width, height = 8.2, 5.5
+    fig, ax = plt.subplots(figsize=(width, height))
 
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    save: bool, default=False
-        Whether to save the plot.
-    ncol: int, default=3
-        Number of columns in the legend.
-    """
-    # Figure
-    width = 5.5
-    height = 5
-    figsize = width, height
-    fig = plt.figure(figsize=figsize)
-    ax = fig.gca()
-
-    # Recover results
     path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep language models
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    # Create bins for model sizes
-    model_bins = {
-        "Llama-3.2-1B": "1-2B",
-        "gemma-3-1b-pt": "1-2B",
-        "Qwen3-1.7B": "1-2B",
-        "Llama-3.2-3B": "3-4B",
-        "Qwen3-4B": "3-4B",
-        "gemma-3-4b-pt": "3-4B",
-        "Llama-3.1-8B": "8-12B",
-        "Qwen3-8B": "8-12B",
-        "gemma-3-12b-pt": "8-12B",
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+    model_sizes = {
+        "Llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
+        "Qwen3": {"Qwen3-1.7B": 1.7, "Qwen3-4B": 4, "Qwen3-8B": 8},
+        "Gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4, "gemma-3-12b-pt": 12},
     }
-    bin_order = ["1-2B", "3-4B", "8-12B"]
-    bins = {b: i for i, b in enumerate(bin_order)}
-    df["size"] = df["model_name"].map(LLM_SIZES)
-    df["model_bin"] = df["model_name"].map(model_bins)
-    df["bin"] = df["model_bin"].map(bins)
+    family_positions = np.arange(len(model_sizes)) * 1.35
+    bar_width = 0.24
+    oracle_color = GAIN_PALETTE["oracle"]
 
-    # Results
-    rng = np.random.default_rng(0)
-    for col, label in [("gain_layer", "layer"), ("gain_module", "module"), ("gain", "oracle")]:
-        # Individual points jittered slightly for readability
-        jitter = rng.uniform(-0.08, 0.08, size=len(df))
-        ax.scatter(
-            df["bin"] + jitter,
-            df[col],
-            s=150,
-            color=GAIN_PALETTE[label],
-            edgecolor="none",
-            alpha=0.5,
+    for family_position, (family, size_map) in enumerate(model_sizes.items()):
+        sub = df[df["model_name"].isin(size_map.keys())].copy()
+        sub["size"] = sub["model_name"].map(size_map)
+        sub = sub.sort_values("size")
+        positions = family_positions[family_position] + (np.arange(len(sub)) - 1) * bar_width
+        bars = ax.bar(
+            positions,
+            sub["gain"],
+            width=bar_width,
+            color=oracle_color,
+            edgecolor="black",
+            linewidth=1.1,
             zorder=2,
         )
+        for bar, size in zip(bars, sub["size"], strict=True):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.08,
+                f"{size:g}B",
+                ha="center",
+                va="bottom",
+                fontsize=12,
+            )
 
-        # Mean per bin
-        means = df.groupby("bin")[col].mean().reindex(range(len(bin_order)))
-        index = list(means.index)
-        values = list(means.values)
-        ax.plot(index, values, color=GAIN_PALETTE[label], label=LABEL[label], linewidth=LINEWIDTH, zorder=3)
-        ax.scatter(
-            index,
-            values,
-            s=150,
-            color=GAIN_PALETTE[label],
-            edgecolor="#333333",
-            linewidth=MARKER_LINEWIDTH,
-            zorder=4,
-        )
-
-    # Visualization
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.set_xticks(family_positions)
+    ax.set_xticklabels(list(model_sizes))
+    ax.set_xlim(family_positions[0] - 0.5, family_positions[-1] + 0.5)
+    ax.set_ylim(0, 4.7)
+    ax.set_yticks([0, 1, 2, 3, 4])
+    ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
+    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
     ax.spines["left"].set_linewidth(1)
     ax.spines["right"].set_linewidth(1)
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xticks(range(len(bin_order)))
-    ax.set_xticklabels(bin_order)
-    ax.set_yticks([0, 2, 4])
-    ax.set_xlabel("Model size (grouped)", fontsize=FONTSIZE)
-    ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
-    # Common legend
-    lines_labels = [fig.axes[0].get_legend_handles_labels()]
-    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
-    fig.legend(
-        lines,
-        labels,
-        loc="upper center",
-        bbox_to_anchor=(0.53, 1.08),
-        fancybox=True,
-        borderaxespad=0,
-        ncol=ncol,
-        shadow=False,
-        frameon=False,
-        fontsize=22,
-    )
     plt.tight_layout()
     if save:
         figname = f"model_size_language_{filename}"
         save_plot(figname=figname)
+def plot_model_size_language_detailed(filename: str = "mteb_detailed", save: bool = False) -> None:
+    r"""Plot model-size oracle gains with across-task 95% confidence intervals."""
+    width, height = 8.2, 5.5
+    fig, ax = plt.subplots(figsize=(width, height))
+
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+    model_sizes = {
+        "Llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
+        "Qwen3": {"Qwen3-1.7B": 1.7, "Qwen3-4B": 4, "Qwen3-8B": 8},
+        "Gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4, "gemma-3-12b-pt": 12},
+    }
+    family_positions = np.arange(len(model_sizes)) * 1.35
+    upper_bound = 0.0
+    bar_width = 0.24
+    oracle_color = GAIN_PALETTE["oracle"]
+
+    for family_position, (family, size_map) in enumerate(model_sizes.items()):
+        sub = df[df["model_name"].isin(size_map.keys())].copy()
+        sub["size"] = sub["model_name"].map(size_map)
+        stats = sub.groupby("model_name")["gain"].agg(["mean", "std", "count"])
+        stats = stats.reindex(size_map.keys())
+        means = stats["mean"].to_numpy()
+        counts = stats["count"].to_numpy()
+        ci = t.ppf(0.975, counts - 1) * stats["std"].to_numpy() / np.sqrt(counts)
+        upper_bound = max(upper_bound, float(np.nanmax(means + ci)))
+        sizes = np.asarray(list(size_map.values()), dtype=float)
+        positions = family_positions[family_position] + (np.arange(len(sizes)) - 1) * bar_width
+        bars = ax.bar(
+            positions,
+            means,
+            yerr=ci,
+            width=bar_width,
+            color=oracle_color,
+            edgecolor="black",
+            linewidth=1.1,
+            error_kw={"ecolor": "black", "elinewidth": 1.2, "capsize": 4},
+            zorder=2,
+        )
+        for bar, size, mean, interval in zip(bars, sizes, means, ci, strict=True):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                mean + interval + 0.08,
+                f"{size:g}B",
+                ha="center",
+                va="bottom",
+                fontsize=12,
+            )
+
+    ax.set_xticks(family_positions)
+    ax.set_xticklabels(list(model_sizes))
+    ax.set_xlim(family_positions[0] - 0.5, family_positions[-1] + 0.5)
+    ymax = max(5.0, float(np.ceil(upper_bound + 0.5)))
+    ax.set_ylim(0, ymax)
+    ax.set_yticks(np.arange(0, ymax + 0.1, 2))
+    ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
+    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    plt.tight_layout()
+    if save:
+        save_plot(figname="model_size_language_detailed")
 
 
 def plot_probing_depth_language(filename: str, save: bool = False) -> None:
@@ -1981,10 +1973,10 @@ def plot_figures() -> None:
     # filename = "cifar10_c"
     # plot_cifar10c_severity(filename=filename, save=save)
 
-    # Pretraining scale
-    save = True
-    filename = "cls"
-    plot_pretraining_scale_vision(filename=filename, save=save)
+    # # Pretraining scale
+    # save = True
+    # filename = "cls"
+    # plot_pretraining_scale_vision(filename=filename, save=save)
 
     # # Model family
     # save = True
@@ -2008,14 +2000,14 @@ def plot_figures() -> None:
     # plot_cdf_language(filename="mteb_detailed", save=save)
 
     # # Model family
-    # save = True
-    # filename = "mteb"
-    # plot_model_family_language(filename=filename, save=save)
-
-    # Model size
     save = True
     filename = "mteb"
-    plot_model_size_language(filename=filename, save=save)
+    plot_model_family_language(filename=filename, save=save)
+
+    # # Model size (secondary diagnostic; not the main LLM figure)
+    # save = True
+    # filename = "mteb"
+    # plot_model_size_language(filename=filename, save=save)
 
     # # Probing depth
     # save = True
