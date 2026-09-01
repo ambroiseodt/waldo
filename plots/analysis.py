@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.lines import Line2D
-from scipy.stats import friedmanchisquare, spearmanr, t
+from scipy.stats import friedmanchisquare, spearmanr
 
 from waldo.infra import FIGURE_DIR, RESULT_DIR
 
@@ -575,8 +575,8 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
 
     # Results
     model_order = list(REPRESENTATIVE_VFMs.keys())
-    gain_types = ["gain_layer", "gain_module", "gain"]
-    gain_labels = ["layer", "module", "oracle"]
+    gain_types = ["gain", "gain_module", "gain_layer"]
+    gain_labels = ["oracle", "module", "layer"]
     for i, ax in enumerate(axes):
         dataset = REPRESENTATIVE_DATASETS[i]
         sub = df[df["dataset_name"] == dataset]
@@ -620,7 +620,6 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
     # Common legend
     lines_labels = [fig.axes[0].get_legend_handles_labels()]
     lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
-    lines, labels = lines[::-1], labels[::-1]
     labels = [LABEL[key] for key in gain_labels]
     legend = fig.legend(
         lines,
@@ -885,7 +884,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
 
     Strategies:
         - Best layer on rc2
-        - Heuristic (last layer on act)
+        - Fixed (last layer on act)
         - Best layer on act
 
     Parameters
@@ -912,7 +911,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
     # Results
-    order = ["Best RC2", "Heuristic", "Best ACT"]
+    order = ["Best RC2", "Fixed", "Best ACT"]
     groups = ["dataset_name", "model_name", "model_size"]
     rows = []
     for key, sub in df.groupby(groups):
@@ -924,7 +923,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         # Best RC2
         rc2_best = sub[sub.module == "rc2"].accuracy.max()
 
-        # Heuristic: last layer act
+        # Fixed: last layer act
         heuristic = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
 
         # Best act
@@ -933,7 +932,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         # Recover strategies
         strategies = {
             "Best RC2": rc2_best,
-            "Heuristic": heuristic,
+            "Fixed": heuristic,
             "Best ACT": act_best,
         }
 
@@ -959,6 +958,8 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
                 }
             )
     summary = pd.DataFrame(rows)
+    means = summary.groupby("strategy")["recovery"].mean().reindex(order)
+    print(means)
     sns.barplot(
         data=summary,
         x="strategy",
@@ -972,7 +973,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         capsize=0.15,
         ax=ax,
     )
-    heuristic_idx = order.index("Heuristic")
+    heuristic_idx = order.index("Fixed")
     bar = ax.patches[heuristic_idx]
     bar.set_hatch("//")
 
@@ -983,9 +984,9 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xticklabels(["Best RC2", "Heuristic", "Best Act"])
+    ax.set_xticklabels(["Best RC2", "Fixed", "Best Act"])
     ax.set_ylim(20, 100)
-    ax.set_yticks([20, 40, 60, 80])
+    ax.set_yticks([26, 46, 66, 86])
     ax.set_xlabel("")
     ax.set_ylabel(r"Oracle recovery ($\%$)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
@@ -1192,88 +1193,6 @@ def table_performance_comparison_all_vision(filename: str) -> None:
 # ------------------------------------------------------------------------------
 # LLMs plotting functions
 # ------------------------------------------------------------------------------
-def plot_cdf_language(filename: str, ncol: int = 1, save: bool = False) -> None:
-    r"""
-    Plot the percentage of runs over LLMs for which the gain is strictly above a certain threshold.
-
-    Three types of gains over standard probing (over the output of the last transformer block) are considered:
-        - gain by optimizing over layers (probing done on the output of transformer blocks)
-        - gain by optimizing over modules (probing done over modules of the last transformer block)
-        - gain by optimizing over layers and modules (probing done over modules inside transformer blocks)
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    ncol: int, default=1
-        Number of legend columns.
-    save: bool, default=False
-        Whether to save the plot.
-    """
-    # Figure
-    width = 5.5
-    height = 5
-    figsize = width, height
-    fig = plt.figure(figsize=figsize)
-    ax = fig.gca()
-
-    # Recover results
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep language models
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    # Results
-    for col, label in [("gain_layer", "layer"), ("gain_module", "module"), ("gain", "oracle")]:
-        gains = np.sort(df[col].to_numpy())
-        percentage = 100 * (1 - np.arange(1, len(gains) + 1) / len(gains))
-        ax.plot(gains, percentage, linewidth=LINEWIDTH, color=GAIN_PALETTE[label], label=LABEL[label])
-
-    # Visualization (parent)
-    ax.grid(alpha=ALPHA_GRID, lw=1.3)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xlim(-0.1, 25)
-    ax.set_ylim(-1, 101)
-    yticks = [0, 25, 50, 75, 100]
-    ax.set_yticks(yticks)
-    ax.set_xlabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
-    ax.set_ylabel(r"Percentage of runs with gain $> x$", fontsize=FONTSIZE)
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    # Common legend
-    lines_labels = [fig.axes[0].get_legend_handles_labels()]
-    lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
-    lines, labels = lines[::-1], labels[::-1]
-    legend = fig.legend(
-        lines,
-        labels,
-        loc="upper center",
-        bbox_to_anchor=(0.75, 0.9),
-        fancybox=True,
-        borderaxespad=0,
-        ncol=ncol,
-        shadow=False,
-        frameon=True,
-        fontsize=LEG_FONTSIZE,
-    )
-    legend.get_frame().set_edgecolor("none")
-    legend.get_frame().set_facecolor("white")
-    legend.get_frame().set_alpha(1.0)
-    legend.set_zorder(10)
-    plt.tight_layout()
-    if save:
-        figname = f"cdf_language_{filename}"
-        save_plot(figname=figname)
-
-
 def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1) -> None:
     r"""
     Plot the gain over standard probing for each LLM family, one subplot
@@ -1313,8 +1232,8 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
-    gain_types = ["gain_layer", "gain_module", "gain"]
-    gain_labels = ["layer", "module", "oracle"]
+    gain_types = ["gain", "gain_module", "gain_layer"]
+    gain_labels = ["oracle", "module", "layer"]
     model_labels = {
         "qwen3": ["Qwen3 1.7B", "Qwen3 4B", "Qwen3 8B"],
         "llama3": ["Llama3.2 1B", "Llama3.2 3B", "Llama3.1 8B"],
@@ -1361,7 +1280,6 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     # Common legend
     lines_labels = [fig.axes[0].get_legend_handles_labels()]
     lines, labels = [sum(lol, []) for lol in zip(*lines_labels, strict=False)]
-    lines, labels = lines[::-1], labels[::-1]
     labels = [LABEL[key] for key in gain_labels]
     legend = fig.legend(
         lines,
@@ -1383,133 +1301,6 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     if save:
         figname = f"model_family_language_{filename}"
         save_plot(figname=figname)
-
-
-def plot_model_size_language(filename: str, save: bool = False) -> None:
-    r"""Plot oracle gain for checkpoints grouped by LLM family with size labels."""
-    width, height = 8.2, 5.5
-    fig, ax = plt.subplots(figsize=(width, height))
-
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-    model_sizes = {
-        "Llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
-        "Qwen3": {"Qwen3-1.7B": 1.7, "Qwen3-4B": 4, "Qwen3-8B": 8},
-        "Gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4, "gemma-3-12b-pt": 12},
-    }
-    family_positions = np.arange(len(model_sizes)) * 1.35
-    bar_width = 0.24
-    oracle_color = GAIN_PALETTE["oracle"]
-
-    for family_position, (family, size_map) in enumerate(model_sizes.items()):
-        sub = df[df["model_name"].isin(size_map.keys())].copy()
-        sub["size"] = sub["model_name"].map(size_map)
-        sub = sub.sort_values("size")
-        positions = family_positions[family_position] + (np.arange(len(sub)) - 1) * bar_width
-        bars = ax.bar(
-            positions,
-            sub["gain"],
-            width=bar_width,
-            color=oracle_color,
-            edgecolor="black",
-            linewidth=1.1,
-            zorder=2,
-        )
-        for bar, size in zip(bars, sub["size"], strict=True):
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 0.08,
-                f"{size:g}B",
-                ha="center",
-                va="bottom",
-                fontsize=12,
-            )
-
-    ax.set_xticks(family_positions)
-    ax.set_xticklabels(list(model_sizes))
-    ax.set_xlim(family_positions[0] - 0.5, family_positions[-1] + 0.5)
-    ax.set_ylim(0, 4.7)
-    ax.set_yticks([0, 1, 2, 3, 4])
-    ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
-    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    plt.tight_layout()
-    if save:
-        figname = f"model_size_language_{filename}"
-        save_plot(figname=figname)
-def plot_model_size_language_detailed(filename: str = "mteb_detailed", save: bool = False) -> None:
-    r"""Plot model-size oracle gains with across-task 95% confidence intervals."""
-    width, height = 8.2, 5.5
-    fig, ax = plt.subplots(figsize=(width, height))
-
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-    model_sizes = {
-        "Llama3": {"Llama-3.2-1B": 1, "Llama-3.2-3B": 3, "Llama-3.1-8B": 8},
-        "Qwen3": {"Qwen3-1.7B": 1.7, "Qwen3-4B": 4, "Qwen3-8B": 8},
-        "Gemma3": {"gemma-3-1b-pt": 1, "gemma-3-4b-pt": 4, "gemma-3-12b-pt": 12},
-    }
-    family_positions = np.arange(len(model_sizes)) * 1.35
-    upper_bound = 0.0
-    bar_width = 0.24
-    oracle_color = GAIN_PALETTE["oracle"]
-
-    for family_position, (family, size_map) in enumerate(model_sizes.items()):
-        sub = df[df["model_name"].isin(size_map.keys())].copy()
-        sub["size"] = sub["model_name"].map(size_map)
-        stats = sub.groupby("model_name")["gain"].agg(["mean", "std", "count"])
-        stats = stats.reindex(size_map.keys())
-        means = stats["mean"].to_numpy()
-        counts = stats["count"].to_numpy()
-        ci = t.ppf(0.975, counts - 1) * stats["std"].to_numpy() / np.sqrt(counts)
-        upper_bound = max(upper_bound, float(np.nanmax(means + ci)))
-        sizes = np.asarray(list(size_map.values()), dtype=float)
-        positions = family_positions[family_position] + (np.arange(len(sizes)) - 1) * bar_width
-        bars = ax.bar(
-            positions,
-            means,
-            yerr=ci,
-            width=bar_width,
-            color=oracle_color,
-            edgecolor="black",
-            linewidth=1.1,
-            error_kw={"ecolor": "black", "elinewidth": 1.2, "capsize": 4},
-            zorder=2,
-        )
-        for bar, size, mean, interval in zip(bars, sizes, means, ci, strict=True):
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                mean + interval + 0.08,
-                f"{size:g}B",
-                ha="center",
-                va="bottom",
-                fontsize=12,
-            )
-
-    ax.set_xticks(family_positions)
-    ax.set_xticklabels(list(model_sizes))
-    ax.set_xlim(family_positions[0] - 0.5, family_positions[-1] + 0.5)
-    ymax = max(5.0, float(np.ceil(upper_bound + 0.5)))
-    ax.set_ylim(0, ymax)
-    ax.set_yticks(np.arange(0, ymax + 0.1, 2))
-    ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
-    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    plt.tight_layout()
-    if save:
-        save_plot(figname="model_size_language_detailed")
 
 
 def plot_probing_depth_language(filename: str, save: bool = False) -> None:
@@ -1541,6 +1332,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
+    model_labels = {"qwen3": "Qwen3 1.7B", "llama3": "Llama3.2 1B", "gemma3": "Gemma3 1B"}
     tasks = df["task_name"].unique()
     for i, (model_family, model_name) in enumerate(REPRESENTATIVE_LLMs.items()):
         ax = axes[i]
@@ -1597,7 +1389,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
         ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
         if i == 0:
             ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
-        ax.set_title(LLM_NAMES[model_family], fontsize=FONTSIZE)
+        ax.set_title(model_labels[model_family], fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
@@ -1760,7 +1552,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
 
     Strategies:
         - Best layer on rc2
-        - Heuristic (fixed 60% of depth on ln2)
+        - Fixed (fixed 60% of depth on ln2)
         - Best layer on ln2
 
     Parameters
@@ -1789,7 +1581,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
-    order = ["Best RC2", "Heuristic", "Best LN2"]
+    order = ["Best RC2", "Fixed", "Best LN2"]
     groups = "model_name"
     rows = []
     for key, sub in df.groupby(groups):
@@ -1801,7 +1593,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         # Best RC2
         rc2_best = sub[sub.module == "rc2"].accuracy.max()
 
-        # Heuristic: 60% of depth on ln2
+        # Fixed: 60% of depth on ln2
         heuristic_depth = 0.6
         heuristic_layer = int(heuristic_depth * last_layer)
         heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
@@ -1812,7 +1604,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         # Recover strategies
         strategies = {
             "Best RC2": rc2_best,
-            "Heuristic": heuristic,
+            "Fixed": heuristic,
             "Best LN2": ln2_best,
         }
 
@@ -1836,8 +1628,8 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
                 }
             )
     summary = pd.DataFrame(rows)
-    avg = summary.groupby("strategy")["recovery"].mean()
-    print(avg)
+    means = summary.groupby("strategy")["recovery"].mean().reindex(order)
+    print(means)
     sns.barplot(
         data=summary,
         x="strategy",
@@ -1851,7 +1643,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         capsize=0.15,
         ax=ax,
     )
-    heuristic_idx = order.index("Heuristic")
+    heuristic_idx = order.index("Fixed")
     bar = ax.patches[heuristic_idx]
     bar.set_hatch("//")
 
@@ -1862,7 +1654,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xticklabels(["Best RC2", "Heuristic", "Best LN2"])
+    ax.set_xticklabels(["Best RC2", "Fixed", "Best LN2"])
     ax.set_ylim(20, 100)
     ax.set_yticks([20, 40, 60, 80, 100])
     ax.set_xlabel("")
@@ -1910,7 +1702,7 @@ def table_performance_comparison_language(filename: str) -> None:
                 },
                 {
                     "model_name": model_name,
-                    "strategy": "Heuristic",
+                    "strategy": "Fixed",
                     "accuracy": heuristic,
                 },
                 {
@@ -1922,7 +1714,7 @@ def table_performance_comparison_language(filename: str) -> None:
         )
     summary = pd.DataFrame(rows)
     table = summary.pivot(index="strategy", columns="model_name", values="accuracy")
-    table = table.loc[["Standard", "Heuristic", "Oracle"]]
+    table = table.loc[["Standard", "Fixed", "Oracle"]]
     table["Average"] = table.mean(axis=1)
     ordered_models = [m for models in LLM_FAMILIES.values() for m in models]
     ordered_models = [m for m in ordered_models if m in table.columns]
@@ -1989,25 +1781,16 @@ def plot_figures() -> None:
     # plot_probing_depth_vision(filename=filename, save=save)
     # plot_probing_depth_all_vision(filename=filename, save=save)
 
-    # # Oracle recovery
-    # save = True
-    # filename = "cls"
-    # plot_oracle_recovery_vision(filename=filename, save=save)
-
-    r"""LLMs plots."""
-    # # CDF
-    # save = True
-    # plot_cdf_language(filename="mteb_detailed", save=save)
-
-    # # Model family
+    # Oracle recovery
     save = True
-    filename = "mteb"
-    plot_model_family_language(filename=filename, save=save)
+    filename = "cls"
+    plot_oracle_recovery_vision(filename=filename, save=save)
 
-    # # Model size (secondary diagnostic; not the main LLM figure)
+    # r"""LLMs plots."""
+    # # Model family
     # save = True
     # filename = "mteb"
-    # plot_model_size_language(filename=filename, save=save)
+    # plot_model_family_language(filename=filename, save=save)
 
     # # Probing depth
     # save = True
@@ -2015,31 +1798,31 @@ def plot_figures() -> None:
     # plot_probing_depth_language(filename=filename, save=save)
     # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # # Oracle recovery
-    # save = True
-    # filename = "mteb"
-    # plot_oracle_recovery_language(filename=filename, save=save)
+    # Oracle recovery
+    save = True
+    filename = "mteb"
+    plot_oracle_recovery_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
-    # r"""VFMs tables."""
-    # # Model size
-    # filename = "cls"
-    # table_model_size_vision(filename=filename)
+    r"""VFMs tables."""
+    # Model size
+    filename = "cls"
+    table_model_size_vision(filename=filename)
 
-    # # Winning module frequency
-    # filename = "cls"
-    # table_winning_module_frequency_vision(filename=filename)
+    # Winning module frequency
+    filename = "cls"
+    table_winning_module_frequency_vision(filename=filename)
 
-    # # Performance comparions
-    # filename = "cls"
-    # table_performance_comparison_vision(filename=filename)
-    # table_performance_comparison_all_vision(filename=filename)
+    # Performance comparions
+    filename = "cls"
+    table_performance_comparison_vision(filename=filename)
+    table_performance_comparison_all_vision(filename=filename)
 
-    # r"""LLMs tables."""
-    # # Performance comparions
-    # filename = "mteb"
-    # table_performance_comparison_language(filename=filename)
+    r"""LLMs tables."""
+    # Performance comparions
+    filename = "mteb"
+    table_performance_comparison_language(filename=filename)
 
     r"""Number of runs"""
     table_runs()
