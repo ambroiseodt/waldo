@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
 from scipy.stats import friedmanchisquare, spearmanr
 
@@ -108,6 +109,8 @@ MODULE_PALETTE = {
     "rc2": "#428379",
 }
 LLM_PALETTE = {"qwen3": "#7987b8", "llama3": "#9fc9b1", "gemma3": "#c6a4e4"}
+CMAP = "viridis"
+
 
 # Visual parameters
 palette = sns.cubehelix_palette()
@@ -643,17 +646,8 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
         save_plot(figname=figname)
 
 
-def plot_probing_depth_vision(filename: str, ncol: int = 2, save: bool = False) -> None:
-    r"""
-    Evolution of the act and rc2 probing accuracy along with the depth.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    save: bool, default=False
-        Whether to save the plot.
-    """
+def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
+    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
     # Figure
     width = 5
     height = 5
@@ -677,10 +671,22 @@ def plot_probing_depth_vision(filename: str, ncol: int = 2, save: bool = False) 
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
+    # Figure
+    ncols = len(REPRESENTATIVE_VFMs)
+
+    # Zoomed window (x and y axis are padded to avoid overlapping splines)
+    ZOOM_XLIM = [(95, 100)] * 4
+    ZOOM_YLIM = [(44, 52), (72.0, 77.5), (78.5, 80.5), (76.5, 79.5)]
+    positions = (0.60, 0.08)
+    format = [(0.3, 0.4)] * 4
+
     # Results
     dataset_name = "domainnet-sketch"
     for i, model_name in enumerate(REPRESENTATIVE_VFMs):
         ax = axes[i]
+        axins = None
+        if i:
+            axins = ax.inset_axes((*positions, *format[i]))
         model_size = REPRESENTATIVE_VFMs[model_name]
         for module in ["act", "rc2"]:
             subset = df[
@@ -692,14 +698,26 @@ def plot_probing_depth_vision(filename: str, ncol: int = 2, save: bool = False) 
             subset = subset.sort_values("layer")
             n_layers = subset["layer"].max()
             subset["depth"] = 100 * subset["layer"] / n_layers
+            subset = subset.sort_values("layer")
+            linestyle = "-" if module != "rc2" else "--"
             ax.plot(
                 subset["depth"],
                 subset["accuracy"],
                 color=MODULE_PALETTE[module],
                 linewidth=LINEWIDTH,
-                linestyle="-" if module != "rc2" else "--",
+                linestyle=linestyle,
                 label=module.upper() if module != "act" else "Act",
             )
+
+            # Zoomed-in regions
+            if axins is not None:
+                axins.plot(
+                    subset["depth"],
+                    subset["accuracy"],
+                    color=MODULE_PALETTE[module],
+                    linewidth=LINEWIDTH,
+                    linestyle=linestyle,
+                )
 
             # Mark the highest act performance
             if module == "act":
@@ -713,6 +731,26 @@ def plot_probing_depth_vision(filename: str, ncol: int = 2, save: bool = False) 
                     marker="*",
                     zorder=3,
                 )
+
+        # Subplot limits
+        if axins is not None:
+            axins.set_xticks([95, 100])
+            if i == 1:
+                axins.set_yticks([72.0, 74.5, 77.0])
+            elif i == 2:
+                axins.set_yticks([78.5, 79.5, 80.50])
+            elif i == 3:
+                axins.set_yticks([76.5, 78, 79.5])
+            axins.set_xlim(*ZOOM_XLIM[i])
+            axins.set_ylim(*ZOOM_YLIM[i])
+            axins.grid(alpha=ALPHA_GRID, lw=1.0)
+            axins.tick_params(axis="both", direction="out", length=3, width=1, labelsize=FONTSIZE * 0.6)
+            for spine in axins.spines.values():
+                spine.set_linewidth(0.8)
+                spine.set_edgecolor("0.6")
+
+            # Align zoomed window and subplot
+            ax.indicate_inset_zoom(axins, edgecolor="0.15", linewidth=1.0, linestyle="--")
 
         # Visualization
         ax.grid(alpha=ALPHA_GRID, lw=1.3)
@@ -878,6 +916,81 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
+def plot_winning_distribution_vision(filename: str, save: bool = False) -> None:
+    r"""
+    Plot 3D distribution of winning frequency. Layer-module pairs are locations in 2D
+    and the density is the frequency of reaching the highest probing accuracy across all runs.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 6
+    height = 5
+    figsize = (width, height)
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Recover results
+    df = pd.read_csv(RESULT_DIR / f"{filename}.csv")
+    df = df.copy()
+    df = df[df["model_name"].str.lower().isin(VFM_NAMES.keys())]
+
+    # Recover winning stats
+    group_cols = ["dataset_name", "model_name", "model_size"]
+    grouped = df.groupby(group_cols, observed=True)
+    last_layer = grouped["layer"].transform("max")
+    oracle_accuracy = grouped["accuracy"].transform("max")
+    winners = df.loc[np.isclose(df["accuracy"], oracle_accuracy, atol=1e-8, rtol=0)].copy()
+    winners["depth_pct"] = 100 * winners["layer"] / last_layer.loc[winners.index].clip(lower=1)
+    winners["weight"] = 1 / winners.groupby(group_cols, observed=True)["module"].transform("size")
+    n_units = int(grouped.ngroups)
+
+    # Create bins
+    depth_bin = 5
+    depth_edges = np.arange(0, 100 + depth_bin, depth_bin, dtype=float)
+    depth_left = depth_edges[:-1]
+    bin_index = np.clip(np.digitize(winners["depth_pct"], depth_edges, right=False) - 1, 0, len(depth_left) - 1)
+    module_index = winners["module"].map({module: i for i, module in enumerate(MODULE_ORDER)}).to_numpy()
+    grid = np.zeros((len(MODULE_ORDER), len(depth_left)), dtype=float)
+    np.add.at(grid, (module_index, bin_index), winners["weight"].to_numpy() / n_units)
+
+    # Results
+    rows, cols = np.nonzero(grid > 0)
+    cmap = plt.get_cmap(CMAP)
+    norm = Normalize(vmin=0, vmax=max(float(grid.max()), 1e-12))
+    ax.bar3d(
+        depth_left[cols],
+        rows - 0.35,
+        np.zeros_like(rows, dtype=float),
+        depth_bin * 0.85,
+        0.7,
+        grid[rows, cols],
+        color=cmap(norm(grid[rows, cols])),
+        shade=False,
+    )
+    ax.set(
+        xlabel=r"Layer depth ($\%$)",
+        ylabel="Transformer module",
+        zlabel=r"Winning frequency ($\%$)",
+        yticks=np.arange(len(MODULE_ORDER)),
+        yticklabels=[module.upper() if module != "act" else "Act" for module in MODULE_ORDER],
+        xlim=(0, 102),
+    )
+    ax.view_init(elev=28, azim=-60)
+    fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=0.65, pad=0.12)
+    fig.subplots_adjust(left=0.0, right=0.85, bottom=0.05, top=0.92)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        save_plot(figname=f"winning_distribution_vision_{filename}")
+
+
 def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     r"""
     Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
@@ -997,13 +1110,17 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         save_plot(figname=f"oracle_recovery_vision_{filename}")
 
 
-# ------------------------------------------------------------------------------
 # VFMs table functions
 # ------------------------------------------------------------------------------
 def table_model_size_vision(filename: str) -> None:
     r"""
     Friedman test to determine whether the model size has a significant impact on the gain
     per model family. The null hypothesis is that model size does not influence the gain.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
     """
     # Recover results
     path = RESULT_DIR / "analysis"
@@ -1051,6 +1168,11 @@ def table_winning_module_frequency_vision(filename: str) -> None:
     r"""
     Frequency with which each transformer module is selected
     as the optimal probing module over all vision experiments.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
     """
     # Recover results
     path = RESULT_DIR / "analysis"
@@ -1070,7 +1192,14 @@ def table_winning_module_frequency_vision(filename: str) -> None:
 
 
 def table_performance_comparison_vision(filename: str) -> None:
-    r"""Performance comparison between standard probing, heuristic probing and oracle probing."""
+    r"""
+    Performance comparison between standard probing, heuristic probing and oracle probing.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    """
     # Recover results
     path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
@@ -1132,7 +1261,14 @@ def table_performance_comparison_vision(filename: str) -> None:
 
 
 def table_performance_comparison_all_vision(filename: str) -> None:
-    r"""Performance comparison across all model sizes."""
+    r"""
+    Performance comparison across all model sizes.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    """
     # Recover results
     path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
@@ -1546,6 +1682,81 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
+def plot_winning_distribution_language(filename: str, save: bool = False) -> None:
+    r"""
+    Plot 3D distribution of winning frequency. Layer-module pairs are locations in 2D
+    and the density is the frequency of reaching the highest probing accuracy across models.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 6
+    height = 5
+    figsize = (width, height)
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Recover results
+    df = pd.read_csv(RESULT_DIR / f"{filename}.csv")
+    df = df.copy()
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = df.groupby(["model_name", "layer", "module"], as_index=False, observed=True)["accuracy"].mean()
+    group_cols = ["model_name"]
+    grouped = df.groupby(group_cols, observed=True)
+    last_layer = grouped["layer"].transform("max")
+    oracle_accuracy = grouped["accuracy"].transform("max")
+    winners = df.loc[np.isclose(df["accuracy"], oracle_accuracy, atol=1e-8, rtol=0)].copy()
+    winners["depth_pct"] = 100 * winners["layer"] / last_layer.loc[winners.index].clip(lower=1)
+    winners["weight"] = 1 / winners.groupby(group_cols, observed=True)["module"].transform("size")
+    n_units = int(grouped.ngroups)
+    print(n_units)
+    # Create bins
+    depth_bin = 5
+    depth_edges = np.arange(0, 100 + depth_bin, depth_bin, dtype=float)
+    depth_left = depth_edges[:-1]
+    bin_index = np.clip(np.digitize(winners["depth_pct"], depth_edges, right=False) - 1, 0, len(depth_left) - 1)
+    module_index = winners["module"].map({module: i for i, module in enumerate(MODULE_ORDER)}).to_numpy()
+    grid = np.zeros((len(MODULE_ORDER), len(depth_left)), dtype=float)
+    np.add.at(grid, (module_index, bin_index), winners["weight"].to_numpy() / n_units)
+
+    # Results
+    rows, cols = np.nonzero(grid > 0)
+    cmap = plt.get_cmap(CMAP)
+    norm = Normalize(vmin=0, vmax=max(float(grid.max()), 1e-12))
+    ax.bar3d(
+        depth_left[cols],
+        rows - 0.35,
+        np.zeros_like(rows, dtype=float),
+        depth_bin * 0.85,
+        0.7,
+        grid[rows, cols],
+        color=cmap(norm(grid[rows, cols])),
+        shade=False,
+    )
+    ax.set(
+        xlabel=r"Layer depth ($\%$)",
+        ylabel="Transformer module",
+        zlabel="Winning frequency",
+        yticks=np.arange(len(MODULE_ORDER)),
+        yticklabels=[module.upper() if module != "act" else "Act" for module in MODULE_ORDER],
+        xlim=(0, 102),
+    )
+    ax.view_init(elev=28, azim=-60)
+    fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=0.65, pad=0.12)
+    fig.subplots_adjust(left=0.0, right=0.85, bottom=0.05, top=0.92)
+
+    # Common legend
+    plt.tight_layout()
+    if save:
+        save_plot(figname=f"winning_distribution_language_{filename}")
+
+
 def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     r"""
     Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
@@ -1781,10 +1992,15 @@ def plot_figures() -> None:
     # plot_probing_depth_vision(filename=filename, save=save)
     # plot_probing_depth_all_vision(filename=filename, save=save)
 
-    # Oracle recovery
+    # Oracle winning distribution
     save = True
     filename = "cls"
-    plot_oracle_recovery_vision(filename=filename, save=save)
+    plot_winning_distribution_vision(filename=filename, save=save)
+
+    # # Oracle recovery
+    # save = True
+    # filename = "cls"
+    # plot_oracle_recovery_vision(filename=filename, save=save)
 
     # r"""LLMs plots."""
     # # Model family
@@ -1798,10 +2014,15 @@ def plot_figures() -> None:
     # plot_probing_depth_language(filename=filename, save=save)
     # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # Oracle recovery
+    # Oracle winning distribution
     save = True
     filename = "mteb"
-    plot_oracle_recovery_language(filename=filename, save=save)
+    plot_winning_distribution_language(filename=filename, save=save)
+
+    # # Oracle recovery
+    # save = True
+    # filename = "mteb"
+    # plot_oracle_recovery_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
