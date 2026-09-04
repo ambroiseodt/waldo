@@ -88,6 +88,12 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
             dataset_type = AircraftDataset
             config_obj = build_with_type_check(AircraftDatasetConfig, config)
 
+        case "camelyon17":
+            from waldo.data.vision.camelyon17 import Camelyon17Dataset, Camelyon17DatasetConfig
+
+            dataset_type = Camelyon17Dataset
+            config_obj = build_with_type_check(Camelyon17DatasetConfig, config)
+
         case x if "cifar10_c" in x:
             from waldo.data.vision.cifar10_c import Cifar10CDataset, Cifar10CDatasetConfig
 
@@ -149,6 +155,12 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
             dataset_type = Flowers102Dataset
             config_obj = build_with_type_check(Flowers102DatasetConfig, config)
 
+        case "fmow":
+            from waldo.data.vision.fmow import FMoWDataset, FMoWDatasetConfig
+
+            dataset_type = FMoWDataset
+            config_obj = build_with_type_check(FMoWDatasetConfig, config)
+
         case "food101":
             from waldo.data.vision.food101 import Food101Dataset, Food101DatasetConfig
 
@@ -172,11 +184,29 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
             dataset_type = ImageNetDataset
             config_obj = build_with_type_check(ImageNetDatasetConfig, config)
 
+        case "iwildcam":
+            from waldo.data.vision.iwildcam import IWildCamDataset, IWildCamDatasetConfig
+
+            dataset_type = IWildCamDataset
+            config_obj = build_with_type_check(IWildCamDatasetConfig, config)
+
         case "pet":
             from waldo.data.vision.pet import PetDataset, PetDatasetConfig
 
             dataset_type = PetDataset
             config_obj = build_with_type_check(PetDatasetConfig, config)
+
+        case "pcam":
+            from waldo.data.vision.pcam import PCAMDataset, PCAMDatasetConfig
+
+            dataset_type = PCAMDataset
+            config_obj = build_with_type_check(PCAMDatasetConfig, config)
+
+        case "rxrx1":
+            from waldo.data.vision.rxrx1 import RxRx1Dataset, RxRx1DatasetConfig
+
+            dataset_type = RxRx1Dataset
+            config_obj = build_with_type_check(RxRx1DatasetConfig, config)
 
         case _:
             raise ValueError(f"Dataset name {dataset_name} not found.")
