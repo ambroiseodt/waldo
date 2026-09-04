@@ -929,8 +929,8 @@ def plot_winning_distribution_vision(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 6
-    height = 5
+    width = 12
+    height = 10
     figsize = (width, height)
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111, projection="3d")
@@ -957,7 +957,7 @@ def plot_winning_distribution_vision(filename: str, save: bool = False) -> None:
     bin_index = np.clip(np.digitize(winners["depth_pct"], depth_edges, right=False) - 1, 0, len(depth_left) - 1)
     module_index = winners["module"].map({module: i for i, module in enumerate(MODULE_ORDER)}).to_numpy()
     grid = np.zeros((len(MODULE_ORDER), len(depth_left)), dtype=float)
-    np.add.at(grid, (module_index, bin_index), winners["weight"].to_numpy() / n_units)
+    np.add.at(grid, (module_index, bin_index), 100 * winners["weight"].to_numpy() / n_units)
 
     # Results
     rows, cols = np.nonzero(grid > 0)
@@ -968,22 +968,32 @@ def plot_winning_distribution_vision(filename: str, save: bool = False) -> None:
         rows - 0.35,
         np.zeros_like(rows, dtype=float),
         depth_bin * 0.85,
-        0.7,
+        0.1,
         grid[rows, cols],
         color=cmap(norm(grid[rows, cols])),
+        edgecolor="#333333",
+        linewidth=0.1,
         shade=False,
     )
     ax.set(
-        xlabel=r"Layer depth ($\%$)",
-        ylabel="Transformer module",
-        zlabel=r"Winning frequency ($\%$)",
+        xlabel="\n" + r"Layer depth ($\%$)",
+        zlabel="\n" + r"Winning frequency ($\%$)",
         yticks=np.arange(len(MODULE_ORDER)),
         yticklabels=[module.upper() if module != "act" else "Act" for module in MODULE_ORDER],
         xlim=(0, 102),
     )
-    ax.view_init(elev=28, azim=-60)
+    ax.view_init(elev=18, azim=-60)
     fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=0.65, pad=0.12)
     fig.subplots_adjust(left=0.0, right=0.85, bottom=0.05, top=0.92)
+
+    # Visualization
+    ax.grid(False)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    ax.set_zticks = [5, 15, 25]
 
     # Common legend
     plt.tight_layout()
@@ -1695,8 +1705,8 @@ def plot_winning_distribution_language(filename: str, save: bool = False) -> Non
         Whether to save the plot.
     """
     # Figure
-    width = 6
-    height = 5
+    width = 12
+    height = 10
     figsize = (width, height)
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111, projection="3d")
@@ -1715,7 +1725,7 @@ def plot_winning_distribution_language(filename: str, save: bool = False) -> Non
     winners["depth_pct"] = 100 * winners["layer"] / last_layer.loc[winners.index].clip(lower=1)
     winners["weight"] = 1 / winners.groupby(group_cols, observed=True)["module"].transform("size")
     n_units = int(grouped.ngroups)
-    print(n_units)
+
     # Create bins
     depth_bin = 5
     depth_edges = np.arange(0, 100 + depth_bin, depth_bin, dtype=float)
@@ -1723,7 +1733,7 @@ def plot_winning_distribution_language(filename: str, save: bool = False) -> Non
     bin_index = np.clip(np.digitize(winners["depth_pct"], depth_edges, right=False) - 1, 0, len(depth_left) - 1)
     module_index = winners["module"].map({module: i for i, module in enumerate(MODULE_ORDER)}).to_numpy()
     grid = np.zeros((len(MODULE_ORDER), len(depth_left)), dtype=float)
-    np.add.at(grid, (module_index, bin_index), winners["weight"].to_numpy() / n_units)
+    np.add.at(grid, (module_index, bin_index), 100 * winners["weight"].to_numpy() / n_units)
 
     # Results
     rows, cols = np.nonzero(grid > 0)
@@ -1734,22 +1744,32 @@ def plot_winning_distribution_language(filename: str, save: bool = False) -> Non
         rows - 0.35,
         np.zeros_like(rows, dtype=float),
         depth_bin * 0.85,
-        0.7,
+        0.1,
         grid[rows, cols],
         color=cmap(norm(grid[rows, cols])),
+        edgecolor="#333333",
+        linewidth=0.1,
         shade=False,
     )
     ax.set(
-        xlabel=r"Layer depth ($\%$)",
-        ylabel="Transformer module",
-        zlabel="Winning frequency",
+        xlabel="\n" + r"Layer depth ($\%$)",
+        zlabel="\n" + r"Winning frequency ($\%$)",
         yticks=np.arange(len(MODULE_ORDER)),
         yticklabels=[module.upper() if module != "act" else "Act" for module in MODULE_ORDER],
         xlim=(0, 102),
     )
-    ax.view_init(elev=28, azim=-60)
+    ax.view_init(elev=18, azim=-60)
     fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=0.65, pad=0.12)
     fig.subplots_adjust(left=0.0, right=0.85, bottom=0.05, top=0.92)
+
+    # Visualization
+    ax.grid(False)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    ax.set_zticks = [10, 20, 30]
 
     # Common legend
     plt.tight_layout()
