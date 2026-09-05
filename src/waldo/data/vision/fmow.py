@@ -79,6 +79,34 @@ class FMoWDataset(Dataset):
     WILDS team.
     Official website: https://wilds.stanford.edu/datasets/#fmow
 
+    Downloading errors 
+    -------------------
+    Versions: python==3.12, wilds==2.0.0 and pandas >= 2.0.
+    WILDS 2.0.0 parses FMoW timestamps with `pd.to_datetime()` without
+    specifying a format. With newer pandas versions (e.g. pandas 2.3.3),
+    this can fail because FMoW contains ISO-8601 timestamps with fractional
+    seconds, e.g. `2011-02-07T02:48:56.643Z`.
+
+    Fix:
+    Manually edit WILDS' `fmow_dataset.py` and replace every occurrence of
+    ```
+    pd.to_datetime(self.metadata['timestamp'])
+    ```
+    with
+    ```
+    pd.to_datetime(self.metadata['timestamp'], format='ISO8601', utc=True)
+    ```
+    To locate the installed file:
+
+    ```bash
+    python -c "import wilds, os; print(os.path.join(os.path.dirname(wilds.__file__), 'datasets', 'fmow_dataset.py'))"
+    ```
+    Then edit that file (e.g. with VS Code):
+
+    ```bash
+    code "$(python -c "import wilds, os; print(os.path.join(os.path.dirname(wilds.__file__), 'datasets', 'fmow_dataset.py'))")"
+    ```
+
     References
     ----------
     .. [1] G. Christie et al. Functional Map of the World. CVPR 2018
