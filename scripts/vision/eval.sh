@@ -9,21 +9,29 @@
 
 # DATASETS
 datasets=(
-    "aircraft"
-    "cifar10"
-    "cifar10_c-corruption-motion_blur-severity-5"
-    "cifar100"
-    "domainnet-sketch"
-    "dtd"
-    "eurosat"
-    "flowers102"
-    "food101"
-    "pet"
+    # "aircraft"
+    # "cifar10"
+    # "cifar10_c-corruption-contrast-severity-5"
+    # "cifar10_c-corruption-motion_blur-severity-5"
+    # "cifar10_c-corruption-speckle_noise-severity-5"
+    # "cifar100"
+    # "domainnet-sketch"
+    # "dtd"
+    # "eurosat"
+    # "flowers102"
+    # "food101"
+    # "pet"
+    # "domainnet-clipart"
+    # "domainnet-painting"
+    # "domainnet-quickdraw"
+    # "domainnet-infograph"
+    # rxrx1
+    # iwildcam
 )
 
 # # ViT
 # model_name="vit"
-# device="cuda:0"
+# device="cuda:7"
 # patch_size=16
 
 # # Runs
@@ -44,7 +52,7 @@ datasets=(
 
 # # ViT
 # model_name="vit"
-# device="cuda:0"
+# device="cuda:7"
 # patch_size=14
 # model_size="huge"
 # batch_size=128
@@ -62,15 +70,15 @@ datasets=(
 
 # # DINOv2
 # model_name="dinov2"
-# device="cuda:0"
+# device="cuda:7"
 # batch_size=32
 
 # # Runs
 # for model_size in \
-#     "giant" \
-#     # "small" \
-#     # "base" \
-#     # "large" 
+#     "small" \
+#     "base" \
+#     "large" \
+#     "giant" 
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
@@ -85,15 +93,15 @@ datasets=(
 
 # # DINOv3
 # model_name="dinov3"
-# device="cuda:5"
+# device="cuda:7"
 # batch_size=8
 
 # # Runs
 # for model_size in \
-#     "vit7b16" \
-#     # "vits16" \
-#     # "vitb16" \
-#     # "vitl16" 
+#     "vits16" \
+#     "vitb16" \
+#     "vitl16" \
+#     "vit7b16" 
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
@@ -113,10 +121,10 @@ datasets=(
 
 # # Runs
 # for model_size in \
-#     "3B" \
-#     # "large" \
-#     # "huge" \
-#     # "1B" 
+#     "large" \
+#     "huge" \
+#     "1B" \
+#     "3B" 
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
