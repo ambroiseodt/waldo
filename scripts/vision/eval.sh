@@ -9,24 +9,24 @@
 
 # DATASETS
 datasets=(
-    # "aircraft"
-    # "cifar10"
-    # "cifar10_c-corruption-contrast-severity-5"
-    # "cifar10_c-corruption-motion_blur-severity-5"
-    # "cifar10_c-corruption-speckle_noise-severity-5"
-    # "cifar100"
-    # "domainnet-sketch"
-    # "dtd"
-    # "eurosat"
-    # "flowers102"
-    # "food101"
-    # "pet"
-    # "domainnet-clipart"
-    # "domainnet-painting"
-    # "domainnet-quickdraw"
-    # "domainnet-infograph"
-    # rxrx1
-    # iwildcam
+    "aircraft"
+    "cifar10"
+    "cifar10_c-corruption-contrast-severity-5"
+    "cifar10_c-corruption-motion_blur-severity-5"
+    "cifar10_c-corruption-speckle_noise-severity-5"
+    "cifar100"
+    "domainnet-sketch"
+    "dtd"
+    "eurosat"
+    "flowers102"
+    "food101"
+    "pet"
+    "domainnet-clipart"
+    "domainnet-painting"
+    "domainnet-quickdraw"
+    "domainnet-infograph"
+    "rxrx1"
+    "iwildcam"
 )
 
 # # ViT
@@ -36,8 +36,8 @@ datasets=(
 
 # # Runs
 # for model_size in \
-#     "base" \
-#     "large" 
+#     "large" \
+#     # "base" 
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
@@ -75,10 +75,10 @@ datasets=(
 
 # # Runs
 # for model_size in \
-#     "small" \
-#     "base" \
 #     "large" \
-#     "giant" 
+#     # "small" \
+#     # "base" \
+#     # "giant" 
 # do
 #     session="eval_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
@@ -98,12 +98,12 @@ datasets=(
 
 # # Runs
 # for model_size in \
-#     "vits16" \
-#     "vitb16" \
+#     "vit7b16" \
 #     "vitl16" \
-#     "vit7b16" 
+#     "vits16" \
+#     "vitb16" 
 # do
-#     session="eval_${model_name}_${model_size}"
+#     session="eval_painting_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     for dataset_name in ${datasets[@]}
 #     do
@@ -121,12 +121,12 @@ datasets=(
 
 # # Runs
 # for model_size in \
-#     "large" \
+#     "3B" \
 #     "huge" \
 #     "1B" \
-#     "3B" 
+#     "large" 
 # do
-#     session="eval_${model_name}_${model_size}"
+#     session="eval_quickdraw_${model_name}_${model_size}"
 #     tmux new-session -d -s ${session}
 #     for dataset_name in ${datasets[@]}
 #     do
