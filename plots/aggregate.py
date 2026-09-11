@@ -101,14 +101,22 @@ def get_cls_results() -> None:
     dataset_names = [
         "aircraft",
         "cifar10",
+        "cifar10_c-corruption-contrast-severity-5",
         "cifar10_c-corruption-motion_blur-severity-5",
+        "cifar10_c-corruption-speckle_noise-severity-5",
         "cifar100",
+        "domainnet-clipart",
+        "domainnet-infograph",
+        "domainnet-quickdraw",
+        "domainnet-painting",
         "domainnet-sketch",
         "dtd",
         "eurosat",
         "flowers102",
         "food101",
+        "iwildcam",
         "pet",
+        "rxrx1",
     ]
     for dataset_name in dataset_names:
         # Check that path exists
