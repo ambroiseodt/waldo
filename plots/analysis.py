@@ -27,7 +27,7 @@ logger = logging.getLogger("waldo.analysis")
 # Variables
 MODULE_ORDER = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 LABEL = {
-    "oracle": r"$\mathscr{G}_\mathrm{oracle}$",
+    "oracle": r"$\mathscr{G}_\mathrm{joint}$",
     "layer": r"$\mathscr{G}_\mathrm{layer}$",
     "module": r"$\mathscr{G}_\mathrm{module}$",
 }
@@ -36,14 +36,22 @@ LABEL = {
 DATASETS = {
     "aircraft": "Aircraft",
     "cifar10": "Cifar10",
+    "cifar10_c-corruption-contrast-severity-5": "Contrast",
     "cifar10_c-corruption-motion_blur-severity-5": "Motion Blur",
+    "cifar10_c-corruption-speckle_noise-severity-5": "Speckle Noise",
     "cifar100": "Cifar100",
     "dtd": "DTD",
+    "domainnet-clipart": "Clipart",
+    "domainnet-infograph": "Infograph",
+    "domainnet-quickdraw": "Quickdraw",
+    "domainnet-painting": "Painting",
     "domainnet-sketch": "Sketch",
     "eurosat": "EuroSat",
     "flowers102": "Flowers102",
     "food101": "Food-101",
+    "iwildcam": "iWildCam",
     "pet": "Pet",
+    "rxrx1": "RxRx1",
 }
 VFMs = ["aim", "dino", "vit"]
 REPRESENTATIVE_VFMs = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
@@ -54,7 +62,17 @@ VFM_SIZES = {
     "aimv2": ["large", "huge", "1B", "3B"],
     "dinov3": ["vits16", "vitb16", "vitl16", "vit7b16"],
 }
-REPRESENTATIVE_DATASETS = ["aircraft", "domainnet-sketch", "flowers102"]
+REPRESENTATIVE_DATASETS = list(DATASETS.keys())
+
+# [
+#     "aircraft",
+#     "domainnet-quickdraw",
+#     "rxrx1",
+#     "domainnet-infograph",
+#     "domainnet-painting",
+#     "flowers102",
+# ]
+# ["aircraft", "domainnet-sketch", "flowers102"]
 VFM_MARKERS = {
     "vit": "o",
     "dinov2": "^",
@@ -90,8 +108,8 @@ LLM_SIZES = {
 }
 
 # Plot aesthetic
-FONTSIZE = 19
-LEG_FONTSIZE = 19
+FONTSIZE = 21
+LEG_FONTSIZE = FONTSIZE
 LINEWIDTH = 4
 BARWIDTH = 0.25
 MARKER_LINEWIDTH = 0.5
@@ -133,6 +151,33 @@ def save_plot(figname: str, dirname: str | None = None, format: str = "pdf", dpi
     figure_path.mkdir(parents=True, exist_ok=True)
     save_dir = figure_path / f"{figname}.{format}"
     plt.savefig(save_dir, format=format, bbox_inches="tight", dpi=dpi)
+
+
+# ------------------------------------------------------------------------------
+# Runs statistics
+# ------------------------------------------------------------------------------
+def table_runs() -> None:
+    r"""Compute the number of runs in our experiments."""
+    path = RESULT_DIR
+
+    # Vision
+    comp = 0
+    for filename in ["cls", "cifar10_c", "wilds"]:
+        df = pd.read_csv(path / f"{filename}.csv")
+        df = df.copy()
+        pattern = "|".join(VFMs)
+        df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+        print(f"There are {len(df)} runs for {filename}.")
+        comp += len(df)
+    print(f"There are {comp} VFMs runs.")
+
+    # Language
+    filename = "mteb"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    print(f"There are {len(df)} LLMs runs.")
 
 
 # ------------------------------------------------------------------------------
@@ -220,10 +265,9 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
-def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
+def plot_transfer_difficulty_vision(filename: str, save: bool = False) -> None:
     r"""
-    Plot the evolution of gain over standard probing, averaged over models for a given dataset,
-    as a function of the dataset difficulty (measured by the highest achievable performance).
+    Plot dataset-level mean oracle gain as a function of empirical transfer difficulty.
 
     Parameters
     ----------
@@ -244,6 +288,10 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
+    # Keep datasets
+    pattern = "|".join(DATASETS.keys())
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+
     # Keep vision models
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
@@ -251,83 +299,97 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     # Dataset difficulty
     summary = (
         df.groupby("dataset_name")
-        .agg(max_accuracy=("baseline_accuracy", "max"), mean_gain=("gain", "mean"))
+        .agg(
+            max_standard_accuracy=("baseline_accuracy", "max"),
+            mean_gain=("gain", "mean"),
+        )
         .reset_index()
     )
-    summary["best_error"] = 100 - summary["max_accuracy"]
-
-    # Plotting
+    summary["transfer_error"] = 100 - summary["max_standard_accuracy"]
     ax.scatter(
-        summary["best_error"],
+        summary["transfer_error"],
         summary["mean_gain"],
-        s=50,
+        s=120,
         zorder=3,
         color=GAIN_PALETTE["oracle"],
         edgecolors="#333333",
         linewidths=MARKER_LINEWIDTH,
     )
-
-    # Annotate
-    summary_subset = summary.copy()
-    summary_subset = summary_subset[summary_subset["dataset_name"].isin(REPRESENTATIVE_DATASETS)]
-    for _, row in summary_subset.iterrows():
-        if "aircraft" == row["dataset_name"]:
-            ax.annotate(
-                DATASETS[row["dataset_name"]],
-                (row["best_error"], row["mean_gain"]),
-                xytext=(-56, 0),
-                textcoords="offset points",
-                color="#333333",
-                fontsize=15,
-                va="center",
-                ha="left",
-            )
-        else:
-            ax.annotate(
-                DATASETS[row["dataset_name"]],
-                (row["best_error"], row["mean_gain"]),
-                xytext=(8, 0),
-                textcoords="offset points",
-                color="#333333",
-                fontsize=15,
-                va="center",
-                ha="left",
-            )
-    # Regression on all models x dataset points
-    df_full = df.merge(summary[["dataset_name", "best_error"]], on="dataset_name")
-    rho, pval = spearmanr(df_full["best_error"], df_full["gain"])
+    rho, pval = spearmanr(summary["transfer_error"], summary["mean_gain"])
+    print(f"Spearman coefficient is {rho:2f} with p-value {pval:2f}.")
     sns.regplot(
-        data=df_full,
-        x="best_error",
-        y="gain",
+        data=summary,
+        x="transfer_error",
+        y="mean_gain",
         color=GAIN_PALETTE["oracle"],
         scatter=False,
         ci=None,
         line_kws={"linewidth": 2, "alpha": 0.8},
         ax=ax,
     )
+
+    # Annotate
+    summary_subset = summary.copy()
+    summary_subset = summary_subset[summary_subset["dataset_name"].isin(REPRESENTATIVE_DATASETS)]
+    for _, row in summary_subset.iterrows():
+        ax.annotate(
+            DATASETS[row["dataset_name"]],
+            (row["transfer_error"], row["mean_gain"]),
+            xytext=(8, 0),
+            textcoords="offset points",
+            color="#333333",
+            fontsize=11,
+            va="center",
+            ha="left",
+        )
+        # if row["dataset_name"] == "aircraft":
+        #     ax.annotate(
+        #         DATASETS[row["dataset_name"]],
+        #         (row["transfer_error"], row["mean_gain"]),
+        #         xytext=(-66, 0),
+        #         textcoords="offset points",
+        #         color="#333333",
+        #         fontsize=18,
+        #         va="center",
+        #         ha="left",
+        #     )
+        # else:
+        #     ax.annotate(
+        #         DATASETS[row["dataset_name"]],
+        #         (row["transfer_error"], row["mean_gain"]),
+        #         xytext=(8, 0),
+        #         textcoords="offset points",
+        #         color="#333333",
+        #         fontsize=18,
+        #         va="center",
+        #         ha="left",
+        #     )
+
+    # Spearman correlation and regression use the ten dataset-level observations.
     handle = Line2D(
         [0],
         [0],
         color=GAIN_PALETTE["oracle"],
         linewidth=2,
-        label=rf"$\rho= {rho:.2f}$" + "\n" + rf"$\text{{p-value}}= {pval:.1e}$",
+        label=rf"$\rho= {rho:.2f}$"
+        + "\n"
+        + rf"$\text{{p-value}}= {pval:.1e}$".replace("e-0", "e-").replace("e+0", "e+"),
     )
-    legend = ax.legend(
-        handles=[handle],
-        loc="upper center",
-        bbox_to_anchor=(0.275, 0.9),
-        fancybox=True,
-        borderaxespad=0,
-        shadow=False,
-        frameon=True,
-        handlelength=1.9,
-        fontsize=12,
-    )
-    legend.get_frame().set_edgecolor("none")
-    legend.get_frame().set_facecolor("white")
-    legend.get_frame().set_alpha(1.0)
-    legend.set_zorder(10)
+    # legend = ax.legend(
+    #     handles=[handle],
+    #     loc="upper center",
+    #     bbox_to_anchor=(0.275, 0.9),
+    #     fancybox=True,
+    #     borderaxespad=0,
+    #     shadow=False,
+    #     frameon=True,
+    #     handlelength=1.9,
+    #     fontsize=15,
+    # )
+    # legend.get_frame().set_edgecolor("none")
+    # legend.get_frame().set_facecolor("white")
+    # legend.get_frame().set_alpha(1.0)
+    # legend.set_zorder(10)
 
     # Visualization
     ax.grid(alpha=ALPHA_GRID, lw=1.3)
@@ -336,18 +398,18 @@ def plot_dataset_difficulty_vision(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    xticks = [0, 6, 12, 18, 24]
-    ax.set_xticks(xticks)
-    yticks = [0, 2, 4, 6]
-    ax.set_yticks(yticks)
-    ax.set_xlabel(r"Lowest achievable error ($\%$)", fontsize=FONTSIZE)
+    # xticks = [0, 6, 12, 18, 24]
+    # ax.set_xticks(xticks)
+    # yticks = [0, 2, 4, 6]
+    # ax.set_yticks(yticks)
+    ax.set_xlabel(r"Lowest probing error ($\%$)", fontsize=FONTSIZE)
     ax.set_ylabel(r"Oracle gain $\mathscr{G}_\mathrm{oracle}$ (pp)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
     plt.tight_layout()
     if save:
-        figname = f"dataset_difficulty_vision_{filename}"
+        figname = f"transfer_difficulty_vision_{filename}"
         save_plot(figname=figname)
 
 
@@ -480,6 +542,10 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
+    # Compute error reduction and relative gain
+    df["error_reduction"] = 100 * df["gain"] / (100 - df["baseline_accuracy"])
+    print(f"error reduction: {df.groupby('model_name')['error_reduction'].mean()}")
+
     # Results
     pretraining_labels = {"vit": r"$250$B", "dinov2": r"$1.8$T", "aimv2": r"$3.15$T", "dinov3": r"$3.9$T"}
     family_order = ["vit", "dinov2", "aimv2", "dinov3"]
@@ -500,7 +566,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     # Annotate model family name above each bar
     bar_heights = [df[df["model_name"] == m]["gain"].mean() for m in family_order]
     for i, (model_name, height) in enumerate(zip(family_order, bar_heights, strict=True)):
-        xytext = (0, 16)
+        xytext = (0, 18)
         ax.annotate(
             VFM_NAMES[model_name],
             xy=(i, height),
@@ -508,7 +574,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
             textcoords="offset points",
             ha="center",
             va="top",
-            fontsize=15,
+            fontsize=18,
             color="#333333",
             zorder=10,
             bbox=dict(facecolor="white", edgecolor="none", pad=0.5),
@@ -670,9 +736,6 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
     for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
-
-    # Figure
-    ncols = len(REPRESENTATIVE_VFMs)
 
     # Zoomed window (x and y axis are padded to avoid overlapping splines)
     ZOOM_XLIM = [(95, 100)] * 4
@@ -993,7 +1056,7 @@ def plot_winning_distribution_vision(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_zticks = [5, 15, 25]
+    ax.set_zticks = [5, 15, 25]  # type: ignore[reportAttributeAccessIssue]
 
     # Common legend
     plt.tight_layout()
@@ -1120,6 +1183,105 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         save_plot(figname=f"oracle_recovery_vision_{filename}")
 
 
+def plot_probing_depth_wilds_vision(dataset_name: str, filename: str, save: bool = False) -> None:
+    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
+    # Figure
+    width = 5
+    height = 5
+    ncols = len(REPRESENTATIVE_VFMs)
+    figsize = ncols * width, height
+    fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
+
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Recover representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_VFMs.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
+
+    # Results
+    for i, model_name in enumerate(REPRESENTATIVE_VFMs):
+        ax = axes[i]
+        model_size = REPRESENTATIVE_VFMs[model_name]
+        for module in ["act", "rc2"]:
+            subset = df[
+                (df["model_name"] == model_name)
+                & (df["model_size"] == model_size)
+                & (df["dataset_name"] == dataset_name)
+                & (df["module"] == module)
+            ].copy()
+            subset = subset.sort_values("layer")
+            n_layers = subset["layer"].max()
+            subset["depth"] = 100 * subset["layer"] / n_layers
+            subset = subset.sort_values("layer")
+            linestyle = "-" if module != "rc2" else "--"
+            ax.plot(
+                subset["depth"],
+                subset["accuracy"],
+                color=MODULE_PALETTE[module],
+                linewidth=LINEWIDTH,
+                linestyle=linestyle,
+                label=module.upper() if module != "act" else "Act",
+            )
+
+            # Mark the highest act performance
+            if module == "act":
+                index = np.argmax(subset["accuracy"])
+                ax.scatter(
+                    subset["depth"].values[index],
+                    subset["accuracy"].values[index],
+                    edgecolor="#333333",
+                    s=300,
+                    c=MODULE_PALETTE[module],
+                    marker="*",
+                    zorder=3,
+                )
+
+        # Visualization
+        ax.grid(alpha=ALPHA_GRID, lw=1.3)
+        ax.spines["left"].set_linewidth(1)
+        ax.spines["right"].set_linewidth(1)
+        ax.spines["top"].set_linewidth(1)
+        ax.spines["bottom"].set_linewidth(1)
+        ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+        # yticks = [5, 30, 55, 80] if i > 0 else [10, 25, 40, 55]
+        # ax.set_yticks(yticks)
+        ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
+        if i == 0:
+            ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
+        ax.set_title(VFM_NAMES[model_name], fontsize=FONTSIZE)
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+
+    # Common legend
+    legend = axes[0].legend(
+        loc="upper center",
+        bbox_to_anchor=(0.75, 0.3),
+        fancybox=True,
+        borderaxespad=0,
+        shadow=False,
+        frameon=True,
+        handlelength=1.9,
+        fontsize=LEG_FONTSIZE,
+    )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
+    plt.tight_layout()
+    if save:
+        figname = f"probing_depth_{dataset_name}_vision_{filename}"
+        save_plot(figname=figname)
+
+
 # VFMs table functions
 # ------------------------------------------------------------------------------
 def table_model_size_vision(filename: str) -> None:
@@ -1158,12 +1320,10 @@ def table_model_size_vision(filename: str) -> None:
         # Kendall's W (effect size)
         k = len(pivot.columns)
         n = len(pivot)
-        W = stat / (k * (n - 1))  # = chi2 / (k*(n-1)) for Friedman
+        W = stat / (n * (k - 1))
         results.append(
             {
                 "Family": family,
-                "n_sizes": k,
-                "n_datasets": n,
                 "chi2": stat,
                 "p-value": p,
                 "Kendall's W": W,
@@ -1367,7 +1527,7 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     figsize = ncols * width, height
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
 
-    # Recover results
+    # Recover aggregate results.
     path = RESULT_DIR / "analysis"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
@@ -1402,8 +1562,6 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
             order=model_order,
             hue_order=gain_labels,
             palette=GAIN_PALETTE,
-            err_kws={"color": "#333333", "linewidth": 1},
-            capsize=0.15,
             ax=ax,
         )
 
@@ -1769,7 +1927,7 @@ def plot_winning_distribution_language(filename: str, save: bool = False) -> Non
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_zticks = [10, 20, 30]
+    ax.set_zticks = [10, 20, 30]  # type: ignore[reportAttributeAccessIssue]
 
     # Common legend
     plt.tight_layout()
@@ -1953,30 +2111,6 @@ def table_performance_comparison_language(filename: str) -> None:
     print(table.to_latex(float_format="%.2f", bold_rows=True, escape=False))
 
 
-def table_runs() -> None:
-    r"""Compute the number of runs in our experiments."""
-    path = RESULT_DIR
-
-    # Vision
-    comp = 0
-    for filename in ["cls", "cifar10_c"]:
-        df = pd.read_csv(path / f"{filename}.csv")
-        df = df.copy()
-        pattern = "|".join(VFMs)
-        df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-        print(f"There are {len(df)} runs for {filename}.")
-        comp += len(df)
-    print(f"There are {comp} VFMs runs.")
-
-    # Language
-    filename = "mteb"
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    print(f"There are {len(df)} LLMs runs.")
-
-
 # ------------------------------------------------------------------------------
 # Results functions
 # ------------------------------------------------------------------------------
@@ -1986,10 +2120,10 @@ def plot_figures() -> None:
     # save = True
     # plot_cdf_vision(filename="cls", save=save)
 
-    # # Dataset difficulty
-    # save = True
-    # filename = "cls"
-    # plot_dataset_difficulty_vision(filename=filename, save=save)
+    # Dataset difficulty
+    save = True
+    filename = "cls"
+    plot_transfer_difficulty_vision(filename=filename, save=save)
 
     # # Cifar10-C
     # save = True
@@ -2001,10 +2135,10 @@ def plot_figures() -> None:
     # filename = "cls"
     # plot_pretraining_scale_vision(filename=filename, save=save)
 
-    # # Model family
-    # save = True
-    # filename = "cls"
-    # plot_model_family_vision(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "cls"
+    plot_model_family_vision(filename=filename, save=save)
 
     # # Probing depth
     # save = True
@@ -2012,17 +2146,23 @@ def plot_figures() -> None:
     # plot_probing_depth_vision(filename=filename, save=save)
     # plot_probing_depth_all_vision(filename=filename, save=save)
 
-    # Oracle winning distribution
-    save = True
-    filename = "cls"
-    plot_winning_distribution_vision(filename=filename, save=save)
+    # # Oracle winning distribution
+    # save = True
+    # filename = "cls"
+    # plot_winning_distribution_vision(filename=filename, save=save)
 
     # # Oracle recovery
     # save = True
     # filename = "cls"
     # plot_oracle_recovery_vision(filename=filename, save=save)
 
-    # r"""LLMs plots."""
+    # # Probing depth wild
+    # save = True
+    # filename = "wilds"
+    # dataset_name = "rxrx1"
+    # plot_probing_depth_wilds_vision(dataset_name=dataset_name, filename=filename, save=save)
+
+    r"""LLMs plots."""
     # # Model family
     # save = True
     # filename = "mteb"
@@ -2034,10 +2174,10 @@ def plot_figures() -> None:
     # plot_probing_depth_language(filename=filename, save=save)
     # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # Oracle winning distribution
-    save = True
-    filename = "mteb"
-    plot_winning_distribution_language(filename=filename, save=save)
+    # # Oracle winning distribution
+    # save = True
+    # filename = "mteb"
+    # plot_winning_distribution_language(filename=filename, save=save)
 
     # # Oracle recovery
     # save = True
@@ -2046,27 +2186,27 @@ def plot_figures() -> None:
 
 
 def get_tables() -> None:
-    r"""VFMs tables."""
-    # Model size
-    filename = "cls"
-    table_model_size_vision(filename=filename)
+    # r"""Number of runs"""
+    # table_runs()
 
-    # Winning module frequency
-    filename = "cls"
-    table_winning_module_frequency_vision(filename=filename)
+    # r"""VFMs tables."""
+    # # Model size
+    # filename = "cls"
+    # table_model_size_vision(filename=filename)
 
-    # Performance comparions
+    # # Winning module frequency
+    # filename = "cls"
+    # table_winning_module_frequency_vision(filename=filename)
+
+    # Performance comparisons
     filename = "cls"
     table_performance_comparison_vision(filename=filename)
     table_performance_comparison_all_vision(filename=filename)
 
-    r"""LLMs tables."""
-    # Performance comparions
-    filename = "mteb"
-    table_performance_comparison_language(filename=filename)
-
-    r"""Number of runs"""
-    table_runs()
+    # r"""LLMs tables."""
+    # # Performance comparisons
+    # filename = "mteb"
+    # table_performance_comparison_language(filename=filename)
 
 
 # %% Main
