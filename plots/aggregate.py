@@ -178,72 +178,6 @@ def get_cls_results() -> None:
     logger.info(f"Results saved at {save_path}.")
 
 
-def get_wilds_results() -> None:
-    r"""Sweep over WILDS benchmarks json files and aggregate results in a single csv."""
-
-    # Compile results by looping over datasets json files
-    results = []
-    dataset_names = ["iwildcam", "rxrx1"]
-    for dataset_name in dataset_names:
-        # Check that path exists
-        results_path = RUN_DIR / dataset_name
-        if not results_path.exists():
-            logger.info(f"Result directory '{results_path}' does not exist.")
-            return
-
-        logger.info(f"Start recovering results from {results_path}.")
-        config_files = [f for f in results_path.glob("**/config.json")]
-        for config_path in tqdm(config_files, desc=f"Writing results for {dataset_name}", unit="runs"):
-            # Recover model config
-            config = json.loads(config_path.read_text(encoding="utf-8"))
-            model_name = config["model_name"]
-            model_size = config["model_size"]
-            patch_size = config["patch_size"]
-            resolution = config["resolution"]
-
-            # Recover results
-            folder_path = config_path.parent / "results"
-            results_files = [f for f in folder_path.glob("*.json")]
-            for json_path in results_files:
-                # Recover layer index and module name
-                layer, module = parse_result_config(name=json_path.name)
-                with open(json_path, encoding="utf-8") as f:
-                    content = f.read().replace("NaN", "null")
-                    data = json.loads(content)
-                    accuracy = 100 * data["acc_test"]
-                    results.append(
-                        {
-                            "dataset_name": dataset_name,
-                            "model_name": model_name,
-                            "model_size": model_size,
-                            "patch_size": patch_size,
-                            "resolution": resolution,
-                            "layer": layer,
-                            "module": module,
-                            "accuracy": accuracy,
-                        }
-                    )
-
-    # Aggregate results
-    df = pd.DataFrame(results)
-    column_order = ["dataset_name", "model_name", "model_size", "patch_size", "resolution", "layer", "module"]
-    df = df.sort_values(by=column_order, ascending=True)
-    columns = [
-        "dataset_name",
-        "model_name",
-        "model_size",
-        "patch_size",
-        "resolution",
-        "layer",
-        "module",
-        "accuracy",
-    ]
-    RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    save_path = RESULT_DIR / "wilds.csv"
-    df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
-    logger.info(f"Results saved at {save_path}.")
-
-
 def get_cifar10_c_results() -> None:
     r"""Sweep over Cifar10-C json files and aggregate results in a single csv."""
 
@@ -531,90 +465,6 @@ def analysis_cls_results() -> None:
     df_out = pd.DataFrame(results)
     df_out = df_out.sort_values(by=["dataset_name", "model_name", "model_size"])
     save_path = RESULT_DIR / "analysis" / "cls.csv"
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    df_out.to_csv(save_path, index=False, encoding="utf-8")
-    logger.info(f"Saved table to {save_path}")
-
-
-def analysis_wilds_results() -> None:
-    r"""
-    Aggregate image classification results by recovering the best probing location,
-    the corresponding accuracy, the baseline accuracy, defined as the probing accuracy of the rc2 module
-    at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
-    of the baseline probing.
-    """
-    path = RESULT_DIR / "wilds.csv"
-    df = pd.read_csv(path)
-    grouping_cols = [
-        "dataset_name",
-        "model_name",
-        "model_size",
-        "patch_size",
-        "resolution",
-    ]
-
-    # Recover resoluts
-    results = []
-    for keys, group in tqdm(
-        df.groupby(grouping_cols),
-        desc="Building analysis table",
-    ):
-        dataset_name, model_name, model_size, patch_size, resolution = keys
-        n_layers = int(group["layer"].max()) + 1
-
-        # Baseline probe
-        last_layer = int(group["layer"].max())
-        baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
-        baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
-
-        # Best probe
-        best_idx = group["accuracy"].idxmax()
-        best_row = group.loc[best_idx]
-        best_layer = best_row["layer"]
-        best_module = best_row["module"]
-        best_accuracy = best_row["accuracy"]
-        gain = best_accuracy - baseline_accuracy
-
-        # Best layer with rc2 fixed
-        rc2_df = group[group["module"] == "rc2"]
-        best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
-        best_layer_rc2 = best_layer_rc2_row["layer"]
-        layer_accuracy = best_layer_rc2_row["accuracy"]
-        gain_layer = layer_accuracy - baseline_accuracy
-
-        # Best module at last layer
-        last_layer_df = group[group["layer"] == last_layer]
-        best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
-        best_module_last_layer = best_module_last_row["module"]
-        module_accuracy = best_module_last_row["accuracy"]
-        gain_module = module_accuracy - baseline_accuracy
-
-        # Update results
-        results.append(
-            {
-                "dataset_name": dataset_name,
-                "model_name": model_name,
-                "model_size": model_size,
-                "patch_size": patch_size,
-                "resolution": resolution,
-                "n_layers": n_layers,
-                "baseline_accuracy": baseline_accuracy,
-                "best_layer": best_layer,
-                "best_module": best_module,
-                "best_accuracy": best_accuracy,
-                "gain": gain,
-                "best_layer_rc2": best_layer_rc2,
-                "layer_accuracy": layer_accuracy,
-                "gain_layer": gain_layer,
-                "best_module_last_layer": best_module_last_layer,
-                "module_accuracy": module_accuracy,
-                "gain_module": gain_module,
-            }
-        )
-
-    df_out = pd.DataFrame(results)
-    df_out = df_out.sort_values(by=["dataset_name", "model_name", "model_size"])
-    save_path = RESULT_DIR / "analysis" / "wilds.csv"
     save_path.parent.mkdir(parents=True, exist_ok=True)
     df_out.to_csv(save_path, index=False, encoding="utf-8")
     logger.info(f"Saved table to {save_path}")
@@ -967,12 +817,10 @@ def main() -> None:
     fire.Fire(
         {
             "cls": get_cls_results,
-            "wilds": get_wilds_results,
             "domainnet": get_domainnet_results,
             "cifar10_c": get_cifar10_c_results,
             "mteb": get_mteb_results,
             "analysis_cls": analysis_cls_results,
-            "analysis_wilds": analysis_wilds_results,
             "analysis_cifar10_c": analysis_cifar10_c_results,
             "analysis_domainnet": analysis_domainnet_results,
             "analysis_mteb": analysis_mteb_results,
