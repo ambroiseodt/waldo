@@ -62,7 +62,7 @@ VFM_SIZES = {
     "aimv2": ["large", "huge", "1B", "3B"],
     "dinov3": ["vits16", "vitb16", "vitl16", "vit7b16"],
 }
-REPRESENTATIVE_DATASETS = ["domainnet-quickdraw", "domainnet-sketch", "cifar10"]
+REPRESENTATIVE_DATASETS = ["cifar10", "domainnet-sketch", "domainnet-quickdraw"]
 VFM_MARKERS = {
     "vit": "o",
     "dinov2": "^",
@@ -703,13 +703,24 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
 
 
 def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
-    r"""Evolution of the act and rc2 probing accuracy along with the depth."""
+    r"""
+    Evolution of the act and rc2 probing accuracy along with the depth.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
     # Figure
-    width = 5
+    width = 5.5
     height = 5
-    ncols = len(REPRESENTATIVE_VFMs)
-    figsize = ncols * width, height
-    fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
+    models = {"vit": "large", "dinov3": "vitl16"}
+    nrows = len(models)
+    ncols = len(REPRESENTATIVE_DATASETS)
+    figsize = ncols * width, nrows * height
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharex=True)
 
     # Recover results
     path = RESULT_DIR
@@ -723,105 +734,85 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMs.items():
+    for model, size in models.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
 
-    # Zoomed window (x and y axis are padded to avoid overlapping splines)
-    ZOOM_XLIM = [(95, 100)] * 4
-    ZOOM_YLIM = [(44, 52), (72.0, 77.5), (78.5, 80.5), (76.5, 79.5)]
-    positions = (0.60, 0.08)
-    format = [(0.3, 0.4)] * 4
-
     # Results
-    dataset_name = "domainnet-sketch"
-    for i, model_name in enumerate(REPRESENTATIVE_VFMs):
-        ax = axes[i]
-        axins = None
-        if i:
-            axins = ax.inset_axes((*positions, *format[i]))
-        model_size = REPRESENTATIVE_VFMs[model_name]
-        for module in ["act", "rc2"]:
-            subset = df[
-                (df["model_name"] == model_name)
-                & (df["model_size"] == model_size)
-                & (df["dataset_name"] == dataset_name)
-                & (df["module"] == module)
-            ].copy()
-            subset = subset.sort_values("layer")
-            n_layers = subset["layer"].max()
-            subset["depth"] = 100 * subset["layer"] / n_layers
-            subset = subset.sort_values("layer")
-            linestyle = "-" if module != "rc2" else "--"
-            ax.plot(
-                subset["depth"],
-                subset["accuracy"],
-                color=MODULE_PALETTE[module],
-                linewidth=LINEWIDTH,
-                linestyle=linestyle,
-                label=module.upper() if module != "act" else "Act",
-            )
-
-            # Zoomed-in regions
-            if axins is not None:
-                axins.plot(
+    for i, model_name in enumerate(models):
+        for j, dataset_name in enumerate(REPRESENTATIVE_DATASETS):
+            ax = axes[i, j]
+            model_size = models[model_name]
+            for module in ["act", "rc2"]:
+                subset = df[
+                    (df["model_name"] == model_name)
+                    & (df["model_size"] == model_size)
+                    & (df["dataset_name"] == dataset_name)
+                    & (df["module"] == module)
+                ].copy()
+                subset = subset.sort_values("layer")
+                n_layers = subset["layer"].max()
+                subset["depth"] = 100 * subset["layer"] / n_layers
+                ax.plot(
                     subset["depth"],
                     subset["accuracy"],
                     color=MODULE_PALETTE[module],
                     linewidth=LINEWIDTH,
-                    linestyle=linestyle,
+                    linestyle="-" if module != "rc2" else "--",
+                    label=module.upper() if module != "act" else "Act",
                 )
 
-            # Mark the highest act performance
-            if module == "act":
-                index = np.argmax(subset["accuracy"])
-                ax.scatter(
-                    subset["depth"].values[index],
-                    subset["accuracy"].values[index],
-                    edgecolor="#333333",
-                    s=300,
-                    c=MODULE_PALETTE[module],
-                    marker="*",
-                    zorder=3,
-                )
+                # Mark the highest act performance
+                if module == "act":
+                    index = np.argmax(subset["accuracy"])
+                    ax.scatter(
+                        subset["depth"].values[index],
+                        subset["accuracy"].values[index],
+                        edgecolor="#333333",
+                        s=300,
+                        c=MODULE_PALETTE[module],
+                        marker="*",
+                        zorder=3,
+                    )
 
-        # Subplot limits
-        if axins is not None:
-            axins.set_xticks([95, 100])
-            if i == 1:
-                axins.set_yticks([72.0, 74.5, 77.0])
-            elif i == 2:
-                axins.set_yticks([78.5, 79.5, 80.50])
-            elif i == 3:
-                axins.set_yticks([76.5, 78, 79.5])
-            axins.set_xlim(*ZOOM_XLIM[i])
-            axins.set_ylim(*ZOOM_YLIM[i])
-            axins.grid(alpha=ALPHA_GRID, lw=1.0)
-            axins.tick_params(axis="both", direction="out", length=3, width=1, labelsize=FONTSIZE * 0.6)
-            for spine in axins.spines.values():
-                spine.set_linewidth(0.8)
-                spine.set_edgecolor("0.6")
-
-            # Align zoomed window and subplot
-            ax.indicate_inset_zoom(axins, edgecolor="0.15", linewidth=1.0, linestyle="--")
-
-        # Visualization
-        ax.grid(alpha=ALPHA_GRID, lw=1.3)
-        ax.spines["left"].set_linewidth(1)
-        ax.spines["right"].set_linewidth(1)
-        ax.spines["top"].set_linewidth(1)
-        ax.spines["bottom"].set_linewidth(1)
-        ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-        yticks = [5, 30, 55, 80] if i > 0 else [10, 25, 40, 55]
-        ax.set_yticks(yticks)
-        ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
-        if i == 0:
-            ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
-        ax.set_title(VFM_NAMES[model_name], fontsize=FONTSIZE)
-    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+            # Visualization
+            ax.grid(alpha=ALPHA_GRID, lw=1.3)
+            ax.spines["left"].set_linewidth(1)
+            ax.spines["right"].set_linewidth(1)
+            ax.spines["top"].set_linewidth(1)
+            ax.spines["bottom"].set_linewidth(1)
+            ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+            if i == 0:
+                if j == 0:
+                    yticks = [10, 23, 36, 49]
+                elif j == 1:
+                    yticks = [3, 24, 46, 67]
+                elif j == 2:
+                    yticks = [5, 29, 53, 77]
+                else:
+                    yticks = [3, 28, 53, 81]
+            elif i == 1:
+                yticks = [5, 30, 55, 80] if j > 0 else [10, 25, 40, 55]
+            else:
+                if j == 0:
+                    yticks = [40, 58, 76, 94]
+                elif j == 1:
+                    yticks = [10, 39, 68, 97]
+                elif j == 2:
+                    yticks = [34, 56, 78, 100]
+                else:
+                    yticks = [25, 50, 75, 100]
+            # ax.set_yticks(yticks)
+            if i == nrows - 1:
+                ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
+            if i == 0:
+                ax.set_title(f"{DATASETS[dataset_name]}\n", fontsize=FONTSIZE)
+            if j == 0:
+                ax.set_ylabel(f"{VFM_NAMES[model_name]}\n" + r"Accuracy ($\%$)", fontsize=FONTSIZE)
+    sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
 
     # Common legend
-    legend = axes[0].legend(
+    legend = axes[0, 0].legend(
         loc="upper center",
         bbox_to_anchor=(0.75, 0.3),
         fancybox=True,
@@ -853,8 +844,8 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 5  # 5.5
-    height = 4  # 5
+    width = 5.5
+    height = 5
     nrows = len(REPRESENTATIVE_VFMs)
     ncols = len(REPRESENTATIVE_DATASETS)
     figsize = ncols * width, nrows * height
@@ -2011,10 +2002,10 @@ def plot_figures() -> None:
     # save = True
     # plot_cdf_vision(filename="cls", save=save)
 
-    # # Dataset difficulty
-    # save = True
-    # filename = "cls"
-    # plot_transfer_difficulty_vision(filename=filename, save=save)
+    # Dataset difficulty
+    save = True
+    filename = "cls"
+    plot_transfer_difficulty_vision(filename=filename, save=save)
 
     # # Cifar10-C
     # save = True
@@ -2026,15 +2017,15 @@ def plot_figures() -> None:
     # filename = "cls"
     # plot_pretraining_scale_vision(filename=filename, save=save)
 
-    # # Model family
-    # save = True
-    # filename = "cls"
-    # plot_model_family_vision(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "cls"
+    plot_model_family_vision(filename=filename, save=save)
 
     # Probing depth
     save = True
     filename = "cls"
-    # plot_probing_depth_vision(filename=filename, save=save)
+    plot_probing_depth_vision(filename=filename, save=save)
     plot_probing_depth_all_vision(filename=filename, save=save)
 
     # # Oracle winning distribution
