@@ -1209,7 +1209,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         oracle_gain = oracle - baseline
 
         # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
-        if oracle_gain < 0.5:
+        if oracle_gain <= 0:
             continue
 
         for strategy, acc in strategies.items():
@@ -2065,7 +2065,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         oracle_gain = oracle - baseline
 
         # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
-        if oracle_gain < 0.5:
+        if oracle_gain < 0.001:
             continue
 
         for strategy, acc in strategies.items():
@@ -2413,21 +2413,21 @@ def plot_figures() -> None:
     # filename = "cls"
     # plot_model_family_vision(filename=filename, save=save)
 
-    # Probing depth
-    save = True
-    filename = "cls"
-    plot_probing_depth_vision(filename=filename, save=save)
-    plot_probing_depth_all_vision(filename=filename, save=save)
-
-    # # Oracle recovery
+    # # Probing depth
     # save = True
     # filename = "cls"
-    # plot_oracle_recovery_vision(filename=filename, save=save)
+    # plot_probing_depth_vision(filename=filename, save=save)
+    # plot_probing_depth_all_vision(filename=filename, save=save)
 
-    # Oracle winning distribution
+    # Oracle recovery
     save = True
     filename = "cls"
-    plot_winning_distribution_vision(filename=filename, save=save)
+    plot_oracle_recovery_vision(filename=filename, save=save)
+
+    # # Oracle winning distribution
+    # save = True
+    # filename = "cls"
+    # plot_winning_distribution_vision(filename=filename, save=save)
 
     r"""LLMs plots."""
     # # Model family
@@ -2441,15 +2441,15 @@ def plot_figures() -> None:
     # plot_probing_depth_language(filename=filename, save=save)
     # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # # Oracle recovery
-    # save = True
-    # filename = "mteb"
-    # plot_oracle_recovery_language(filename=filename, save=save)
-
-    # Oracle winning distribution
+    # Oracle recovery
     save = True
     filename = "mteb"
-    plot_winning_distribution_language(filename=filename, save=save)
+    plot_oracle_recovery_language(filename=filename, save=save)
+
+    # # Oracle winning distribution
+    # save = True
+    # filename = "mteb"
+    # plot_winning_distribution_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
@@ -2469,10 +2469,10 @@ def get_tables() -> None:
     # filename = "cls"
     # table_lodo_depth_vision(filename=filename)
 
-    # Performance comparisons
-    filename = "cls"
+    # # Performance comparisons
+    # filename = "cls"
     # table_performance_comparison_vision(filename=filename)
-    table_performance_comparison_all_vision(filename=filename)
+    # table_performance_comparison_all_vision(filename=filename)
 
     # # Global statistics
     # filename = "cls"
@@ -2488,9 +2488,9 @@ def get_tables() -> None:
     # filename = "mteb"
     # table_performance_comparison_language(filename=filename)
 
-    # # Global statistics
-    # filename = "mteb"
-    # table_global_statistics_language(filename=filename)
+    # Global statistics
+    filename = "mteb"
+    table_global_statistics_language(filename=filename)
 
 
 # %% Main
