@@ -83,7 +83,7 @@ class AircraftDataset(Dataset):
 
     def __init__(self, config: AircraftDatasetConfig):
         super().__init__()
-        split = config.mode
+        split = "trainval" if config.mode == "train" else "test"
         dataset = torchvision.datasets.FGVCAircraft(
             root=str(config.save_dir),
             split=split,
