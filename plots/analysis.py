@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.colors import Normalize
 from matplotlib.container import ErrorbarContainer
+from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
 from scipy.stats import friedmanchisquare, spearmanr
 
@@ -55,8 +55,8 @@ DATASETS = {
     "rxrx1": "RxRx1",
 }
 VFMs = ["aim", "dino", "vit"]
-REPRESENTATIVE_VFMs = {"vit": "large", "dinov2": "large", "aimv2": "large", "dinov3": "vitl16"}
-VFM_NAMES = {"vit": "ViT", "dinov2": "DINOv2", "aimv2": "AIMv2", "dinov3": "DINOv3"}
+REPRESENTATIVE_VFMs = {"vit": "large", "dinov2": "large", "dinov3": "vitl16", "aimv2": "large"}
+VFM_NAMES = {"vit": "ViT", "dinov2": "DINOv2", "dinov3": "DINOv3", "aimv2": "AIMv2"}
 VFM_SIZES = {
     "vit": ["base", "large", "huge"],
     "dinov2": ["small", "base", "large", "giant"],
@@ -168,7 +168,11 @@ def table_runs() -> None:
     df = df.copy()
     pattern = "|".join(LLMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    comp += len(df)
     print(f"There are {len(df)} LLMs runs.")
+
+    # Total
+    print(f"There are a total of {comp} runs.")
 
 
 # ------------------------------------------------------------------------------
@@ -193,8 +197,8 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 5.5
-    height = 5
+    width = 5
+    height = 4
     figsize = width, height
     fig = plt.figure(figsize=figsize)
     ax = fig.gca()
@@ -231,7 +235,9 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
     yticks = [0, 25, 50, 75, 100]
     ax.set_yticks(yticks)
     ax.set_xlabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
-    ax.set_ylabel(r"Percentage of runs with gain $> x$", fontsize=FONTSIZE)
+    label = ax.set_ylabel(r"Probing runs with gain $> x$", fontsize=FONTSIZE)
+    x, y = label.get_position()
+    label.set_position((x, 0.4))
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
@@ -242,7 +248,7 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
         lines,
         labels,
         loc="upper center",
-        bbox_to_anchor=(0.72, 0.9),
+        bbox_to_anchor=(0.68, 0.9),
         fancybox=True,
         borderaxespad=0,
         ncol=ncol,
@@ -504,6 +510,64 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         save_plot(figname=f"cifar10c_severity_{filename}")
 
 
+def plot_cifar10c_optimal_depth(filename: str, save: bool = False) -> None:
+    r"""
+    Plot optimal Cifar10-C probing depth depending on the corruption severity.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the analysis result file, without its ``.csv`` suffix.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 5.5
+    height = 5
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca()
+
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)].copy()
+    df["depth"] = 100 * df["best_layer"] / (df["n_layers"] - 1)
+
+    severity_order = [1, 3, 5]
+    sns.barplot(
+        data=df,
+        x="severity",
+        y="depth",
+        order=severity_order,
+        estimator=np.mean,
+        errorbar=("ci", 95),
+        color=GAIN_PALETTE["oracle"],
+        legend=False,
+        err_kws={
+            "color": "#333333",
+            "linewidth": 0.5,
+            "linestyle": "--",
+        },
+        capsize=0.15,
+        ax=ax,
+    )
+    ax.grid(axis="y", alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1)
+    ax.set_ylim(82, 96)
+    ax.set_yticks([82, 89, 96])
+    ax.set_xlabel("Corruption severity", fontsize=FONTSIZE)
+    ax.set_ylabel(r"Optimal layer depth ($\%$)", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+    plt.tight_layout()
+    if save:
+        save_plot(figname=f"cifar10c_optimal_depth_{filename}")
+
+
 def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     r"""
     Plot the average oracle gain over standard probing for different pretraining scales,
@@ -578,7 +642,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     print(f"error reduction: {df.groupby('model_name')['error_reduction'].mean()}")
 
     # Results
-    pretraining_labels = {"vit": r"$250$B", "dinov2": r"$1.8$T", "aimv2": r"$3.15$T", "dinov3": r"$3.9$T"}
+    pretraining_labels = {"vit": r"$0.25$T", "dinov2": r"$1.83$T", "aimv2": r"$3.15$T", "dinov3": r"$3.90$T"}
     family_order = ["vit", "dinov2", "aimv2", "dinov3"]
     sns.barplot(
         data=df,
@@ -656,7 +720,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
     """
     # Figure
     width = 5.5
-    height = 5
+    height = 4.4
     ncols = len(REPRESENTATIVE_DATASETS)
     figsize = ncols * width, height
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
@@ -765,7 +829,7 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
     # Figure
     width = 5
     height = 4
-    panel_models = (("vit", "dinov2"), ("aimv2", "dinov3"))
+    panel_models = (("vit", "dinov3"), ("dinov2", "aimv2"))
     nrows = len(panel_models[0])
     ncols = len(REPRESENTATIVE_DATASETS)
     figsize = 2 * ncols * width, nrows * height
@@ -793,13 +857,17 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
     # Keep vision models
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Keep datasets
+    pattern = "|".join(DATASETS.keys())
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
     for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = df[mask]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
     for panel, model_names in enumerate(panel_models):
@@ -855,38 +923,9 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
                     labelsize=FONTSIZE,
                     labelbottom=i == nrows - 1,
                 )
-                global_i = panel * nrows + i
-                if panel == 0:
-                    if global_i == 0:
-                        if j == 0:
-                            yticks = [67, 82, 97]
-                        elif j == 1:
-                            yticks = [10, 32, 54]
-                        else:
-                            yticks = [20, 34, 48]
-                    else:
-                        if j == 0:
-                            yticks = [52, 77, 100]
-                        elif j == 1:
-                            yticks = [5, 42, 79]
-                        else:
-                            yticks = [9, 39, 69]
-                else:
-                    if global_i == 2:
-                        if j == 0:
-                            yticks = [64, 82, 100]
-                        elif j == 1:
-                            yticks = [6, 44, 82]
-                        else:
-                            yticks = [15, 42, 69]
-                    else:
-                        if j == 0:
-                            yticks = [54, 78, 100]
-                        elif j == 1:
-                            yticks = [5, 42, 79]
-                        else:
-                            yticks = [9, 39, 69]
-                ax.set_yticks(yticks)
+                ymin, ymax = ax.get_ylim()
+                tol = 1
+                ax.set_yticks(np.linspace(ymin - tol, ymax - tol, 3).astype(int))
                 if i == nrows - 1:
                     ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
                 if i == 0:
@@ -932,7 +971,7 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
-def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
+def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool = False) -> None:
     r"""
     Evolution of the act and rc2 probing accuracy along with the depth.
 
@@ -944,9 +983,10 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 5.5
-    height = 5
-    nrows = len(REPRESENTATIVE_VFMs)
+    width = 5
+    height = 4
+    sizes = VFM_SIZES[model_name]
+    nrows = len(sizes)
     ncols = len(REPRESENTATIVE_DATASETS)
     figsize = ncols * width, nrows * height
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharex=True)
@@ -957,21 +997,24 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
     df = df.copy()
 
     # Keep vision models
-    pattern = "|".join(VFMs)
+    pattern = "|".join([model_name])
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Keep datasets
+    pattern = "|".join(DATASETS.keys())
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
-    # Recover representative models
-    mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMs.items():
-        mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
-
     # Results
-    for i, model_name in enumerate(REPRESENTATIVE_VFMs):
+    model_labels = {
+        "vit": ["ViT-B", "ViT-L", "ViT-H"],
+        "dinov2": ["DINOv2-S", "DINOv2-B", "DINOv2-L", "DINOv2-g"],
+        "dinov3": ["DINOv3-S", "DINOv3-B", "DINOv3-L", "DINOv3-7B"],
+        "aimv2": ["AIMv2-L", "AIMv2-H", "AIMv2-1B", "AIMv2-3B"],
+    }
+    for i, model_size in enumerate(sizes):
         for j, dataset_name in enumerate(REPRESENTATIVE_DATASETS):
             ax = axes[i, j]
-            model_size = REPRESENTATIVE_VFMs[model_name]
             for module in ["act", "rc2"]:
                 subset = df[
                     (df["model_name"] == model_name)
@@ -1012,38 +1055,21 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
             ax.spines["top"].set_linewidth(1)
             ax.spines["bottom"].set_linewidth(1)
             ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+            ymin, ymax = ax.get_ylim()
+            tol = 1
+            ax.set_yticks(np.linspace(ymin - tol, ymax - tol, 3).astype(int))
             if i == 0:
-                if j == 0:
-                    yticks = [10, 23, 36, 49]
-                elif j == 1:
-                    yticks = [3, 24, 46, 67]
-                elif j == 2:
-                    yticks = [5, 29, 53, 77]
-                else:
-                    yticks = [3, 28, 53, 81]
-            elif i == 1:
-                yticks = [5, 30, 55, 80] if j > 0 else [10, 25, 40, 55]
-            else:
-                if j == 0:
-                    yticks = [40, 58, 76, 94]
-                elif j == 1:
-                    yticks = [10, 39, 68, 97]
-                elif j == 2:
-                    yticks = [34, 56, 78, 100]
-                else:
-                    yticks = [25, 50, 75, 100]
-            # ax.set_yticks(yticks)
+                ax.set_title(f"{DATASETS[dataset_name]}\n", fontsize=FONTSIZE)
             if i == nrows - 1:
                 ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
             if j == 0:
-                ax.set_ylabel(f"{DATASETS[dataset_name]}\n" + r"Accuracy ($\%$)", fontsize=FONTSIZE)
-            ax.set_title(VFM_NAMES[model_name], fontsize=FONTSIZE)
+                ax.set_ylabel(f"{model_labels[model_name][i]}\n" + r"Accuracy ($\%$)", fontsize=FONTSIZE)
     sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
 
     # Common legend
     legend = axes[0, 0].legend(
         loc="upper center",
-        bbox_to_anchor=(0.75, 0.3),
+        bbox_to_anchor=(0.63, 0.52),
         fancybox=True,
         borderaxespad=0,
         shadow=False,
@@ -1057,14 +1083,17 @@ def plot_probing_depth_all_vision(filename: str, save: bool = False) -> None:
     legend.set_zorder(10)
     plt.tight_layout()
     if save:
-        figname = f"probing_depth_all_vision_{filename}"
+        figname = f"probing_depth_family_{model_name}_vision_{filename}"
         save_plot(figname=figname)
 
 
-def plot_winning_distribution_vision(filename: str, save: bool = False) -> None:
+def plot_heatmap_winning_frequency_vision(filename: str, save: bool = False) -> None:
     r"""
-    Plot 3D distribution of winning frequency. Layer-module pairs are locations in 2D
-    and the density is the frequency of reaching the highest probing accuracy across all runs.
+    Plot the distribution of winning layer-module locations for vision models.
+
+    Each model-dataset pair contributes one vote to its jointly optimal
+    layer-module pair. Relative depth is aggregated into configurable bins
+    for both the heatmap and the depth marginal.
 
     Parameters
     ----------
@@ -1074,74 +1103,536 @@ def plot_winning_distribution_vision(filename: str, save: bool = False) -> None:
         Whether to save the plot.
     """
     # Figure
-    width = 12
-    height = 10
-    figsize = (width, height)
+    n_modules = 8
+    depth_step = 5
+    n_bins = 100 // depth_step
+    width = 10
+    height = 4
+    figsize = width, height
     fig = plt.figure(figsize=figsize)
+    bar_color = "#c6a4e4"
+    cmap = sns.cubehelix_palette(
+        # start=0,
+        rot=0.2,
+        dark=0.45,
+        light=0.95,
+        as_cmap=True,
+    )
+    heatmap_ratio = n_bins / n_modules
+    gs = GridSpec(
+        2,
+        3,
+        figure=fig,
+        width_ratios=[heatmap_ratio, 0.55, 0.06],
+        height_ratios=[0.45, 1.0],
+        wspace=0.05,
+        hspace=0.05,
+    )
+    ax_top = fig.add_subplot(gs[0, 0])
+    ax_heatmap = fig.add_subplot(gs[1, 0])
+    ax_right = fig.add_subplot(gs[1, 1])
+    ax_cbar = fig.add_subplot(gs[1, 2])
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Keep datasets
+    pattern = "|".join(DATASETS.keys())
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+
+    # Results
+    modules = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
+    module_labels = {
+        "ln1": r"$\mathtt{LN1}$",
+        "mha": r"$\mathtt{MHA}$",
+        "rc1": r"$\mathtt{RC1}$",
+        "ln2": r"$\mathtt{LN2}$",
+        "fc1": r"$\mathtt{FC1}$",
+        "act": r"$\mathtt{Act}$",
+        "fc2": r"$\mathtt{FC2}$",
+        "rc2": r"$\mathtt{RC2}$",
+    }
+
+    best_depth = 100 * df["best_layer"].to_numpy(dtype=float) / (df["n_layers"].to_numpy(dtype=float) - 1)
+    depth_bins = np.arange(0, 100 + depth_step, depth_step, dtype=float)
+    n_bins = len(depth_bins) - 1
+    depth_bin = np.minimum(
+        (best_depth / depth_step).astype(int),
+        n_bins - 1,
+    )
+    pair_counts = np.zeros((n_bins, len(modules)), dtype=float)
+    module_to_idx = {module: i for i, module in enumerate(modules)}
+
+    for bin_idx, module in zip(
+        depth_bin,
+        df["best_module"].to_numpy(dtype=str),
+        strict=True,
+    ):
+        module_idx = module_to_idx.get(module)
+        if module_idx is not None:
+            pair_counts[bin_idx, module_idx] += 1
+
+    n_pairs = len(df)
+    pair_pct = 100 * pair_counts / n_pairs
+    module_pct = pair_pct.sum(axis=0)
+    depth_pct = pair_pct.sum(axis=1)
+
+    print("\nOptimal module frequency:")
+    for module, frequency in sorted(
+        zip(modules, module_pct, strict=True),
+        key=lambda x: x[1],
+        reverse=True,
+    ):
+        print(f"  {module:>4s}: {frequency:.1f}%")
+
+    print("\nOptimal depth frequency:")
+    for i, frequency in enumerate(depth_pct):
+        if frequency > 0:
+            lower = depth_bins[i]
+            upper = depth_bins[i + 1]
+            print(f"  {lower:.0f}–{upper:.0f}%: {frequency:.1f}%")
+
+    # Results
+    heatmap_edges = np.arange(n_bins + 1)
+    module_edges = np.arange(len(modules) + 1)
+    im = ax_heatmap.pcolormesh(heatmap_edges, module_edges, pair_pct.T, shading="flat", cmap=cmap, edgecolors="none")
+    depth_centers = np.arange(n_bins) + 0.5
+    ax_top.bar(depth_centers, depth_pct, color=bar_color, width=1.0)
+    module_centers = np.arange(len(modules)) + 0.5
+    ax_right.barh(module_centers, module_pct, color=bar_color, height=1.0)
+
+    # Visualization heatmap
+    ax = ax_heatmap
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(
+        axis="both",
+        direction="out",
+        length=5,
+        width=1,
+        labelsize=FONTSIZE,
+    )
+    ax.set_xlim(0, n_bins)
+    ax.set_ylim(0, len(modules))
+    ax.set_xticks([0, 5, 10, 15, 20])
+    ax.set_xticklabels(["0", "25", "50", "75", "100"])
+    ax.set_yticks(module_centers)
+    ax.set_yticklabels([module_labels[module] for module in modules])
+    ax.set_xlabel("Layer depth (%)")
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Visualiation colorbar
+    cbar = fig.colorbar(im, cax=ax_cbar, ticks=np.linspace(pair_pct.min(), pair_pct.max(), 3))
+    cbar.set_label("Optimality frequency (%)", fontsize=FONTSIZE, rotation=270, labelpad=25)
+    ax = ax_cbar
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+    ax.set_yticks([0, 13, 26])
+
+    # Visualization top marginal
+    ax = ax_top
+    ax.set_xlim(0, n_bins)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    best_idx = np.argmax(depth_pct)
+    ax.text(
+        depth_centers[best_idx],
+        depth_pct[best_idx] + 1,
+        f"{depth_pct[best_idx]:.1f}%",
+        ha="center",
+        va="bottom",
+        fontsize=12,
+        color="black",
+    )
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    # Visualization right marginal
+    ax = ax_right
+    ax.set_ylim(0, len(modules))
+    ax.set_xlim(0, module_pct.max() * 1.5)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    best_idx = np.argmax(module_pct)
+    ax.text(
+        module_pct[best_idx] + 1,
+        module_centers[best_idx],
+        f"{module_pct[best_idx]:.1f}%",
+        ha="left",
+        va="center",
+        fontsize=12,
+        color="black",
+    )
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    # Save
+    if save:
+        save_plot(figname=f"heatmap_winning_frequency_vision_{filename}")
+
+
+def plot_heatmap_winning_frequency_language(
+    filename: str,
+    save: bool = False,
+) -> None:
+    r"""
+    Plot the distribution of winning layer-module locations for language models.
+
+    Each model contributes one vote to its jointly optimal layer-module pair.
+    Relative depth is aggregated into configurable bins for both the heatmap
+    and the depth marginal.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the result file to use.
+    save : bool, default=False
+        Whether to save the plot.
+    """
+    # --------------------------------------------------------------------------
+    # Configuration
+    # --------------------------------------------------------------------------
+    depth_step = 10  # Relative depth bin size (%) for heatmap and marginal
+
+    # --------------------------------------------------------------------------
+    # Figure
+    # --------------------------------------------------------------------------
+    width = 6.5
+    height = 6.0
+    fig = plt.figure(figsize=(width, height))
+
+    gs = GridSpec(
+        2,
+        3,
+        figure=fig,
+        width_ratios=[1.0, 0.20, 0.06],
+        height_ratios=[0.20, 1.0],
+        wspace=0.05,
+        hspace=0.05,
+    )
+
+    ax_top = fig.add_subplot(gs[0, 0])
+    ax_heatmap = fig.add_subplot(gs[1, 0])
+    ax_right = fig.add_subplot(gs[1, 1])
+    ax_cbar = fig.add_subplot(gs[1, 2])
+
+    # --------------------------------------------------------------------------
+    # Recover aggregate results
+    # --------------------------------------------------------------------------
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep language models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # --------------------------------------------------------------------------
+    # Relative depth
+    # --------------------------------------------------------------------------
+    df["best_depth"] = 100 * df["best_layer"] / (df["n_layers"] - 1)
+
+    # --------------------------------------------------------------------------
+    # Fixed module order
+    # Keep all modules, even if some are never selected.
+    # --------------------------------------------------------------------------
+    modules = [
+        "ln1",
+        "mha",
+        "rc1",
+        "ln2",
+        "fc1",
+        "act",
+        "fc2",
+        "rc2",
+    ]
+
+    # --------------------------------------------------------------------------
+    # Bin relative depth
+    # --------------------------------------------------------------------------
+    depth_bins = np.arange(
+        0,
+        100 + depth_step,
+        depth_step,
+    )
+
+    df["depth_bin"] = pd.cut(
+        df["best_depth"],
+        bins=depth_bins,
+        labels=False,
+        include_lowest=True,
+        right=True,
+    )
+
+    n_bins = len(depth_bins) - 1
+
+    # --------------------------------------------------------------------------
+    # Count exact best depth-module pairs
+    # --------------------------------------------------------------------------
+    pair_counts = df.groupby(["depth_bin", "best_module"], observed=False).size().unstack(fill_value=0)
+
+    # Keep all depth bins and all modules.
+    # Modules not selected by any model receive zero.
+    pair_counts = pair_counts.reindex(
+        index=np.arange(n_bins),
+        columns=modules,
+        fill_value=0,
+    )
+
+    n_runs = len(df)
+
+    # Convert to percentage of model runs
+    pair_pct = 100 * pair_counts / n_runs
+
+    # --------------------------------------------------------------------------
+    # Marginals
+    # --------------------------------------------------------------------------
+    module_pct = pair_pct.sum(axis=0)
+    depth_pct = pair_pct.sum(axis=1)
+
+    # Print frequencies
+    print("\nOptimal module frequency:")
+    for module, frequency in module_pct.items():
+        print(f"  {module:>4s}: {frequency:.1f}%")
+
+    print("\nOptimal depth frequency:")
+    for i, frequency in depth_pct.items():
+        if frequency > 0:
+            lower = depth_bins[i]
+            upper = depth_bins[i + 1]
+            print(f"  {lower:.0f}–{upper:.0f}%: {frequency:.1f}%")
+
+    # --------------------------------------------------------------------------
+    # Heatmap
+    # --------------------------------------------------------------------------
+    im = ax_heatmap.imshow(
+        pair_pct.values,
+        aspect="auto",
+        origin="lower",
+        interpolation="nearest",
+        extent=[0, len(modules), 0, 100],
+    )
+
+    # Make the heatmap slightly taller than wide
+    ax_heatmap.set_box_aspect(1.0)
+
+    # Module axis
+    ax_heatmap.set_xticks(
+        np.arange(len(modules)) + 0.5,
+    )
+    ax_heatmap.set_xticklabels(modules)
+
+    # Depth axis
+    ax_heatmap.set_yticks([0, 25, 50, 75, 100])
+    ax_heatmap.set_yticklabels(["0", "25", "50", "75", "100"])
+    ax_heatmap.set_ylabel("Layer depth (%)")
+
+    # Clean up spines
+    ax_heatmap.spines["top"].set_visible(False)
+    ax_heatmap.spines["right"].set_visible(False)
+
+    # --------------------------------------------------------------------------
+    # Top marginal: module frequency
+    # --------------------------------------------------------------------------
+    x = np.arange(len(modules))
+
+    ax_top.bar(
+        x + 0.5,
+        module_pct.values,
+        width=1.0,
+    )
+
+    ax_top.set_xlim(0, len(modules))
+    ax_top.set_xticks([])
+    ax_top.set_yticks([])
+
+    for spine in ax_top.spines.values():
+        spine.set_visible(False)
+
+    # Annotate the most frequent module
+    best_module_idx = int(np.argmax(module_pct.values))
+    best_module_frequency = module_pct.iloc[best_module_idx]
+
+    ax_top.text(
+        best_module_idx + 0.5,
+        best_module_frequency,
+        f"{best_module_frequency:.1f}%",
+        ha="center",
+        va="bottom",
+    )
+
+    # --------------------------------------------------------------------------
+    # Right marginal: depth frequency
+    # --------------------------------------------------------------------------
+    y = np.arange(n_bins)
+
+    ax_right.barh(
+        y + 0.5,
+        depth_pct.values,
+        height=1.0,
+    )
+
+    ax_right.set_ylim(0, n_bins)
+    ax_right.set_xlim(0, depth_pct.max() * 1.15)
+    ax_right.set_xticks([])
+    ax_right.set_yticks([])
+
+    for spine in ax_right.spines.values():
+        spine.set_visible(False)
+
+    # --------------------------------------------------------------------------
+    # Colorbar
+    # --------------------------------------------------------------------------
+    cbar = fig.colorbar(
+        im,
+        cax=ax_cbar,
+    )
+    cbar.set_label("Frequency (%)")
+
+    # --------------------------------------------------------------------------
+    # Save
+    # --------------------------------------------------------------------------
+    if save:
+        save_plot(figname=f"heatmap_winning_frequency_language_{filename}")
+
+
+def plot_winning_distribution_vision_old(filename: str, save: bool = False) -> None:
+    r"""
+    Plot the distribution of winning layer-module locations for vision models.
+
+    Each evaluation contributes one vote, split equally across tied winners.
+    The x-axis is normalized layer depth, the y-axis is the module, and the
+    bar height is the percentage of evaluations won by that location.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 5.5
+    height = 5
+    fig = plt.figure(figsize=(width, height))
     ax = fig.add_subplot(111, projection="3d")
 
     # Recover results
     df = pd.read_csv(RESULT_DIR / f"{filename}.csv")
-    df = df.copy()
-    df = df[df["model_name"].str.lower().isin(VFM_NAMES.keys())]
+    df = df[df["model_name"].str.lower().isin(VFM_NAMES)].copy()
+    pattern = "|".join(DATASETS.keys())
 
-    # Recover winning stats
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Recover winning locations. Ties split one vote equally between winners.
     group_cols = ["dataset_name", "model_name", "model_size"]
     grouped = df.groupby(group_cols, observed=True)
     last_layer = grouped["layer"].transform("max")
     oracle_accuracy = grouped["accuracy"].transform("max")
     winners = df.loc[np.isclose(df["accuracy"], oracle_accuracy, atol=1e-8, rtol=0)].copy()
     winners["depth_pct"] = 100 * winners["layer"] / last_layer.loc[winners.index].clip(lower=1)
-    winners["weight"] = 1 / winners.groupby(group_cols, observed=True)["module"].transform("size")
+    n_winners = winners.groupby(group_cols, observed=True)["module"].transform("size")
+    winners["weight"] = 1 / n_winners
     n_units = int(grouped.ngroups)
 
-    # Create bins
+    # Bin depth to make the winning mass easy to read.
     depth_bin = 5
     depth_edges = np.arange(0, 100 + depth_bin, depth_bin, dtype=float)
     depth_left = depth_edges[:-1]
-    bin_index = np.clip(np.digitize(winners["depth_pct"], depth_edges, right=False) - 1, 0, len(depth_left) - 1)
+    bin_index = np.clip(
+        np.digitize(winners["depth_pct"], depth_edges, right=False) - 1,
+        0,
+        len(depth_left) - 1,
+    )
     module_index = winners["module"].map({module: i for i, module in enumerate(MODULE_ORDER)}).to_numpy()
     grid = np.zeros((len(MODULE_ORDER), len(depth_left)), dtype=float)
     np.add.at(grid, (module_index, bin_index), 100 * winners["weight"].to_numpy() / n_units)
 
-    # Results
-    rows, cols = np.nonzero(grid > 0)
-    cmap = plt.get_cmap(CMAP)
-    norm = Normalize(vmin=0, vmax=max(float(grid.max()), 1e-12))
-    ax.bar3d(
-        depth_left[cols],
-        rows - 0.35,
-        np.zeros_like(rows, dtype=float),
-        depth_bin * 0.85,
-        0.1,
-        grid[rows, cols],
-        color=cmap(norm(grid[rows, cols])),
-        edgecolor="#333333",
-        linewidth=0.1,
-        shade=False,
-    )
-    ax.set(
-        xlabel="\n" + r"Layer depth ($\%$)",
-        zlabel="\n" + r"Winning frequency ($\%$)",
-        yticks=np.arange(len(MODULE_ORDER)),
-        yticklabels=[module.upper() if module != "act" else "Act" for module in MODULE_ORDER],
-        xlim=(0, 102),
-    )
-    ax.view_init(elev=18, azim=-60)
-    fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=0.65, pad=0.12)
-    fig.subplots_adjust(left=0.0, right=0.85, bottom=0.05, top=0.92)
+    # Draw one consistent color per module; height, not color, encodes frequency.
+    depth_width = depth_bin * 0.78
+    module_width = 0.38
+    for module_idx, module in enumerate(MODULE_ORDER):
+        columns = np.flatnonzero(grid[module_idx] > 0)
+        if len(columns) == 0:
+            continue
+        alpha = 1.0 if module == "act" else 0.72
+        ax.bar3d(
+            np.full(len(columns), module_idx - module_width / 2),
+            depth_left[columns],
+            np.zeros(len(columns)),
+            np.full(len(columns), module_width),
+            np.full(len(columns), depth_width),
+            grid[module_idx, columns],
+            color=MODULE_PALETTE[module],
+            alpha=alpha,
+            edgecolor="white",
+            linewidth=0.25,
+            shade=True,
+        )
+
+    # Mark the single most frequent winning location.
+    best_module_idx, best_depth_idx = np.unravel_index(np.argmax(grid), grid.shape)
+    best_value = grid[best_module_idx, best_depth_idx]
+    if best_value > 0:
+        ax.scatter(
+            best_module_idx,
+            depth_left[best_depth_idx] + depth_width / 2,
+            best_value + 1.5,
+            marker="*",
+            s=320,
+            color="#d62728",
+            edgecolor="white",
+            linewidth=0.8,
+            depthshade=False,
+            zorder=10,
+        )
 
     # Visualization
+    module_labels = [module.upper() if module != "act" else "Act" for module in MODULE_ORDER]
+    z_tick_max = max(10, 10 * int(np.ceil(grid.max() / 10)))
+    z_limit = z_tick_max * 1.1
+    ax.set(
+        xlabel="\nModule",
+        ylabel="\nLayer depth (%)",
+        zlabel="\nWinning frequency (%)",
+        xlim=(-0.6, len(MODULE_ORDER) - 0.4),
+        ylim=(0, 100),
+        zlim=(0, z_limit),
+        xticks=np.arange(len(MODULE_ORDER)),
+        xticklabels=module_labels,
+        yticks=[0, 25, 50, 75, 100],
+    )
+    ax.set_zticks(np.arange(0, z_tick_max + 1, 10))
+    ax.view_init(elev=25, azim=40)
+    ax.set_box_aspect((2.5, 1.6, 1.8))
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE - 3, pad=6)
+    ax.tick_params(axis="x", pad=2)
+    ax.tick_params(axis="z", labelsize=FONTSIZE - 3, pad=4)
     ax.grid(False)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_zticks = [5, 15, 25]  # type: ignore[reportAttributeAccessIssue]
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        axis.pane.set_facecolor((0.96, 0.96, 0.96, 1.0))
+        axis.pane.set_edgecolor("white")
+    ax.set_title("Winning layer–module locations", fontsize=FONTSIZE, pad=18)
+    fig.set_layout_engine("none")
 
-    # Common legend
-    plt.tight_layout()
     if save:
         save_plot(figname=f"winning_distribution_vision_{filename}")
 
@@ -1178,6 +1669,11 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
+    # Keep datasets
+    pattern = "|".join(DATASETS.keys())
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
     # Results
     order = ["Best RC2", "Fixed", "Best ACT"]
     groups = ["dataset_name", "model_name", "model_size"]
@@ -1208,23 +1704,21 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         oracle = sub.accuracy.max()
         oracle_gain = oracle - baseline
 
-        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
-        if oracle_gain <= 0:
-            continue
-
-        for strategy, acc in strategies.items():
-            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
-            gain = np.max((acc - baseline, 0))
-            recovery = gain / oracle_gain if gain > 0 else 0
-            rows.append(
-                {
-                    "dataset": key[0],
-                    "family": key[1],
-                    "size": key[2],
-                    "strategy": strategy,
-                    "recovery": recovery * 100,
-                }
-            )
+        # Ignore non zero oracle gains
+        if oracle_gain > 0:
+            for strategy, acc in strategies.items():
+                # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
+                gain = np.max((acc - baseline, 0))
+                recovery = gain / oracle_gain if gain > 0 else 0
+                rows.append(
+                    {
+                        "dataset": key[0],
+                        "family": key[1],
+                        "size": key[2],
+                        "strategy": strategy,
+                        "recovery": recovery * 100,
+                    }
+                )
     summary = pd.DataFrame(rows)
     means = summary.groupby("strategy")["recovery"].mean().reindex(order)
     print(means)
@@ -1257,8 +1751,8 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
     ax.set_xticklabels(["Best RC2", r"$\mathtt{Act@100}$", "Best Act"])
-    ax.set_ylim(20, 100)
-    ax.set_yticks([20, 40, 60, 80, 100])
+    ax.set_ylim(15, 85)
+    ax.set_yticks([15, 50, 85])
     ax.set_xlabel("")
     ax.set_ylabel(r"Oracle gain recovered ($\%$)", fontsize=FONTSIZE)
     sns.despine(fig, ax, trim=True, right=True, offset=10)
@@ -1289,6 +1783,11 @@ def table_model_size_vision(filename: str) -> None:
     # Keep vision models
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Keep datasets
+    pattern = "|".join(DATASETS.keys())
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
     results = []
@@ -1338,6 +1837,11 @@ def table_winning_module_frequency_vision(filename: str) -> None:
     # Keep only vision foundation models
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Keep datasets
+    pattern = "|".join(DATASETS.keys())
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
     freq = df["best_module"].value_counts(normalize=True).mul(100)
@@ -1668,7 +2172,7 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     """
     # Figure
     width = 5.5
-    height = 5
+    height = 4.4
     ncols = len(LLM_FAMILIES)
     figsize = ncols * width, height
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
@@ -2064,21 +2568,19 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         oracle = sub.accuracy.max()
         oracle_gain = oracle - baseline
 
-        # Ignore negligible oracle gains, i..e, less that 0.5 accuracy point
-        if oracle_gain < 0.001:
-            continue
-
-        for strategy, acc in strategies.items():
-            # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
-            gain = np.max((acc - baseline, 0))
-            recovery = gain / oracle_gain if gain > 0 else 0
-            rows.append(
-                {
-                    "model_name": key,
-                    "strategy": strategy,
-                    "recovery": recovery * 100,
-                }
-            )
+        # Ignore zero oracle gains
+        if oracle_gain > 0:
+            for strategy, acc in strategies.items():
+                # If a strategy does not provide any improvement, we assume it recovers 0% of the oracle gain
+                gain = np.max((acc - baseline, 0))
+                recovery = gain / oracle_gain if gain > 0 else 0
+                rows.append(
+                    {
+                        "model_name": key,
+                        "strategy": strategy,
+                        "recovery": recovery * 100,
+                    }
+                )
     summary = pd.DataFrame(rows)
     means = summary.groupby("strategy")["recovery"].mean().reindex(order)
     print(means)
@@ -2125,8 +2627,10 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
 
 def plot_winning_distribution_language(filename: str, save: bool = False) -> None:
     r"""
-    Plot 3D distribution of winning frequency. Layer-module pairs are locations in 2D
-    and the density is the frequency of reaching the highest probing accuracy across models.
+    Plot the distribution of winning layer-module locations for language models.
+
+    Each model contributes one vote, split equally across tied winners. The
+    layer-depth axis uses the same orientation and geometry as the vision plot.
 
     Parameters
     ----------
@@ -2136,15 +2640,11 @@ def plot_winning_distribution_language(filename: str, save: bool = False) -> Non
         Whether to save the plot.
     """
     # Figure
-    width = 12
-    height = 10
-    figsize = (width, height)
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=(11, 8))
     ax = fig.add_subplot(111, projection="3d")
 
-    # Recover results
+    # Recover and aggregate results over language-model tasks.
     df = pd.read_csv(RESULT_DIR / f"{filename}.csv")
-    df = df.copy()
     pattern = "|".join(LLMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
     df = df.groupby(["model_name", "layer", "module"], as_index=False, observed=True)["accuracy"].mean()
@@ -2154,56 +2654,90 @@ def plot_winning_distribution_language(filename: str, save: bool = False) -> Non
     oracle_accuracy = grouped["accuracy"].transform("max")
     winners = df.loc[np.isclose(df["accuracy"], oracle_accuracy, atol=1e-8, rtol=0)].copy()
     winners["depth_pct"] = 100 * winners["layer"] / last_layer.loc[winners.index].clip(lower=1)
-    winners["weight"] = 1 / winners.groupby(group_cols, observed=True)["module"].transform("size")
+    n_winners = winners.groupby(group_cols, observed=True)["module"].transform("size")
+    winners["weight"] = 1 / n_winners
     n_units = int(grouped.ngroups)
 
-    # Create bins
+    # Bin depth to make the winning mass easy to read.
     depth_bin = 5
     depth_edges = np.arange(0, 100 + depth_bin, depth_bin, dtype=float)
     depth_left = depth_edges[:-1]
-    bin_index = np.clip(np.digitize(winners["depth_pct"], depth_edges, right=False) - 1, 0, len(depth_left) - 1)
+    bin_index = np.clip(
+        np.digitize(winners["depth_pct"], depth_edges, right=False) - 1,
+        0,
+        len(depth_left) - 1,
+    )
     module_index = winners["module"].map({module: i for i, module in enumerate(MODULE_ORDER)}).to_numpy()
     grid = np.zeros((len(MODULE_ORDER), len(depth_left)), dtype=float)
     np.add.at(grid, (module_index, bin_index), 100 * winners["weight"].to_numpy() / n_units)
 
-    # Results
-    rows, cols = np.nonzero(grid > 0)
-    cmap = plt.get_cmap(CMAP)
-    norm = Normalize(vmin=0, vmax=max(float(grid.max()), 1e-12))
-    ax.bar3d(
-        depth_left[cols],
-        rows - 0.35,
-        np.zeros_like(rows, dtype=float),
-        depth_bin * 0.85,
-        0.1,
-        grid[rows, cols],
-        color=cmap(norm(grid[rows, cols])),
-        edgecolor="#333333",
-        linewidth=0.1,
-        shade=False,
-    )
-    ax.set(
-        xlabel="\n" + r"Layer depth ($\%$)",
-        zlabel="\n" + r"Winning frequency ($\%$)",
-        yticks=np.arange(len(MODULE_ORDER)),
-        yticklabels=[module.upper() if module != "act" else "Act" for module in MODULE_ORDER],
-        xlim=(0, 102),
-    )
-    ax.view_init(elev=18, azim=-60)
-    fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=0.65, pad=0.12)
-    fig.subplots_adjust(left=0.0, right=0.85, bottom=0.05, top=0.92)
+    # Draw one consistent color per module; height, not color, encodes frequency.
+    depth_width = depth_bin * 0.78
+    module_width = 0.38
+    for module_idx, module in enumerate(MODULE_ORDER):
+        columns = np.flatnonzero(grid[module_idx] > 0)
+        if len(columns) == 0:
+            continue
+        alpha = 1.0 if module == "act" else 0.72
+        ax.bar3d(
+            np.full(len(columns), module_idx - module_width / 2),
+            depth_left[columns],
+            np.zeros(len(columns)),
+            np.full(len(columns), module_width),
+            np.full(len(columns), depth_width),
+            grid[module_idx, columns],
+            color=MODULE_PALETTE[module],
+            alpha=alpha,
+            edgecolor="white",
+            linewidth=0.25,
+            shade=True,
+        )
+
+    # Mark the single most frequent winning location.
+    best_module_idx, best_depth_idx = np.unravel_index(np.argmax(grid), grid.shape)
+    best_value = grid[best_module_idx, best_depth_idx]
+    if best_value > 0:
+        ax.scatter(
+            best_module_idx,
+            depth_left[best_depth_idx] + depth_width / 2,
+            best_value + 1.5,
+            marker="*",
+            s=320,
+            color="#d62728",
+            edgecolor="white",
+            linewidth=0.8,
+            depthshade=False,
+            zorder=10,
+        )
 
     # Visualization
+    module_labels = [module.upper() if module != "act" else "Act" for module in MODULE_ORDER]
+    z_tick_max = max(10, 10 * int(np.ceil(grid.max() / 10)))
+    z_limit = z_tick_max * 1.1
+    ax.set(
+        xlabel="\nModule",
+        ylabel="\nLayer depth (%)",
+        zlabel="\nWinning frequency (%)",
+        xlim=(-0.6, len(MODULE_ORDER) - 0.4),
+        ylim=(0, 100),
+        zlim=(0, z_limit),
+        xticks=np.arange(len(MODULE_ORDER)),
+        xticklabels=module_labels,
+        yticks=[0, 25, 50, 75, 100],
+    )
+    ax.set_zticks(np.arange(0, z_tick_max + 1, 10))
+    ax.view_init(elev=25, azim=40)
+    ax.set_box_aspect((2.5, 1.6, 1.8))
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE - 3, pad=6)
+    ax.tick_params(axis="x", pad=2)
+    ax.tick_params(axis="z", labelsize=FONTSIZE - 3, pad=4)
     ax.grid(False)
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_zticks = [10, 20, 30]  # type: ignore[reportAttributeAccessIssue]
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        axis.pane.set_facecolor((0.96, 0.96, 0.96, 1.0))
+        axis.pane.set_edgecolor("white")
+    ax.set_title("Winning layer–module locations", fontsize=FONTSIZE, pad=18)
+    fig.set_layout_engine("none")
 
-    # Common legend
-    plt.tight_layout()
     if save:
         save_plot(figname=f"winning_distribution_language_{filename}")
 
@@ -2402,6 +2936,7 @@ def plot_figures() -> None:
     # save = True
     # filename = "cifar10_c"
     # plot_cifar10c_severity(filename=filename, save=save)
+    # plot_cifar10c_optimal_depth(filename=filename, save=save)
 
     # # Pretraining scale
     # save = True
@@ -2417,17 +2952,18 @@ def plot_figures() -> None:
     # save = True
     # filename = "cls"
     # plot_probing_depth_vision(filename=filename, save=save)
-    # plot_probing_depth_all_vision(filename=filename, save=save)
+    # for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
+    #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
-    # Oracle recovery
+    # Oracle winning distribution
     save = True
     filename = "cls"
-    plot_oracle_recovery_vision(filename=filename, save=save)
+    plot_heatmap_winning_frequency_vision(filename=filename, save=save)
 
-    # # Oracle winning distribution
+    # # Oracle recovery
     # save = True
     # filename = "cls"
-    # plot_winning_distribution_vision(filename=filename, save=save)
+    # plot_oracle_recovery_vision(filename=filename, save=save)
 
     r"""LLMs plots."""
     # # Model family
@@ -2441,10 +2977,15 @@ def plot_figures() -> None:
     # plot_probing_depth_language(filename=filename, save=save)
     # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # Oracle recovery
-    save = True
-    filename = "mteb"
-    plot_oracle_recovery_language(filename=filename, save=save)
+    # # Oracle winning distribution
+    # save = True
+    # filename = "mteb"
+    # plot_heatmap_winning_frequency_language(filename=filename, save=save)
+
+    # # Oracle recovery
+    # save = True
+    # filename = "mteb"
+    # plot_oracle_recovery_language(filename=filename, save=save)
 
     # # Oracle winning distribution
     # save = True
@@ -2488,9 +3029,9 @@ def get_tables() -> None:
     # filename = "mteb"
     # table_performance_comparison_language(filename=filename)
 
-    # Global statistics
-    filename = "mteb"
-    table_global_statistics_language(filename=filename)
+    # # Global statistics
+    # filename = "mteb"
+    # table_global_statistics_language(filename=filename)
 
 
 # %% Main

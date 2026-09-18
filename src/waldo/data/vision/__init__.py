@@ -10,7 +10,6 @@ in the root directory of this source tree.
 """
 
 from .aircraft import AircraftDataset, AircraftDatasetConfig
-from .camelyon17 import Camelyon17Dataset, Camelyon17DatasetConfig
 from .cifar10 import Cifar10Dataset, Cifar10DatasetConfig
 from .cifar10_c import Cifar10CDataset, Cifar10CDatasetConfig
 from .cifar100 import Cifar100Dataset, Cifar100DatasetConfig
@@ -20,20 +19,16 @@ from .dtd import DTDDataset, DTDDatasetConfig
 from .eurosat import EuroSATDataset, EuroSATDatasetConfig
 from .factory import build_dataset, build_loader, build_transform, deterministic_split
 from .flowers102 import Flowers102Dataset, Flowers102DatasetConfig
-from .fmow import FMoWDataset, FMoWDatasetConfig
 from .food101 import Food101Dataset, Food101DatasetConfig
 from .imagenet import ImageNetDataset, ImageNetDatasetConfig
 from .imagenet_c import ImageNetCDataset, ImageNetCDatasetConfig
 from .iwildcam import IWildCamDataset, IWildCamDatasetConfig
-from .pcam import PCAMDataset, PCAMDatasetConfig
 from .pet import PetDataset, PetDatasetConfig
 from .rxrx1 import RxRx1Dataset, RxRx1DatasetConfig
 
 __all__ = [
     "AircraftDataset",
     "AircraftDatasetConfig",
-    "Camelyon17Dataset",
-    "Camelyon17DatasetConfig",
     "Cifar10DatasetConfig",
     "Cifar10Dataset",
     "Cifar10CDatasetConfig",
@@ -50,8 +45,6 @@ __all__ = [
     "EuroSATDatasetConfig",
     "Flowers102DatasetConfig",
     "Flowers102Dataset",
-    "FMoWDatasetConfig",
-    "FMoWDataset",
     "Food101Dataset",
     "Food101DatasetConfig",
     "ImageNetDatasetConfig",
@@ -60,8 +53,6 @@ __all__ = [
     "ImageNetCDatasetConfig",
     "IWildCamDataset",
     "IWildCamDatasetConfig",
-    "PCAMDataset",
-    "PCAMDatasetConfig",
     "PetDatasetConfig",
     "PetDataset",
     "RxRx1DatasetConfig",
