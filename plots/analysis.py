@@ -1091,9 +1091,8 @@ def plot_heatmap_winning_frequency_vision(filename: str, save: bool = False) -> 
     r"""
     Plot the distribution of winning layer-module locations for vision models.
 
-    Each model-dataset pair contributes one vote to its jointly optimal
-    layer-module pair. Relative depth is aggregated into configurable bins
-    for both the heatmap and the depth marginal.
+    Each model-dataset pair contributes one vote to its jointly optimal layer-module pair. Relative
+    depth is aggregated into configurable bins for both the heatmap and the depth marginal.
 
     Parameters
     ----------
@@ -1286,357 +1285,6 @@ def plot_heatmap_winning_frequency_vision(filename: str, save: bool = False) -> 
         save_plot(figname=f"heatmap_winning_frequency_vision_{filename}")
 
 
-def plot_heatmap_winning_frequency_language(
-    filename: str,
-    save: bool = False,
-) -> None:
-    r"""
-    Plot the distribution of winning layer-module locations for language models.
-
-    Each model contributes one vote to its jointly optimal layer-module pair.
-    Relative depth is aggregated into configurable bins for both the heatmap
-    and the depth marginal.
-
-    Parameters
-    ----------
-    filename : str
-        Name of the result file to use.
-    save : bool, default=False
-        Whether to save the plot.
-    """
-    # --------------------------------------------------------------------------
-    # Configuration
-    # --------------------------------------------------------------------------
-    depth_step = 10  # Relative depth bin size (%) for heatmap and marginal
-
-    # --------------------------------------------------------------------------
-    # Figure
-    # --------------------------------------------------------------------------
-    width = 6.5
-    height = 6.0
-    fig = plt.figure(figsize=(width, height))
-
-    gs = GridSpec(
-        2,
-        3,
-        figure=fig,
-        width_ratios=[1.0, 0.20, 0.06],
-        height_ratios=[0.20, 1.0],
-        wspace=0.05,
-        hspace=0.05,
-    )
-
-    ax_top = fig.add_subplot(gs[0, 0])
-    ax_heatmap = fig.add_subplot(gs[1, 0])
-    ax_right = fig.add_subplot(gs[1, 1])
-    ax_cbar = fig.add_subplot(gs[1, 2])
-
-    # --------------------------------------------------------------------------
-    # Recover aggregate results
-    # --------------------------------------------------------------------------
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep language models
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    # --------------------------------------------------------------------------
-    # Relative depth
-    # --------------------------------------------------------------------------
-    df["best_depth"] = 100 * df["best_layer"] / (df["n_layers"] - 1)
-
-    # --------------------------------------------------------------------------
-    # Fixed module order
-    # Keep all modules, even if some are never selected.
-    # --------------------------------------------------------------------------
-    modules = [
-        "ln1",
-        "mha",
-        "rc1",
-        "ln2",
-        "fc1",
-        "act",
-        "fc2",
-        "rc2",
-    ]
-
-    # --------------------------------------------------------------------------
-    # Bin relative depth
-    # --------------------------------------------------------------------------
-    depth_bins = np.arange(
-        0,
-        100 + depth_step,
-        depth_step,
-    )
-
-    df["depth_bin"] = pd.cut(
-        df["best_depth"],
-        bins=depth_bins,
-        labels=False,
-        include_lowest=True,
-        right=True,
-    )
-
-    n_bins = len(depth_bins) - 1
-
-    # --------------------------------------------------------------------------
-    # Count exact best depth-module pairs
-    # --------------------------------------------------------------------------
-    pair_counts = df.groupby(["depth_bin", "best_module"], observed=False).size().unstack(fill_value=0)
-
-    # Keep all depth bins and all modules.
-    # Modules not selected by any model receive zero.
-    pair_counts = pair_counts.reindex(
-        index=np.arange(n_bins),
-        columns=modules,
-        fill_value=0,
-    )
-
-    n_runs = len(df)
-
-    # Convert to percentage of model runs
-    pair_pct = 100 * pair_counts / n_runs
-
-    # --------------------------------------------------------------------------
-    # Marginals
-    # --------------------------------------------------------------------------
-    module_pct = pair_pct.sum(axis=0)
-    depth_pct = pair_pct.sum(axis=1)
-
-    # Print frequencies
-    print("\nOptimal module frequency:")
-    for module, frequency in module_pct.items():
-        print(f"  {module:>4s}: {frequency:.1f}%")
-
-    print("\nOptimal depth frequency:")
-    for i, frequency in depth_pct.items():
-        if frequency > 0:
-            lower = depth_bins[i]
-            upper = depth_bins[i + 1]
-            print(f"  {lower:.0f}–{upper:.0f}%: {frequency:.1f}%")
-
-    # --------------------------------------------------------------------------
-    # Heatmap
-    # --------------------------------------------------------------------------
-    im = ax_heatmap.imshow(
-        pair_pct.values,
-        aspect="auto",
-        origin="lower",
-        interpolation="nearest",
-        extent=[0, len(modules), 0, 100],
-    )
-
-    # Make the heatmap slightly taller than wide
-    ax_heatmap.set_box_aspect(1.0)
-
-    # Module axis
-    ax_heatmap.set_xticks(
-        np.arange(len(modules)) + 0.5,
-    )
-    ax_heatmap.set_xticklabels(modules)
-
-    # Depth axis
-    ax_heatmap.set_yticks([0, 25, 50, 75, 100])
-    ax_heatmap.set_yticklabels(["0", "25", "50", "75", "100"])
-    ax_heatmap.set_ylabel("Layer depth (%)")
-
-    # Clean up spines
-    ax_heatmap.spines["top"].set_visible(False)
-    ax_heatmap.spines["right"].set_visible(False)
-
-    # --------------------------------------------------------------------------
-    # Top marginal: module frequency
-    # --------------------------------------------------------------------------
-    x = np.arange(len(modules))
-
-    ax_top.bar(
-        x + 0.5,
-        module_pct.values,
-        width=1.0,
-    )
-
-    ax_top.set_xlim(0, len(modules))
-    ax_top.set_xticks([])
-    ax_top.set_yticks([])
-
-    for spine in ax_top.spines.values():
-        spine.set_visible(False)
-
-    # Annotate the most frequent module
-    best_module_idx = int(np.argmax(module_pct.values))
-    best_module_frequency = module_pct.iloc[best_module_idx]
-
-    ax_top.text(
-        best_module_idx + 0.5,
-        best_module_frequency,
-        f"{best_module_frequency:.1f}%",
-        ha="center",
-        va="bottom",
-    )
-
-    # --------------------------------------------------------------------------
-    # Right marginal: depth frequency
-    # --------------------------------------------------------------------------
-    y = np.arange(n_bins)
-
-    ax_right.barh(
-        y + 0.5,
-        depth_pct.values,
-        height=1.0,
-    )
-
-    ax_right.set_ylim(0, n_bins)
-    ax_right.set_xlim(0, depth_pct.max() * 1.15)
-    ax_right.set_xticks([])
-    ax_right.set_yticks([])
-
-    for spine in ax_right.spines.values():
-        spine.set_visible(False)
-
-    # --------------------------------------------------------------------------
-    # Colorbar
-    # --------------------------------------------------------------------------
-    cbar = fig.colorbar(
-        im,
-        cax=ax_cbar,
-    )
-    cbar.set_label("Frequency (%)")
-
-    # --------------------------------------------------------------------------
-    # Save
-    # --------------------------------------------------------------------------
-    if save:
-        save_plot(figname=f"heatmap_winning_frequency_language_{filename}")
-
-
-def plot_winning_distribution_vision_old(filename: str, save: bool = False) -> None:
-    r"""
-    Plot the distribution of winning layer-module locations for vision models.
-
-    Each evaluation contributes one vote, split equally across tied winners.
-    The x-axis is normalized layer depth, the y-axis is the module, and the
-    bar height is the percentage of evaluations won by that location.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    save: bool, default=False
-        Whether to save the plot.
-    """
-    # Figure
-    width = 5.5
-    height = 5
-    fig = plt.figure(figsize=(width, height))
-    ax = fig.add_subplot(111, projection="3d")
-
-    # Recover results
-    df = pd.read_csv(RESULT_DIR / f"{filename}.csv")
-    df = df[df["model_name"].str.lower().isin(VFM_NAMES)].copy()
-    pattern = "|".join(DATASETS.keys())
-
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
-    logger.info(f"Results are presented over a total of {len(df)} runs.")
-
-    # Recover winning locations. Ties split one vote equally between winners.
-    group_cols = ["dataset_name", "model_name", "model_size"]
-    grouped = df.groupby(group_cols, observed=True)
-    last_layer = grouped["layer"].transform("max")
-    oracle_accuracy = grouped["accuracy"].transform("max")
-    winners = df.loc[np.isclose(df["accuracy"], oracle_accuracy, atol=1e-8, rtol=0)].copy()
-    winners["depth_pct"] = 100 * winners["layer"] / last_layer.loc[winners.index].clip(lower=1)
-    n_winners = winners.groupby(group_cols, observed=True)["module"].transform("size")
-    winners["weight"] = 1 / n_winners
-    n_units = int(grouped.ngroups)
-
-    # Bin depth to make the winning mass easy to read.
-    depth_bin = 5
-    depth_edges = np.arange(0, 100 + depth_bin, depth_bin, dtype=float)
-    depth_left = depth_edges[:-1]
-    bin_index = np.clip(
-        np.digitize(winners["depth_pct"], depth_edges, right=False) - 1,
-        0,
-        len(depth_left) - 1,
-    )
-    module_index = winners["module"].map({module: i for i, module in enumerate(MODULE_ORDER)}).to_numpy()
-    grid = np.zeros((len(MODULE_ORDER), len(depth_left)), dtype=float)
-    np.add.at(grid, (module_index, bin_index), 100 * winners["weight"].to_numpy() / n_units)
-
-    # Draw one consistent color per module; height, not color, encodes frequency.
-    depth_width = depth_bin * 0.78
-    module_width = 0.38
-    for module_idx, module in enumerate(MODULE_ORDER):
-        columns = np.flatnonzero(grid[module_idx] > 0)
-        if len(columns) == 0:
-            continue
-        alpha = 1.0 if module == "act" else 0.72
-        ax.bar3d(
-            np.full(len(columns), module_idx - module_width / 2),
-            depth_left[columns],
-            np.zeros(len(columns)),
-            np.full(len(columns), module_width),
-            np.full(len(columns), depth_width),
-            grid[module_idx, columns],
-            color=MODULE_PALETTE[module],
-            alpha=alpha,
-            edgecolor="white",
-            linewidth=0.25,
-            shade=True,
-        )
-
-    # Mark the single most frequent winning location.
-    best_module_idx, best_depth_idx = np.unravel_index(np.argmax(grid), grid.shape)
-    best_value = grid[best_module_idx, best_depth_idx]
-    if best_value > 0:
-        ax.scatter(
-            best_module_idx,
-            depth_left[best_depth_idx] + depth_width / 2,
-            best_value + 1.5,
-            marker="*",
-            s=320,
-            color="#d62728",
-            edgecolor="white",
-            linewidth=0.8,
-            depthshade=False,
-            zorder=10,
-        )
-
-    # Visualization
-    module_labels = [module.upper() if module != "act" else "Act" for module in MODULE_ORDER]
-    z_tick_max = max(10, 10 * int(np.ceil(grid.max() / 10)))
-    z_limit = z_tick_max * 1.1
-    ax.set(
-        xlabel="\nModule",
-        ylabel="\nLayer depth (%)",
-        zlabel="\nWinning frequency (%)",
-        xlim=(-0.6, len(MODULE_ORDER) - 0.4),
-        ylim=(0, 100),
-        zlim=(0, z_limit),
-        xticks=np.arange(len(MODULE_ORDER)),
-        xticklabels=module_labels,
-        yticks=[0, 25, 50, 75, 100],
-    )
-    ax.set_zticks(np.arange(0, z_tick_max + 1, 10))
-    ax.view_init(elev=25, azim=40)
-    ax.set_box_aspect((2.5, 1.6, 1.8))
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE - 3, pad=6)
-    ax.tick_params(axis="x", pad=2)
-    ax.tick_params(axis="z", labelsize=FONTSIZE - 3, pad=4)
-    ax.grid(False)
-    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
-        axis.pane.set_facecolor((0.96, 0.96, 0.96, 1.0))
-        axis.pane.set_edgecolor("white")
-    ax.set_title("Winning layer–module locations", fontsize=FONTSIZE, pad=18)
-    fig.set_layout_engine("none")
-
-    if save:
-        save_plot(figname=f"winning_distribution_vision_{filename}")
-
-
 def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     r"""
     Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
@@ -1763,6 +1411,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         save_plot(figname=f"oracle_recovery_vision_{filename}")
 
 
+# ------------------------------------------------------------------------------
 # VFMs table functions
 # ------------------------------------------------------------------------------
 def table_model_size_vision(filename: str) -> None:
@@ -1852,9 +1501,9 @@ def table_winning_module_frequency_vision(filename: str) -> None:
     print(table.to_latex(index=True, float_format="%.1f"))
 
 
-def table_lodo_depth_vision(filename: str) -> None:
+def table_performance_comparison_vision(filename: str) -> None:
     r"""
-    Leave-one-dataset-out selection of the fixed vision probing depth.
+    Generate the LaTeX NiceTabular environment for vision probing results.
 
     Parameters
     ----------
@@ -1863,60 +1512,321 @@ def table_lodo_depth_vision(filename: str) -> None:
     """
     # Recover results
     path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
+    df = pd.read_csv(path / f"{filename}.csv").copy()
 
-    # Keep vision models
+    # Keep only vision models
     pattern = "|".join(VFMs)
     df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
 
     # Keep datasets
-    pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)].copy()
+    pattern = "|".join(DATASETS)
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
 
-    # LODO
-    grid_step = 5
-    datasets = df["dataset_name"].unique()
-    candidate_depths = np.arange(0, 101, grid_step)
-    model_keys = ["model_name", "model_size"]
-    last_layers = df.groupby(model_keys)["layer"].max()
+    # Results
+    last_layer = df.groupby(["dataset_name", "model_name"])["layer"].transform("max")
+    standard_rows = df[(df["layer"] == last_layer) & (df["module"] == "rc2")]
+    transfer_difficulty = standard_rows.groupby("dataset_name")["accuracy"].mean().rsub(100).sort_values()
+    dataset_order = transfer_difficulty.index.tolist()
+
+    # Recover representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_VFMs.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
+
+    family_order = list(REPRESENTATIVE_VFMs.keys())
+
+    model_labels = {
+        "vit": "ViT",
+        "dinov2": "DINOv2",
+        "dinov3": "DINOv3",
+        "aimv2": "AIMv2",
+    }
+
+    dataset_labels = {
+        "cifar10": "Cifar10",
+        "cifar100": "Cifar100",
+        "dtd": "DTD",
+        "eurosat": "EuroSAT",
+        "flowers102": "Flowers102",
+        "food101": "Food-101",
+        "pet": "Pet",
+        "cifar10_c-corruption-contrast-severity-5": "Contrast",
+        "cifar10_c-corruption-motion_blur-severity-5": "Motion Blur",
+        "cifar10_c-corruption-speckle_noise-severity-5": "Speckle Noise",
+        "aircraft": "Aircraft",
+        "domainnet-clipart": "Clipart",
+        "domainnet-infograph": "Infograph",
+        "domainnet-quickdraw": "Quickdraw",
+        "domainnet-painting": "Painting",
+        "domainnet-sketch": "Sketch",
+        "iwildcam": "iWildCam",
+        "rxrx1": "RxRx1",
+    }
+
     rows = []
-    for held_out in datasets:
-        train = df[df["dataset_name"] != held_out]
-        scores = []
-        for depth in candidate_depths:
-            dataset_scores = []
-            for _, dataset in train[train["module"] == "act"].groupby("dataset_name"):
-                model_scores = []
-                for model_key, model in dataset.groupby(model_keys):
-                    layer = int(depth / 100 * last_layers[model_key])
-                    model_scores.append(model[model["layer"] == layer]["accuracy"].iloc[0])
-                dataset_scores.append(np.mean(model_scores))
-            scores.append(np.mean(dataset_scores))
-        train_score, selected_depth = max(
-            zip(scores, candidate_depths, strict=False),
-            key=lambda item: (item[0], item[1]),
-        )
+    for (dataset, family), sub in df.groupby(["dataset_name", "model_name"]):
+        last_layer = sub["layer"].max()
 
-        held_out_scores = []
-        for model_key, model in df[(df["dataset_name"] == held_out) & (df["module"] == "act")].groupby(model_keys):
-            layer = int(selected_depth / 100 * last_layers[model_key])
-            held_out_scores.append(model[model["layer"] == layer]["accuracy"].iloc[0])
+        standard = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0]
+
+        fixed = sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"].iloc[0]
+
+        oracle = sub["accuracy"].max()
+
         rows.append(
             {
-                "dataset": held_out,
-                "selected_depth": selected_depth,
-                "train_score": train_score,
-                "held_out_accuracy": np.mean(held_out_scores),
+                "dataset": dataset,
+                "family": family,
+                "standard": standard,
+                "fixed": fixed - standard,
+                "oracle": oracle - standard,
             }
         )
 
-    table = pd.DataFrame(rows).sort_values("dataset")
-    choice = table["selected_depth"].mode().iloc[0]
-    print(f"LODO selected depth: {choice}%")
-    print(table.to_string(index=False, float_format=lambda value: f"{value:.2f}"))
+    summary = pd.DataFrame(rows)
+
+    # Format values
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\add{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\sub{{{value:.1f}}}"
+        return "0.0"
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    # Header
+    header = ["Strategy"]
+    for dataset in dataset_order:
+        label = dataset_labels.get(dataset, dataset)
+        header.append(rf"\rotatebox{{90}}{{{label}}}")
+    header.append(r"\rotatebox{90}{Average}")
+
+    # Number of result columns: datasets + Average
+    n_result_columns = len(dataset_order) + 1
+    column_spec = "l" + "c" * n_result_columns
+
+    # LaTeX table
+    lines = []
+    lines.append(rf"\begin{{NiceTabular}}{{{column_spec}}}")
+    lines.append(r"\toprule")
+    lines.append(" & ".join(header))
+    lines.append(r"\\[-1pt]")
+    lines.append(r"\midrule")
+
+    # Family blocks
+    n_columns = n_result_columns + 1
+
+    for family in family_order:
+        family_df = summary[summary["family"] == family]
+
+        lines.append(
+            rf"\multicolumn{{{n_columns}}}{{l}}"
+            rf"{{\textit{{{model_labels[family]}}}}} \\"
+        )
+        lines.append(r"\arrayrulecolor{gray!50}")
+        lines.append(r"\midrule")
+
+        # Standard row
+        values = []
+        for dataset in dataset_order:
+            value = family_df.loc[family_df["dataset"] == dataset, "standard"].iloc[0]
+            values.append(format_accuracy(value))
+
+        standard_average = family_df["standard"].mean()
+        values.append(format_accuracy(standard_average))
+
+        lines.append(r"\texttt{Standard} & " + " & ".join(values) + r" \\")
+
+        # Fixed heuristic row
+        values = []
+        for dataset in dataset_order:
+            value = family_df.loc[family_df["dataset"] == dataset, "fixed"].iloc[0]
+            values.append(format_gain(value))
+
+        fixed_average = family_df["fixed"].mean()
+        values.append(format_gain(fixed_average))
+
+        lines.append(r"$\vfm$ & " + " & ".join(values) + r" \\")
+
+        # Oracle row
+        values = []
+        for dataset in dataset_order:
+            value = family_df.loc[family_df["dataset"] == dataset, "oracle"].iloc[0]
+            values.append(format_gain(value))
+
+        oracle_average = family_df["oracle"].mean()
+        values.append(format_gain(oracle_average))
+
+        lines.append(r"\oraclerow \texttt{Oracle} & " + " & ".join(values) + r" \\")
+
+        lines.append(r"\arrayrulecolor{black}")
+
+        if family != family_order[-1]:
+            lines.append(r"\midrule")
+
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{NiceTabular}")
+
+    print("\n".join(lines))
 
 
-def table_performance_comparison_vision(filename: str) -> None:
+def table_performance_comparison_vision__(filename: str) -> None:
+    r"""
+    Generate the LaTeX NiceTabular environment for vision probing results.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    """
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep only vision models
+    pattern = "|".join(VFMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Keep datasets
+    pattern = "|".join(DATASETS)
+    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+
+    # Recover representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_VFMs.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = df[mask]
+
+    # Results
+    transfer_difficulty = df.groupby("dataset_name")["accuracy"].mean().rsub(100).sort_values()
+    dataset_order = transfer_difficulty.index.tolist()
+    family_order = list(REPRESENTATIVE_VFMs.keys())
+    model_labels = {"vit": "ViT", "dinov2": "DINOv2", "dinov3": "DINOv3", "aimv2": "AIMv2"}
+    dataset_labels = {
+        "cifar10": "Cifar10",
+        "cifar100": "Cifar100",
+        "dtd": "DTD",
+        "eurosat": "EuroSAT",
+        "flowers102": "Flowers102",
+        "food101": "Food-101",
+        "pet": "Pet",
+        "cifar10_c-corruption-contrast-severity-5": "Contrast",
+        "cifar10_c-corruption-motion_blur-severity-5": "Motion Blur",
+        "cifar10_c-corruption-speckle_noise-severity-5": "Speckle Noise",
+        "aircraft": "Aircraft",
+        "domainnet-clipart": "Clipart",
+        "domainnet-infograph": "Infograph",
+        "domainnet-quickdraw": "Quickdraw",
+        "domainnet-painting": "Painting",
+        "domainnet-sketch": "Sketch",
+        "iwildcam": "iWildCam",
+        "rxrx1": "RxRx1",
+    }
+    rows = []
+    for (dataset, family), sub in df.groupby(["dataset_name", "model_name"]):
+        last_layer = sub.layer.max()
+        standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
+        fixed = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
+        oracle = sub.accuracy.max()
+        rows.append(
+            {
+                "dataset": dataset,
+                "family": family,
+                "standard": standard,
+                "fixed": fixed - standard,
+                "oracle": oracle - standard,
+            }
+        )
+    summary = pd.DataFrame(rows)
+
+    # Format values
+    def format_gain(value: float) -> str:
+        if value > 0:
+            return rf"\add{{+{value:.1f}}}"
+        if value < 0:
+            return rf"\sub{{{value:.1f}}}"
+        return r"\add{+0.0}"
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    # Header
+    header = [
+        r"Strategy",
+    ]
+    for dataset in dataset_order:
+        label = dataset_labels.get(dataset, dataset)
+        header.append(rf"\multicolumn{{2}}{{c}}{{\rotatebox{{60}}{{{label}}}}}")
+    header.append(r"\multicolumn{2}{c}{\rotatebox{60}{Average}}")
+
+    # LaTeX table
+    lines = []
+    lines.append(r"\begin{NiceTabular}{")
+    lines.append(r"    @{} l")
+    lines.append(
+        r"    *{19}{w{r}{2.8em}"
+        r"        @{\hspace{3pt}}"
+        r"        w{r}{1.4em}"
+        r"        @{\hspace{1pt}}"
+        r"    }@{}"
+    )
+    lines.append(r"}")
+    lines.append(r"\toprule")
+    lines.append(" & ".join(header))
+    lines.append(r"\\")
+    lines.append(r"\\")
+    lines.append(r"\midrule")
+
+    # Family blocks
+    for family in family_order:
+        family_df = summary[summary["family"] == family]
+        lines.append(rf"\multicolumn{{39}}{{l}}{{\textit{{{model_labels[family]}}}}} \\")
+        lines.append(r"\arrayrulecolor{gray!50}")
+        lines.append(r"\midrule")
+
+        # Standard row
+        values = []
+        for dataset in dataset_order:
+            value = family_df.loc[family_df["dataset"] == dataset, "standard"].iloc[0]
+            values.extend([format_accuracy(value), ""])
+        standard_average = family_df["standard"].mean()
+        values.extend([format_accuracy(standard_average), ""])
+        lines.append(r"\texttt{Standard} & " + " & ".join(values) + r" \\")
+
+        # Fixed heuristic row
+        values = []
+        for dataset in dataset_order:
+            value = family_df.loc[family_df["dataset"] == dataset, "fixed"].iloc[0]
+            standard = family_df.loc[family_df["dataset"] == dataset, "standard"].iloc[0]
+            values.extend([format_accuracy(standard + value), format_gain(value)])
+        fixed_average = family_df["fixed"].mean()
+        fixed_standard_average = family_df["standard"].mean()
+        values.extend([format_accuracy(fixed_standard_average + fixed_average), format_gain(fixed_average)])
+        lines.append(r"$\vfm$ & " + " & ".join(values) + r" \\")
+
+        # Oracle row
+        values = []
+        for dataset in dataset_order:
+            value = family_df.loc[family_df["dataset"] == dataset, "oracle"].iloc[0]
+            standard = family_df.loc[family_df["dataset"] == dataset, "standard"].iloc[0]
+            values.extend([format_accuracy(standard + value), format_gain(value)])
+        oracle_average = family_df["oracle"].mean()
+        oracle_standard_average = family_df["standard"].mean()
+        values.extend([format_accuracy(oracle_standard_average + oracle_average), format_gain(oracle_average)])
+        lines.append(r"\oraclerow \texttt{Oracle} & " + " & ".join(values) + r" \\")
+        lines.append(r"\arrayrulecolor{black}")
+        if family != family_order[-1]:
+            lines.append(r"\midrule")
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{NiceTabular}")
+
+    print("\n".join(lines))
+
+
+def table_performance_comparison_vision_(filename: str) -> None:
     r"""
     Performance comparison between standard probing, heuristic probing and oracle probing.
 
@@ -2502,6 +2412,200 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
+def plot_heatmap_winning_frequency_language(filename: str, save: bool = False) -> None:
+    r"""
+    Plot the distribution of winning layer-module locations for language models.
+
+    Each model contributes one vote to its jointly optimal layer-module pair. Relative depth is
+    aggregated into configurable bins for both the heatmap and the depth marginal.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    n_modules = 8
+    depth_step = 5
+    n_bins = 100 // depth_step
+    width = 10
+    height = 4
+    figsize = width, height
+    fig = plt.figure(figsize=figsize)
+    bar_color = "#c6a4e4"
+    cmap = sns.cubehelix_palette(
+        # start=0,
+        rot=0.2,
+        dark=0.45,
+        light=0.95,
+        as_cmap=True,
+    )
+    heatmap_ratio = n_bins / n_modules
+    gs = GridSpec(
+        2,
+        3,
+        figure=fig,
+        width_ratios=[heatmap_ratio, 0.55, 0.06],
+        height_ratios=[0.45, 1.0],
+        wspace=0.05,
+        hspace=0.05,
+    )
+    ax_top = fig.add_subplot(gs[0, 0])
+    ax_heatmap = fig.add_subplot(gs[1, 0])
+    ax_right = fig.add_subplot(gs[1, 1])
+    ax_cbar = fig.add_subplot(gs[1, 2])
+
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Results
+    modules = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
+    module_labels = {
+        "ln1": r"$\mathtt{LN1}$",
+        "mha": r"$\mathtt{MHA}$",
+        "rc1": r"$\mathtt{RC1}$",
+        "ln2": r"$\mathtt{LN2}$",
+        "fc1": r"$\mathtt{FC1}$",
+        "act": r"$\mathtt{Act}$",
+        "fc2": r"$\mathtt{FC2}$",
+        "rc2": r"$\mathtt{RC2}$",
+    }
+
+    best_depth = 100 * df["best_layer"].to_numpy(dtype=float) / (df["n_layers"].to_numpy(dtype=float) - 1)
+    depth_bins = np.arange(0, 100 + depth_step, depth_step, dtype=float)
+    n_bins = len(depth_bins) - 1
+    depth_bin = np.minimum(
+        (best_depth / depth_step).astype(int),
+        n_bins - 1,
+    )
+    pair_counts = np.zeros((n_bins, len(modules)), dtype=float)
+    module_to_idx = {module: i for i, module in enumerate(modules)}
+
+    for bin_idx, module in zip(
+        depth_bin,
+        df["best_module"].to_numpy(dtype=str),
+        strict=True,
+    ):
+        module_idx = module_to_idx.get(module)
+        if module_idx is not None:
+            pair_counts[bin_idx, module_idx] += 1
+
+    n_pairs = len(df)
+    pair_pct = 100 * pair_counts / n_pairs
+    module_pct = pair_pct.sum(axis=0)
+    depth_pct = pair_pct.sum(axis=1)
+
+    print("\nOptimal module frequency:")
+    for module, frequency in sorted(
+        zip(modules, module_pct, strict=True),
+        key=lambda x: x[1],
+        reverse=True,
+    ):
+        print(f"  {module:>4s}: {frequency:.1f}%")
+
+    print("\nOptimal depth frequency:")
+    for i, frequency in enumerate(depth_pct):
+        if frequency > 0:
+            lower = depth_bins[i]
+            upper = depth_bins[i + 1]
+            print(f"  {lower:.0f}–{upper:.0f}%: {frequency:.1f}%")
+
+    # Results
+    heatmap_edges = np.arange(n_bins + 1)
+    module_edges = np.arange(len(modules) + 1)
+    im = ax_heatmap.pcolormesh(heatmap_edges, module_edges, pair_pct.T, shading="flat", cmap=cmap, edgecolors="none")
+    depth_centers = np.arange(n_bins) + 0.5
+    ax_top.bar(depth_centers, depth_pct, color=bar_color, width=1.0)
+    module_centers = np.arange(len(modules)) + 0.5
+    ax_right.barh(module_centers, module_pct, color=bar_color, height=1.0)
+
+    # Visualization heatmap
+    ax = ax_heatmap
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(
+        axis="both",
+        direction="out",
+        length=5,
+        width=1,
+        labelsize=FONTSIZE,
+    )
+    ax.set_xlim(0, n_bins)
+    ax.set_ylim(0, len(modules))
+    ax.set_xticks([0, 5, 10, 15, 20])
+    ax.set_xticklabels(["0", "25", "50", "75", "100"])
+    ax.set_yticks(module_centers)
+    ax.set_yticklabels([module_labels[module] for module in modules])
+    ax.set_xlabel("Layer depth (%)")
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Visualiation colorbar
+    cbar = fig.colorbar(im, cax=ax_cbar, ticks=np.linspace(pair_pct.min(), pair_pct.max(), 3))
+    cbar.set_label("Optimality frequency (%)", fontsize=FONTSIZE, rotation=270, labelpad=25)
+    ax = ax_cbar
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+    ax.set_yticks([0, 13, 26])
+
+    # Visualization top marginal
+    ax = ax_top
+    ax.set_xlim(0, n_bins)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    best_idx = np.argmax(depth_pct)
+    ax.text(
+        depth_centers[best_idx],
+        depth_pct[best_idx] + 1,
+        f"{depth_pct[best_idx]:.1f}%",
+        ha="center",
+        va="bottom",
+        fontsize=12,
+        color="black",
+    )
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    # Visualization right marginal
+    ax = ax_right
+    ax.set_ylim(0, len(modules))
+    ax.set_xlim(0, module_pct.max() * 1.5)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    best_idx = np.argmax(module_pct)
+    ax.text(
+        module_pct[best_idx] + 1,
+        module_centers[best_idx],
+        f"{module_pct[best_idx]:.1f}%",
+        ha="left",
+        va="center",
+        fontsize=12,
+        color="black",
+    )
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    # Save
+    if save:
+        save_plot(figname=f"heatmap_winning_frequency_language_{filename}")
+
+
 def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     r"""
     Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
@@ -2625,185 +2729,9 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         save_plot(figname=f"oracle_recovery_language_{filename}")
 
 
-def plot_winning_distribution_language(filename: str, save: bool = False) -> None:
-    r"""
-    Plot the distribution of winning layer-module locations for language models.
-
-    Each model contributes one vote, split equally across tied winners. The
-    layer-depth axis uses the same orientation and geometry as the vision plot.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    save: bool, default=False
-        Whether to save the plot.
-    """
-    # Figure
-    fig = plt.figure(figsize=(11, 8))
-    ax = fig.add_subplot(111, projection="3d")
-
-    # Recover and aggregate results over language-model tasks.
-    df = pd.read_csv(RESULT_DIR / f"{filename}.csv")
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    df = df.groupby(["model_name", "layer", "module"], as_index=False, observed=True)["accuracy"].mean()
-    group_cols = ["model_name"]
-    grouped = df.groupby(group_cols, observed=True)
-    last_layer = grouped["layer"].transform("max")
-    oracle_accuracy = grouped["accuracy"].transform("max")
-    winners = df.loc[np.isclose(df["accuracy"], oracle_accuracy, atol=1e-8, rtol=0)].copy()
-    winners["depth_pct"] = 100 * winners["layer"] / last_layer.loc[winners.index].clip(lower=1)
-    n_winners = winners.groupby(group_cols, observed=True)["module"].transform("size")
-    winners["weight"] = 1 / n_winners
-    n_units = int(grouped.ngroups)
-
-    # Bin depth to make the winning mass easy to read.
-    depth_bin = 5
-    depth_edges = np.arange(0, 100 + depth_bin, depth_bin, dtype=float)
-    depth_left = depth_edges[:-1]
-    bin_index = np.clip(
-        np.digitize(winners["depth_pct"], depth_edges, right=False) - 1,
-        0,
-        len(depth_left) - 1,
-    )
-    module_index = winners["module"].map({module: i for i, module in enumerate(MODULE_ORDER)}).to_numpy()
-    grid = np.zeros((len(MODULE_ORDER), len(depth_left)), dtype=float)
-    np.add.at(grid, (module_index, bin_index), 100 * winners["weight"].to_numpy() / n_units)
-
-    # Draw one consistent color per module; height, not color, encodes frequency.
-    depth_width = depth_bin * 0.78
-    module_width = 0.38
-    for module_idx, module in enumerate(MODULE_ORDER):
-        columns = np.flatnonzero(grid[module_idx] > 0)
-        if len(columns) == 0:
-            continue
-        alpha = 1.0 if module == "act" else 0.72
-        ax.bar3d(
-            np.full(len(columns), module_idx - module_width / 2),
-            depth_left[columns],
-            np.zeros(len(columns)),
-            np.full(len(columns), module_width),
-            np.full(len(columns), depth_width),
-            grid[module_idx, columns],
-            color=MODULE_PALETTE[module],
-            alpha=alpha,
-            edgecolor="white",
-            linewidth=0.25,
-            shade=True,
-        )
-
-    # Mark the single most frequent winning location.
-    best_module_idx, best_depth_idx = np.unravel_index(np.argmax(grid), grid.shape)
-    best_value = grid[best_module_idx, best_depth_idx]
-    if best_value > 0:
-        ax.scatter(
-            best_module_idx,
-            depth_left[best_depth_idx] + depth_width / 2,
-            best_value + 1.5,
-            marker="*",
-            s=320,
-            color="#d62728",
-            edgecolor="white",
-            linewidth=0.8,
-            depthshade=False,
-            zorder=10,
-        )
-
-    # Visualization
-    module_labels = [module.upper() if module != "act" else "Act" for module in MODULE_ORDER]
-    z_tick_max = max(10, 10 * int(np.ceil(grid.max() / 10)))
-    z_limit = z_tick_max * 1.1
-    ax.set(
-        xlabel="\nModule",
-        ylabel="\nLayer depth (%)",
-        zlabel="\nWinning frequency (%)",
-        xlim=(-0.6, len(MODULE_ORDER) - 0.4),
-        ylim=(0, 100),
-        zlim=(0, z_limit),
-        xticks=np.arange(len(MODULE_ORDER)),
-        xticklabels=module_labels,
-        yticks=[0, 25, 50, 75, 100],
-    )
-    ax.set_zticks(np.arange(0, z_tick_max + 1, 10))
-    ax.view_init(elev=25, azim=40)
-    ax.set_box_aspect((2.5, 1.6, 1.8))
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE - 3, pad=6)
-    ax.tick_params(axis="x", pad=2)
-    ax.tick_params(axis="z", labelsize=FONTSIZE - 3, pad=4)
-    ax.grid(False)
-    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
-        axis.pane.set_facecolor((0.96, 0.96, 0.96, 1.0))
-        axis.pane.set_edgecolor("white")
-    ax.set_title("Winning layer–module locations", fontsize=FONTSIZE, pad=18)
-    fig.set_layout_engine("none")
-
-    if save:
-        save_plot(figname=f"winning_distribution_language_{filename}")
-
-
 # ------------------------------------------------------------------------------
 # LLMs table functions
 # ------------------------------------------------------------------------------
-def table_loto_depth_language(filename: str) -> None:
-    r"""
-    Leave-one-task-out selection of the fixed language probing depth.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    save: bool, default=False
-        Whether to save the plot.
-    """
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv")
-    all_models = [m for models in LLM_FAMILIES.values() for m in models]
-    df = df[df["model_name"].isin(all_models)].copy()
-
-    # LOTO
-    grid_step = 5
-    tasks = df["task_name"].unique()
-    candidate_depths = np.arange(0, 101, grid_step)
-    last_layers = df.groupby("model_name")["layer"].max()
-    rows = []
-    for held_out in tasks:
-        train = df[df["task_name"] != held_out]
-        scores = []
-        for depth in candidate_depths:
-            task_scores = []
-            for _, task in train[train["module"] == "ln2"].groupby("task_name"):
-                model_scores = []
-                for model_name, model in task.groupby("model_name"):
-                    layer = int(depth / 100 * last_layers[model_name])
-                    model_scores.append(model[model["layer"] == layer]["accuracy"].iloc[0])
-                task_scores.append(np.mean(model_scores))
-            scores.append(np.mean(task_scores))
-        train_score, selected_depth = max(
-            zip(scores, candidate_depths, strict=False),
-            key=lambda item: (item[0], item[1]),
-        )
-
-        held_out_scores = []
-        for model_name, model in df[(df["task_name"] == held_out) & (df["module"] == "ln2")].groupby("model_name"):
-            layer = int(selected_depth / 100 * last_layers[model_name])
-            held_out_scores.append(model[model["layer"] == layer]["accuracy"].iloc[0])
-        rows.append(
-            {
-                "task": held_out,
-                "selected_depth": selected_depth,
-                "train_score": train_score,
-                "held_out_accuracy": np.mean(held_out_scores),
-            }
-        )
-
-    table = pd.DataFrame(rows).sort_values("task")
-    choice = table["selected_depth"].mode().iloc[0]
-    print(f"LOTO selected depth: {choice}%")
-    print(table.to_string(index=False, float_format=lambda value: f"{value:.2f}"))
-
-
 def table_performance_comparison_language(filename: str) -> None:
     r"""Performance comparison between standard probing, heuristic probing and oracle probing."""
     # Recover results
@@ -2955,10 +2883,10 @@ def plot_figures() -> None:
     # for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
     #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
-    # Oracle winning distribution
-    save = True
-    filename = "cls"
-    plot_heatmap_winning_frequency_vision(filename=filename, save=save)
+    # # Oracle winning distribution
+    # save = True
+    # filename = "cls"
+    # plot_heatmap_winning_frequency_vision(filename=filename, save=save)
 
     # # Oracle recovery
     # save = True
@@ -2977,20 +2905,15 @@ def plot_figures() -> None:
     # plot_probing_depth_language(filename=filename, save=save)
     # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # # Oracle winning distribution
-    # save = True
-    # filename = "mteb"
-    # plot_heatmap_winning_frequency_language(filename=filename, save=save)
+    # Oracle winning distribution
+    save = True
+    filename = "mteb"
+    plot_heatmap_winning_frequency_language(filename=filename, save=save)
 
     # # Oracle recovery
     # save = True
     # filename = "mteb"
     # plot_oracle_recovery_language(filename=filename, save=save)
-
-    # # Oracle winning distribution
-    # save = True
-    # filename = "mteb"
-    # plot_winning_distribution_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
@@ -3006,13 +2929,9 @@ def get_tables() -> None:
     # filename = "cls"
     # table_winning_module_frequency_vision(filename=filename)
 
-    # # LODO depth selection
-    # filename = "cls"
-    # table_lodo_depth_vision(filename=filename)
-
-    # # Performance comparisons
-    # filename = "cls"
-    # table_performance_comparison_vision(filename=filename)
+    # Performance comparisons
+    filename = "cls"
+    table_performance_comparison_vision(filename=filename)
     # table_performance_comparison_all_vision(filename=filename)
 
     # # Global statistics
@@ -3021,10 +2940,6 @@ def get_tables() -> None:
     # table_global_statistics_ood_vision(filename=filename)
 
     r"""LLMs tables."""
-    # # LOTO depth selection
-    # filename = "mteb"
-    # table_loto_depth_language(filename=filename)
-
     # # Performance comparisons
     # filename = "mteb"
     # table_performance_comparison_language(filename=filename)
