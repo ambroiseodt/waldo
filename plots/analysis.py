@@ -2920,10 +2920,10 @@ def plot_figures() -> None:
     # for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
     #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
-    # # Heatmap winning frequency
-    # save = True
-    # filename = "cls"
-    # plot_heatmap_winning_frequency_vision(filename=filename, save=save)
+    # Heatmap winning frequency
+    save = True
+    filename = "cls"
+    plot_heatmap_winning_frequency_vision(filename=filename, save=save)
 
     # # Oracle recovery
     # save = True
