@@ -10,6 +10,7 @@ in the root directory of this source tree.
 """
 
 import logging
+from typing import Any, cast
 
 import fire
 import matplotlib.pyplot as plt
@@ -157,7 +158,7 @@ def table_runs() -> None:
         df = pd.read_csv(path / f"{filename}.csv")
         df = df.copy()
         pattern = "|".join(VFMs)
-        df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+        df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
         print(f"There are {len(df)} runs for {filename}.")
         comp += len(df)
     print(f"There are {comp} VFMs runs.")
@@ -167,7 +168,7 @@ def table_runs() -> None:
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
     pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
     comp += len(df)
     print(f"There are {len(df)} LLMs runs.")
 
@@ -210,11 +211,11 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -291,11 +292,11 @@ def plot_transfer_difficulty_vision(filename: str, save: bool = False) -> None:
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -379,8 +380,8 @@ def plot_transfer_difficulty_vision(filename: str, save: bool = False) -> None:
     summary_subset = summary_subset[summary_subset["dataset_name"].isin(REPRESENTATIVE_DATASETS)]
     for _, row in summary_subset.iterrows():
         ax.annotate(
-            DATASETS[row["dataset_name"]],
-            (row["transfer_error"], row["mean_gain"]),
+            str(DATASETS[str(row["dataset_name"])]),
+            (float(row["transfer_error"]), float(row["mean_gain"])),
             xytext=(8, -1.5),
             textcoords="offset points",
             va="center",
@@ -469,7 +470,7 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Corruption severity
     severity_order = [1, 3, 5]
@@ -531,7 +532,7 @@ def plot_cifar10c_optimal_depth(filename: str, save: bool = False) -> None:
     path = RESULT_DIR / "analysis"
     df = pd.read_csv(path / f"{filename}.csv")
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)].copy()
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)].copy())
     df["depth"] = 100 * df["best_layer"] / (df["n_layers"] - 1)
 
     severity_order = [1, 3, 5]
@@ -630,11 +631,11 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Compute error reduction and relative gain
@@ -668,7 +669,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
         xytext = (0, 18)
         ax.annotate(
             VFM_NAMES[model_name],
-            xy=(i, height),
+            xy=(float(i), float(height)),
             xytext=xytext,
             textcoords="offset points",
             ha="center",
@@ -732,18 +733,18 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
     for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
+    df = cast(pd.DataFrame, df[mask])
 
     # Results
     model_order = list(REPRESENTATIVE_VFMs.keys())
@@ -759,7 +760,9 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
             var_name="gain_type",
             value_name="gain_value",
         )
-        agg_long["gain_type"] = agg_long["gain_type"].map(dict(zip(gain_types, gain_labels, strict=False)))
+        agg_long["gain_type"] = agg_long["gain_type"].map(
+            lambda value: dict(zip(gain_types, gain_labels, strict=False))[value]
+        )
         sns.barplot(
             data=agg_long,
             x="model_name",
@@ -856,17 +859,17 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
 
     # Recover representative models
     mask = np.zeros(len(df), dtype=bool)
     for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
+    df = cast(pd.DataFrame, df[mask])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -883,7 +886,7 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
                         & (df["dataset_name"] == dataset_name)
                         & (df["module"] == module)
                     ].copy()
-                    subset = subset.sort_values("layer")
+                    subset = cast(pd.DataFrame, subset).sort_values(by="layer")
                     n_layers = subset["layer"].max()
                     subset["depth"] = 100 * subset["layer"] / n_layers
                     ax.plot(
@@ -998,11 +1001,11 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
 
     # Keep vision models
     pattern = "|".join([model_name])
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -1022,7 +1025,7 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
                     & (df["dataset_name"] == dataset_name)
                     & (df["module"] == module)
                 ].copy()
-                subset = subset.sort_values("layer")
+                subset = cast(pd.DataFrame, subset).sort_values(by="layer")
                 n_layers = subset["layer"].max()
                 subset["depth"] = 100 * subset["layer"] / n_layers
                 ax.plot(
@@ -1139,11 +1142,11 @@ def plot_heatmap_winning_frequency_vision(filename: str, save: bool = False) -> 
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
 
     # Results
     modules = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
@@ -1315,18 +1318,18 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
     order = ["Best RC2", "Fixed", "Best ACT"]
     groups = ["dataset_name", "model_name", "model_size"]
     rows = []
-    for key, sub in df.groupby(groups):
+    for key, sub in cast(Any, df.groupby(groups)):
         last_layer = sub["layer"].max()
 
         # Standard
@@ -1360,9 +1363,9 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
                 recovery = gain / oracle_gain if gain > 0 else 0
                 rows.append(
                     {
-                        "dataset": key[0],
-                        "family": key[1],
-                        "size": key[2],
+                        "dataset": str(key[0]),
+                        "family": str(key[1]),
+                        "size": str(key[2]),
                         "strategy": strategy,
                         "recovery": recovery * 100,
                     }
@@ -1431,11 +1434,11 @@ def table_model_size_vision(filename: str) -> None:
 
     # Keep vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -1485,11 +1488,11 @@ def table_winning_module_frequency_vision(filename: str) -> None:
 
     # Keep only vision foundation models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Keep datasets
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -1502,208 +1505,24 @@ def table_winning_module_frequency_vision(filename: str) -> None:
 
 
 def table_performance_comparison_vision(filename: str) -> None:
-    r"""
-    Generate the LaTeX NiceTabular environment for vision probing results.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    """
-    # Recover results
+    r"""Generate the LaTeX table for representative vision probing results."""
     path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep only vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Keep datasets
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
     pattern = "|".join(DATASETS)
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
-
-    # Results
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
     last_layer = df.groupby(["dataset_name", "model_name"])["layer"].transform("max")
     standard_rows = df[(df["layer"] == last_layer) & (df["module"] == "rc2")]
-    transfer_difficulty = standard_rows.groupby("dataset_name")["accuracy"].mean().rsub(100).sort_values()
-    dataset_order = transfer_difficulty.index.tolist()
-
-    # Recover representative models
+    transfer_difficulty = cast(
+        pd.Series, standard_rows.groupby("dataset_name")["accuracy"].mean().rsub(100)
+    ).sort_values()
+    dataset_order = [str(dataset) for dataset in transfer_difficulty.index.tolist()]
     mask = np.zeros(len(df), dtype=bool)
     for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
-
-    family_order = list(REPRESENTATIVE_VFMs.keys())
-
-    model_labels = {
-        "vit": "ViT",
-        "dinov2": "DINOv2",
-        "dinov3": "DINOv3",
-        "aimv2": "AIMv2",
-    }
-
-    dataset_labels = {
-        "cifar10": "Cifar10",
-        "cifar100": "Cifar100",
-        "dtd": "DTD",
-        "eurosat": "EuroSAT",
-        "flowers102": "Flowers102",
-        "food101": "Food-101",
-        "pet": "Pet",
-        "cifar10_c-corruption-contrast-severity-5": "Contrast",
-        "cifar10_c-corruption-motion_blur-severity-5": "Motion Blur",
-        "cifar10_c-corruption-speckle_noise-severity-5": "Speckle Noise",
-        "aircraft": "Aircraft",
-        "domainnet-clipart": "Clipart",
-        "domainnet-infograph": "Infograph",
-        "domainnet-quickdraw": "Quickdraw",
-        "domainnet-painting": "Painting",
-        "domainnet-sketch": "Sketch",
-        "iwildcam": "iWildCam",
-        "rxrx1": "RxRx1",
-    }
-
-    rows = []
-    for (dataset, family), sub in df.groupby(["dataset_name", "model_name"]):
-        last_layer = sub["layer"].max()
-
-        standard = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0]
-
-        fixed = sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"].iloc[0]
-
-        oracle = sub["accuracy"].max()
-
-        rows.append(
-            {
-                "dataset": dataset,
-                "family": family,
-                "standard": standard,
-                "fixed": fixed - standard,
-                "oracle": oracle - standard,
-            }
-        )
-
-    summary = pd.DataFrame(rows)
-
-    # Format values
-    def format_gain(value: float) -> str:
-        if round(value, 1) > 0:
-            return rf"\add{{+{value:.1f}}}"
-        if round(value, 1) < 0:
-            return rf"\sub{{{value:.1f}}}"
-        return "0.0"
-
-    def format_accuracy(value: float) -> str:
-        return f"{value:.1f}"
-
-    # Header
-    header = ["Strategy"]
-    for dataset in dataset_order:
-        label = dataset_labels.get(dataset, dataset)
-        header.append(rf"\rotatebox{{90}}{{{label}}}")
-    header.append(r"\rotatebox{90}{Average}")
-
-    # Number of result columns: datasets + Average
-    n_result_columns = len(dataset_order) + 1
-    column_spec = "l" + "c" * n_result_columns
-
-    # LaTeX table
-    lines = []
-    lines.append(rf"\begin{{NiceTabular}}{{{column_spec}}}")
-    lines.append(r"\toprule")
-    lines.append(" & ".join(header))
-    lines.append(r"\\[-1pt]")
-    lines.append(r"\midrule")
-
-    # Family blocks
-    n_columns = n_result_columns + 1
-
-    for family in family_order:
-        family_df = summary[summary["family"] == family]
-
-        lines.append(
-            rf"\multicolumn{{{n_columns}}}{{l}}"
-            rf"{{\textit{{{model_labels[family]}}}}} \\"
-        )
-        lines.append(r"\arrayrulecolor{gray!50}")
-        lines.append(r"\midrule")
-
-        # Standard row
-        values = []
-        for dataset in dataset_order:
-            value = family_df.loc[family_df["dataset"] == dataset, "standard"].iloc[0]
-            values.append(format_accuracy(value))
-
-        standard_average = family_df["standard"].mean()
-        values.append(format_accuracy(standard_average))
-
-        lines.append(r"\texttt{Standard} & " + " & ".join(values) + r" \\")
-
-        # Fixed heuristic row
-        values = []
-        for dataset in dataset_order:
-            value = family_df.loc[family_df["dataset"] == dataset, "fixed"].iloc[0]
-            values.append(format_gain(value))
-
-        fixed_average = family_df["fixed"].mean()
-        values.append(format_gain(fixed_average))
-
-        lines.append(r"$\vfm$ & " + " & ".join(values) + r" \\")
-
-        # Oracle row
-        values = []
-        for dataset in dataset_order:
-            value = family_df.loc[family_df["dataset"] == dataset, "oracle"].iloc[0]
-            values.append(format_gain(value))
-
-        oracle_average = family_df["oracle"].mean()
-        values.append(format_gain(oracle_average))
-
-        lines.append(r"\oraclerow \texttt{Oracle} & " + " & ".join(values) + r" \\")
-
-        lines.append(r"\arrayrulecolor{black}")
-
-        if family != family_order[-1]:
-            lines.append(r"\midrule")
-
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{NiceTabular}")
-
-    print("\n".join(lines))
-
-
-def table_performance_comparison_vision__(filename: str) -> None:
-    r"""
-    Generate the LaTeX NiceTabular environment for vision probing results.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    """
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep only vision models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Keep datasets
-    pattern = "|".join(DATASETS)
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
-
-    # Recover representative models
-    mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMs.items():
-        mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
-
-    # Results
-    transfer_difficulty = df.groupby("dataset_name")["accuracy"].mean().rsub(100).sort_values()
-    dataset_order = transfer_difficulty.index.tolist()
-    family_order = list(REPRESENTATIVE_VFMs.keys())
+    df = cast(pd.DataFrame, df[mask])
+    family_order: list[str] = list(REPRESENTATIVE_VFMs.keys())
     model_labels = {"vit": "ViT", "dinov2": "DINOv2", "dinov3": "DINOv3", "aimv2": "AIMv2"}
     dataset_labels = {
         "cifar10": "Cifar10",
@@ -1725,232 +1544,194 @@ def table_performance_comparison_vision__(filename: str) -> None:
         "iwildcam": "iWildCam",
         "rxrx1": "RxRx1",
     }
-    rows = []
-    for (dataset, family), sub in df.groupby(["dataset_name", "model_name"]):
-        last_layer = sub.layer.max()
-        standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        fixed = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
-        oracle = sub.accuracy.max()
+    rows: list[dict[str, object]] = []
+    for key_values, sub in cast(Any, df.groupby(["dataset_name", "model_name"])):
+        dataset, family = key_values
+        last_layer = int(sub["layer"].max())
+        standard = float(
+            cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]).iloc[0]
+        )
+        fixed = float(cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"]).iloc[0])
+        oracle = float(sub["accuracy"].max())
         rows.append(
             {
-                "dataset": dataset,
-                "family": family,
+                "dataset": str(dataset),
+                "family": str(family),
                 "standard": standard,
                 "fixed": fixed - standard,
                 "oracle": oracle - standard,
             }
         )
-    summary = pd.DataFrame(rows)
+    summary: pd.DataFrame = pd.DataFrame(rows)
 
-    # Format values
     def format_gain(value: float) -> str:
-        if value > 0:
+        if round(value, 1) > 0:
             return rf"\add{{+{value:.1f}}}"
-        if value < 0:
+        if round(value, 1) < 0:
             return rf"\sub{{{value:.1f}}}"
-        return r"\add{+0.0}"
+        return "0.0"
 
     def format_accuracy(value: float) -> str:
         return f"{value:.1f}"
 
-    # Header
-    header = [
-        r"Strategy",
-    ]
-    for dataset in dataset_order:
-        label = dataset_labels.get(dataset, dataset)
-        header.append(rf"\multicolumn{{2}}{{c}}{{\rotatebox{{60}}{{{label}}}}}")
-    header.append(r"\multicolumn{2}{c}{\rotatebox{60}{Average}}")
-
-    # LaTeX table
-    lines = []
-    lines.append(r"\begin{NiceTabular}{")
-    lines.append(r"    @{} l")
-    lines.append(
-        r"    *{19}{w{r}{2.8em}"
-        r"        @{\hspace{3pt}}"
-        r"        w{r}{1.4em}"
-        r"        @{\hspace{1pt}}"
-        r"    }@{}"
+    header = (
+        ["Strategy"]
+        + [rf"\rotatebox{{90}}{{{dataset_labels.get(dataset, dataset)}}}" for dataset in dataset_order]
+        + [r"\rotatebox{90}{Average}"]
     )
-    lines.append(r"}")
-    lines.append(r"\toprule")
-    lines.append(" & ".join(header))
-    lines.append(r"\\")
-    lines.append(r"\\")
-    lines.append(r"\midrule")
-
-    # Family blocks
+    n_result_columns = len(dataset_order) + 1
+    column_spec = "l" + "c" * n_result_columns
+    lines = [rf"\begin{{NiceTabular}}{{{column_spec}}}", r"\toprule", " & ".join(header), r"\\[-1pt]", r"\midrule"]
+    n_columns = n_result_columns + 1
     for family in family_order:
-        family_df = summary[summary["family"] == family]
-        lines.append(rf"\multicolumn{{39}}{{l}}{{\textit{{{model_labels[family]}}}}} \\")
-        lines.append(r"\arrayrulecolor{gray!50}")
-        lines.append(r"\midrule")
-
-        # Standard row
-        values = []
-        for dataset in dataset_order:
-            value = family_df.loc[family_df["dataset"] == dataset, "standard"].iloc[0]
-            values.extend([format_accuracy(value), ""])
-        standard_average = family_df["standard"].mean()
-        values.extend([format_accuracy(standard_average), ""])
+        family_df = cast(pd.DataFrame, summary[summary["family"] == family])
+        lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{{model_labels[family]}}}}} \\")
+        lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
+        values = [
+            format_accuracy(float(family_df.loc[family_df["dataset"] == dataset, "standard"].to_numpy()[0]))
+            for dataset in dataset_order
+        ]
+        values.append(format_accuracy(float(family_df["standard"].mean())))
         lines.append(r"\texttt{Standard} & " + " & ".join(values) + r" \\")
-
-        # Fixed heuristic row
-        values = []
-        for dataset in dataset_order:
-            value = family_df.loc[family_df["dataset"] == dataset, "fixed"].iloc[0]
-            standard = family_df.loc[family_df["dataset"] == dataset, "standard"].iloc[0]
-            values.extend([format_accuracy(standard + value), format_gain(value)])
-        fixed_average = family_df["fixed"].mean()
-        fixed_standard_average = family_df["standard"].mean()
-        values.extend([format_accuracy(fixed_standard_average + fixed_average), format_gain(fixed_average)])
+        values = [
+            format_gain(float(family_df.loc[family_df["dataset"] == dataset, "fixed"].to_numpy()[0]))
+            for dataset in dataset_order
+        ]
+        values.append(format_gain(float(family_df["fixed"].mean())))
         lines.append(r"$\vfm$ & " + " & ".join(values) + r" \\")
-
-        # Oracle row
-        values = []
-        for dataset in dataset_order:
-            value = family_df.loc[family_df["dataset"] == dataset, "oracle"].iloc[0]
-            standard = family_df.loc[family_df["dataset"] == dataset, "standard"].iloc[0]
-            values.extend([format_accuracy(standard + value), format_gain(value)])
-        oracle_average = family_df["oracle"].mean()
-        oracle_standard_average = family_df["standard"].mean()
-        values.extend([format_accuracy(oracle_standard_average + oracle_average), format_gain(oracle_average)])
+        values = [
+            format_gain(float(family_df.loc[family_df["dataset"] == dataset, "oracle"].to_numpy()[0]))
+            for dataset in dataset_order
+        ]
+        values.append(format_gain(float(family_df["oracle"].mean())))
         lines.append(r"\oraclerow \texttt{Oracle} & " + " & ".join(values) + r" \\")
         lines.append(r"\arrayrulecolor{black}")
         if family != family_order[-1]:
             lines.append(r"\midrule")
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{NiceTabular}")
-
+    lines.extend([r"\bottomrule", r"\end{NiceTabular}"])
     print("\n".join(lines))
 
 
-def table_performance_comparison_vision_(filename: str) -> None:
-    r"""
-    Performance comparison between standard probing, heuristic probing and oracle probing.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    """
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep only vision models
-    pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Recover representative models
-    mask = np.zeros(len(df), dtype=bool)
-    for model, size in REPRESENTATIVE_VFMs.items():
-        mask |= (df["model_name"] == model) & (df["model_size"] == size)
-    df = df[mask]
-
-    # Results
-    rows = []
-    groups = ["dataset_name", "model_name"]
-    for (dataset, family), sub in df.groupby(groups):
-        last_layer = sub.layer.max()
-        standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        heuristic = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
-        oracle = sub.accuracy.max()
-        rows.extend(
-            [
-                {
-                    "dataset": dataset,
-                    "family": family,
-                    "strategy": "standard",
-                    "accuracy": standard,
-                },
-                {
-                    "dataset": dataset,
-                    "family": family,
-                    "strategy": "heuristic",
-                    "accuracy": heuristic,
-                },
-                {
-                    "dataset": dataset,
-                    "family": family,
-                    "strategy": "oracle",
-                    "accuracy": oracle,
-                },
-            ]
-        )
-    summary = pd.DataFrame(rows)
-    table = summary.groupby(["family", "strategy", "dataset"])["accuracy"].mean().unstack("dataset")
-    table["Average"] = table.mean(axis=1)
-
-    # Overall rows across all models, sizes, and datasets
-    overall_rows = summary.groupby(["strategy", "dataset"])["accuracy"].mean().unstack("dataset")
-    overall_rows["Average"] = overall_rows.mean(axis=1)
-
-    # Latex table
-    print(table.to_latex(float_format="%.1f", multirow=True, bold_rows=True))
-
-
 def table_performance_comparison_all_vision(filename: str) -> None:
-    r"""
-    Performance comparison across all model sizes.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    """
-    # Recover results
+    r"""Generate the LaTeX table for all vision model sizes."""
     path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep only vision models
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Results
-    rows = []
-    groups = ["dataset_name", "model_name", "model_size"]
-    for (dataset, family, size), sub in df.groupby(groups):
-        last_layer = sub.layer.max()
-        standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        heuristic = sub[(sub.layer == last_layer) & (sub.module == "act")].accuracy.iloc[0]
-        oracle = sub.accuracy.max()
-        rows.extend(
-            [
-                {
-                    "dataset": dataset,
-                    "family": family,
-                    "size": size,
-                    "strategy": "standard",
-                    "accuracy": standard,
-                },
-                {
-                    "dataset": dataset,
-                    "family": family,
-                    "size": size,
-                    "strategy": "heuristic",
-                    "accuracy": heuristic,
-                },
-                {
-                    "dataset": dataset,
-                    "family": family,
-                    "size": size,
-                    "strategy": "oracle",
-                    "accuracy": oracle,
-                },
-            ]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+    pattern = "|".join(DATASETS)
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
+    last_layer = df.groupby(["dataset_name", "model_name", "model_size"])["layer"].transform("max")
+    standard_rows = df[(df["layer"] == last_layer) & (df["module"] == "rc2")]
+    transfer_difficulty = cast(
+        pd.Series, standard_rows.groupby("dataset_name")["accuracy"].mean().rsub(100)
+    ).sort_values()
+    dataset_order = [str(dataset) for dataset in transfer_difficulty.index.tolist()]
+    family_order: list[str] = list(VFM_NAMES.keys())
+    model_labels = {
+        "vit": ["B", "L", "H"],
+        "dinov2": ["S", "B", "L", "g"],
+        "dinov3": ["S", "B", "L", "7B"],
+        "aimv2": ["L", "H", "1B", "3B"],
+    }
+    dataset_labels = {
+        "cifar10": "Cifar10",
+        "cifar100": "Cifar100",
+        "dtd": "DTD",
+        "eurosat": "EuroSAT",
+        "flowers102": "Flowers102",
+        "food101": "Food-101",
+        "pet": "Pet",
+        "cifar10_c-corruption-contrast-severity-5": "Contrast",
+        "cifar10_c-corruption-motion_blur-severity-5": "Motion Blur",
+        "cifar10_c-corruption-speckle_noise-severity-5": "Speckle Noise",
+        "aircraft": "Aircraft",
+        "domainnet-clipart": "Clipart",
+        "domainnet-infograph": "Infograph",
+        "domainnet-quickdraw": "Quickdraw",
+        "domainnet-painting": "Painting",
+        "domainnet-sketch": "Sketch",
+        "iwildcam": "iWildCam",
+        "rxrx1": "RxRx1",
+    }
+    rows: list[dict[str, object]] = []
+    for key_values, sub in cast(Any, df.groupby(["dataset_name", "model_name", "model_size"])):
+        dataset, family, size = key_values
+        last_layer = int(sub["layer"].max())
+        standard = float(
+            cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]).iloc[0]
         )
-    summary = pd.DataFrame(rows)
-    table = summary.groupby(["family", "size", "strategy", "dataset"])["accuracy"].mean().unstack("dataset")
-    table["Average"] = table.mean(axis=1)
-
-    # Overall rows across all models, sizes, and datasets
-    overall_rows = summary.groupby(["strategy", "dataset"])["accuracy"].mean().unstack("dataset")
-    overall_rows["Average"] = overall_rows.mean(axis=1)
-
-    # Latex table
-    print(table.to_latex(float_format="%.1f", multirow=True, bold_rows=True))
+        fixed = float(cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"]).iloc[0])
+        oracle = float(sub["accuracy"].max())
+        rows.append(
+            {
+                "dataset": str(dataset),
+                "family": str(family),
+                "size": str(size),
+                "standard": standard,
+                "fixed": fixed,
+                "oracle": oracle,
+            }
+        )
+    summary: pd.DataFrame = pd.DataFrame(rows)
+    header = (
+        ["Model", "Strategy"]
+        + [rf"\rotatebox{{90}}{{{dataset_labels.get(dataset, dataset)}}}" for dataset in dataset_order]
+        + [r"\rotatebox{90}{Average}"]
+    )
+    n_columns = len(dataset_order) + 3
+    lines = [
+        rf"\begin{{NiceTabular}}{{{'l' + 'c' * (n_columns - 1)}}}",
+        r"\toprule",
+        " & ".join(header),
+        r"\\[-1pt]",
+        r"\midrule",
+    ]
+    for family_idx, family in enumerate(family_order):
+        family_df = cast(pd.DataFrame, summary[summary["family"] == family])
+        lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{{VFM_NAMES[family]}}}}} \\")
+        lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
+        for model_idx, model_label in enumerate(model_labels[family]):
+            model_rows = cast(
+                pd.DataFrame,
+                family_df[
+                    family_df["size"]
+                    .astype(str)
+                    .apply(
+                        lambda size: (
+                            model_label.lower().replace(VFM_NAMES[family].lower(), "").strip("-") in size.lower()
+                        )
+                    )
+                ],
+            )
+            if model_rows.empty:
+                continue
+            values = [
+                f"{float(model_rows.loc[model_rows['dataset'] == dataset, 'standard'].to_numpy()[0]):.1f}"
+                for dataset in dataset_order
+            ]
+            values.append(f"{float(model_rows['standard'].mean()):.1f}")
+            lines.append(
+                rf"\multirow{{3}}{{*}}{{{model_label}}} & \texttt{{Standard}} & " + " & ".join(values) + r" \\"
+            )
+            values = [
+                f"{float(model_rows.loc[model_rows['dataset'] == dataset, 'fixed'].to_numpy()[0]):.1f}"
+                for dataset in dataset_order
+            ]
+            values.append(f"{float(model_rows['fixed'].mean()):.1f}")
+            lines.append(r" & $\vfm$ & " + " & ".join(values) + r" \\")
+            values = [
+                f"{float(model_rows.loc[model_rows['dataset'] == dataset, 'oracle'].to_numpy()[0]):.1f}"
+                for dataset in dataset_order
+            ]
+            values.append(f"{float(model_rows['oracle'].mean()):.1f}")
+            lines.append(r" & \oraclerow \texttt{Oracle} & " + " & ".join(values) + r" \\")
+            if model_idx != len(model_labels[family]) - 1:
+                lines.extend([r"\arrayrulecolor{gray!50}", rf"\cline{{2-{n_columns}}}"])
+        lines.append(r"\arrayrulecolor{black}")
+        if family_idx != len(family_order) - 1:
+            lines.append(r"\midrule")
+    lines.extend([r"\bottomrule", r"\end{NiceTabular}"])
+    print("\n".join(lines))
 
 
 def table_global_statistics_vision(filename: str) -> None:
@@ -1967,9 +1748,9 @@ def table_global_statistics_vision(filename: str) -> None:
 
     # Keep vision models and datasets
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
     pattern = "|".join(DATASETS.keys())
-    df = df[df["dataset_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
 
     def print_statistics(frame: pd.DataFrame, scope: str) -> None:
         rows = []
@@ -1977,8 +1758,16 @@ def table_global_statistics_vision(filename: str) -> None:
             last_layer = sub["layer"].max()
             rows.append(
                 {
-                    "standard": sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0],
-                    "fixed": sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"].iloc[0],
+                    "standard": float(
+                        cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]).iloc[
+                            0
+                        ]
+                    ),
+                    "fixed": float(
+                        cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"]).iloc[
+                            0
+                        ]
+                    ),
                     "best_rc2": sub[sub["module"] == "rc2"]["accuracy"].max(),
                     "best_act": sub[sub["module"] == "act"]["accuracy"].max(),
                 }
@@ -1996,7 +1785,9 @@ def table_global_statistics_vision(filename: str) -> None:
             print(f"{label} average gain: {gain:.2f} pp")
 
     print_statistics(df, "All model sizes")
-    large_df = df[df["model_size"] == df["model_name"].map(REPRESENTATIVE_VFMs)]
+    large_df = cast(
+        pd.DataFrame, df[df["model_size"] == df["model_name"].map(lambda value: REPRESENTATIVE_VFMs[str(value)])]
+    )
     print_statistics(large_df, "Large variants")
 
 
@@ -2024,8 +1815,8 @@ def table_global_statistics_ood_vision(filename: str) -> None:
 
     # Keep vision models and hard datasets
     pattern = "|".join(VFMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-    df = df[df["dataset_name"].isin(hard_datasets)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+    df = cast(pd.DataFrame, df[df["dataset_name"].isin(hard_datasets)])
 
     def print_statistics(frame: pd.DataFrame, scope: str) -> None:
         rows = []
@@ -2033,8 +1824,16 @@ def table_global_statistics_ood_vision(filename: str) -> None:
             last_layer = sub["layer"].max()
             rows.append(
                 {
-                    "standard": sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0],
-                    "fixed": sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"].iloc[0],
+                    "standard": float(
+                        cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]).iloc[
+                            0
+                        ]
+                    ),
+                    "fixed": float(
+                        cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "act")]["accuracy"]).iloc[
+                            0
+                        ]
+                    ),
                     "best_rc2": sub[sub["module"] == "rc2"]["accuracy"].max(),
                     "best_act": sub[sub["module"] == "act"]["accuracy"].max(),
                 }
@@ -2052,7 +1851,9 @@ def table_global_statistics_ood_vision(filename: str) -> None:
             print(f"{label} average gain: {gain:.2f} pp")
 
     print_statistics(df, "All model sizes")
-    large_df = df[df["model_size"] == df["model_name"].map(REPRESENTATIVE_VFMs)]
+    large_df = cast(
+        pd.DataFrame, df[df["model_size"] == df["model_name"].map(lambda value: REPRESENTATIVE_VFMs[str(value)])]
+    )
     print_statistics(large_df, "Large variants")
 
 
@@ -2094,7 +1895,7 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
 
     # Keep language models
     pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -2113,7 +1914,9 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
             var_name="gain_type",
             value_name="gain_value",
         )
-        agg_long["gain_type"] = agg_long["gain_type"].map(dict(zip(gain_types, gain_labels, strict=False)))
+        agg_long["gain_type"] = agg_long["gain_type"].map(
+            lambda value: dict(zip(gain_types, gain_labels, strict=False))[value]
+        )
         sns.barplot(
             data=agg_long,
             x="model_name",
@@ -2180,7 +1983,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
     """
     # Figure
     width = 5.5
-    height = 5
+    height = 4.4
     ncols = len(REPRESENTATIVE_LLMs)
     figsize = ncols * width, height
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
@@ -2192,7 +1995,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
 
     # Keep language models
     pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -2206,7 +2009,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
             values = []
             for task_name in tasks:
                 df_task = subset[subset.task_name == task_name]
-                df_task = df_task.sort_values("layer")
+                df_task = cast(pd.DataFrame, df_task).sort_values(by="layer")
                 n_layers = df_task["layer"].max()
                 if len(depth) == 0:
                     depth = df_task["layer"] / n_layers
@@ -2244,23 +2047,20 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
         ax.spines["top"].set_linewidth(1)
         ax.spines["bottom"].set_linewidth(1)
         ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-        if i == 0:
-            yticks = [47, 53, 59]
-        elif i == 1:
-            yticks = [46, 53, 60]
-        else:
-            yticks = [47, 55, 63]
-        ax.set_yticks(yticks)
+        ymin, ymax = ax.get_ylim()
+        ax.set_ylim(ymin, ymax + 1)
+        tol = 0
+        ax.set_yticks(np.linspace(ymin - tol, ymax - tol, 3).astype(int))
         ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
         if i == 0:
             ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
-        ax.set_title(model_labels[model_family], fontsize=FONTSIZE)
+        ax.set_title(f"{model_labels[model_family]}\n", fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
     legend = axes[0].legend(
         loc="upper center",
-        bbox_to_anchor=(0.7, 0.45),
+        bbox_to_anchor=(0.63, 0.58),
         fancybox=True,
         borderaxespad=0,
         shadow=False,
@@ -2291,7 +2091,7 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
     """
     # Figure
     width = 5.5
-    height = 5
+    height = 4.4
     nrows = 3
     ncols = 3
     figsize = ncols * width, nrows * height
@@ -2304,7 +2104,7 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
 
     # Keep language models
     pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -2323,7 +2123,7 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
                 values = []
                 for task_name in tasks:
                     df_task = subset[subset.task_name == task_name]
-                    df_task = df_task.sort_values("layer")
+                    df_task = cast(pd.DataFrame, df_task).sort_values(by="layer")
                     n_layers = df_task["layer"].max()
                     if len(depth) == 0:
                         depth = df_task["layer"] / n_layers
@@ -2361,29 +2161,9 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
             ax.spines["top"].set_linewidth(1)
             ax.spines["bottom"].set_linewidth(1)
             ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-            if i == 0:
-                if j == 0:
-                    yticks = [47, 53, 59]
-                elif j == 1:
-                    yticks = [47, 54, 61]
-                else:
-                    yticks = [47, 55, 63]
-
-            elif i == 1:
-                if j == 0:
-                    yticks = [46, 53, 60]
-                elif j == 1:
-                    yticks = [46, 54, 62]
-                else:
-                    yticks = [46, 55, 64]
-            else:
-                if j == 0:
-                    yticks = [47, 55, 63]
-                elif j == 1:
-                    yticks = [47, 56, 65]
-                else:
-                    yticks = [47, 56, 65]
-            ax.set_yticks(yticks)
+            ymin, ymax = ax.get_ylim()
+            tol = 1
+            ax.set_yticks(np.linspace(ymin - tol, ymax - tol, 3).astype(int))
             if i == nrows - 1:
                 ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
             if j == 0:
@@ -2394,7 +2174,7 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
     # Common legend
     legend = axes[0, 0].legend(
         loc="upper center",
-        bbox_to_anchor=(0.7, 0.45),
+        bbox_to_anchor=(0.63, 0.52),
         fancybox=True,
         borderaxespad=0,
         shadow=False,
@@ -2464,7 +2244,7 @@ def plot_heatmap_winning_frequency_language(filename: str, save: bool = False) -
 
     # Keep vision models
     pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
 
     # Results
     modules = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
@@ -2637,7 +2417,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
 
     # Keep LLM models
     all_models = [m for models in LLM_FAMILIES.values() for m in models]
-    df = df[df["model_name"].isin(all_models)]
+    df = cast(pd.DataFrame, df[df["model_name"].isin(all_models)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -2742,7 +2522,7 @@ def table_performance_comparison_language(filename: str) -> None:
 
     # Keep LLM models
     all_models = [m for models in LLM_FAMILIES.values() for m in models]
-    df = df[df["model_name"].isin(all_models)]
+    df = cast(pd.DataFrame, df[df["model_name"].isin(all_models)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -2780,6 +2560,258 @@ def table_performance_comparison_language(filename: str) -> None:
     print(table.to_latex(float_format="%.1f", bold_rows=True, escape=False))
 
 
+def table_performance_comparison_task_language(filename: str) -> None:
+    r"""
+    Generate the LaTeX NiceTabular environment for LLM probing results.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    """
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep LLM models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Results
+    rows = []
+    for (dataset, model), sub in df.groupby(["task_name", "model_name"]):
+        last_layer = sub["layer"].max()
+        n_layers = last_layer + 1
+        fixed_layer = int(0.60 * (n_layers - 1))
+
+        standard = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0]
+
+        fixed = sub[(sub["layer"] == fixed_layer) & (sub["module"] == "ln2")]["accuracy"].iloc[0]
+
+        oracle = sub["accuracy"].max()
+
+        rows.append(
+            {
+                "dataset": dataset,
+                "model": model,
+                "standard": standard,
+                "fixed": fixed,
+                "oracle": oracle,
+            }
+        )
+
+    summary = pd.DataFrame(rows)
+
+    # Average over models
+    summary = summary.groupby("dataset")[["standard", "fixed", "oracle"]].mean().reset_index()
+
+    # Dataset order
+    dataset_order = sorted(summary["dataset"].tolist())
+
+    # Format values
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\add{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\sub{{{value:.1f}}}"
+        return "0.0"
+
+    # Header
+    header = [
+        "Dataset",
+        r"\multicolumn{2}{c}{\texttt{Standard}}",
+        r"\multicolumn{2}{c}{$\llm$}",
+        r"\multicolumn{2}{c}{\texttt{Oracle}}",
+    ]
+
+    # LaTeX table
+    lines = []
+    lines.append(
+        r"\begin{NiceTabular}{"
+        r"@{} l "
+        r"*{3}{w{r}{2.8em}@{\hspace{6pt}}w{r}{2.2em}@{\hspace{4pt}}}"
+        r"@{}"
+        r"}"
+    )
+    lines.append(r"\toprule")
+    lines.append(" & ".join(header) + r" \\")
+    lines.append(r"\midrule")
+
+    # Dataset rows
+    for dataset in dataset_order:
+        row = summary[summary["dataset"] == dataset].iloc[0]
+
+        standard = float(row["standard"])
+        fixed = float(row["fixed"])
+        oracle = float(row["oracle"])
+
+        fixed_gain = fixed - standard
+        oracle_gain = oracle - standard
+
+        lines.append(
+            rf"{dataset} & "
+            rf"{format_accuracy(standard)} & & "
+            rf"{format_accuracy(fixed)} & {format_gain(fixed_gain)} & "
+            rf"{format_accuracy(oracle)} & {format_gain(oracle_gain)} \\"
+        )
+
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{NiceTabular}")
+
+    print("\n".join(lines))
+
+
+def table_performance_comparison_all_language(
+    filename: str,
+    model_family: str,
+) -> None:
+    r"""
+    Generate the LaTeX NiceTabular environment for task-level LLM results.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    model_family: str
+        LLM family to report, e.g. "Qwen3", "Llama3", or "Gemma3".
+    """
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Model configuration
+    model_names = {
+        "Qwen3": [
+            "Qwen3-1.7B",
+            "Qwen3-4B",
+            "Qwen3-8B",
+        ],
+        "Llama3": [
+            "Llama-3.2-1B",
+            "Llama-3.2-3B",
+            "Llama-3.1-8B",
+        ],
+        "Gemma3": [
+            "gemma-3-1b-pt",
+            "gemma-3-4b-pt",
+            "gemma-3-12b-pt",
+        ],
+    }
+
+    if model_family not in model_names:
+        raise ValueError(f"Unknown model family '{model_family}'. Expected one of {list(model_names)}.")
+
+    models = model_names[model_family]
+
+    # Keep models from the selected family
+    df = df[df["model_name"].isin(models)].copy()
+
+    # Results
+    rows = []
+    for (task, model), sub in df.groupby(["task_name", "model_name"]):
+        last_layer = sub["layer"].max()
+        n_layers = last_layer + 1
+        fixed_layer = int(0.60 * (n_layers - 1))
+
+        standard = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0]
+
+        fixed = sub[(sub["layer"] == fixed_layer) & (sub["module"] == "ln2")]["accuracy"].iloc[0]
+
+        oracle = sub["accuracy"].max()
+
+        rows.append(
+            {
+                "task": task,
+                "model": model,
+                "standard": standard,
+                "fixed": fixed,
+                "oracle": oracle,
+            }
+        )
+
+    summary = pd.DataFrame(rows)
+
+    # Task order
+    task_order = sorted(summary["task"].unique())
+
+    # Format values
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    # LaTeX table
+    lines = []
+    lines.append(
+        r"\begin{NiceTabular}{"
+        r"@{} l "
+        r"*{3}{w{c}{3.6em}@{\hspace{12pt}}}"
+        r"*{3}{w{c}{3.6em}@{\hspace{12pt}}}"
+        r"*{3}{w{c}{3.6em}@{\hspace{1pt}}}"
+        r"@{}"
+        r"}"
+    )
+    lines.append(r"\toprule")
+
+    # Model header
+    model_header = [r"\multirow{2}{*}{Task}"]
+
+    for model in models:
+        model_header.append(rf"\multicolumn{{3}}{{c}}{{\textit{{{model}}}}}")
+
+    lines.append(" & ".join(model_header) + r" \\")
+
+    # Model separators
+    lines.append(
+        r"\cmidrule(l){2-4} "
+        r"\cmidrule(l){5-7} "
+        r"\cmidrule(l){8-10}"
+    )
+
+    # Strategy header
+    strategy_header = [""]
+    for _ in models:
+        strategy_header.extend(
+            [
+                r"\texttt{Standard}",
+                r"$\llm$",
+                r"\textcolor{oraclegray}{\texttt{Oracle}}",
+            ]
+        )
+
+    lines.append(" & ".join(strategy_header) + r" \\")
+    lines.append(r"\midrule")
+
+    # Task rows
+    for task in task_order:
+        row_values = [task]
+
+        for model in models:
+            sub = summary[(summary["task"] == task) & (summary["model"] == model)]
+
+            if sub.empty:
+                row_values.extend(["", "", ""])
+                continue
+
+            result = sub.iloc[0]
+
+            row_values.extend(
+                [
+                    format_accuracy(float(result["standard"])),
+                    format_accuracy(float(result["fixed"])),
+                    rf"\textcolor{{oraclegray}}{{{format_accuracy(float(result['oracle']))}}}",
+                ]
+            )
+
+        lines.append(" & ".join(row_values) + r" \\")
+
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{NiceTabular}")
+
+    print("\n".join(lines))
+
+
 def table_global_statistics_language(filename: str) -> None:
     r"""
     Compute global statistics for fixed and oracle language strategies.
@@ -2795,18 +2827,23 @@ def table_global_statistics_language(filename: str) -> None:
 
     # Keep LLM models
     all_models = [m for models in LLM_FAMILIES.values() for m in models]
-    df = df[df["model_name"].isin(all_models)]
+    df = cast(pd.DataFrame, df[df["model_name"].isin(all_models)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
     heuristic_depth = 0.6
     last_layers = df.groupby("model_name")["layer"].max()
     rows = []
-    for (task_name, model_name), sub in df.groupby(["task_name", "model_name"]):
+    for key_values, sub in cast(Any, df.groupby(["task_name", "model_name"])):
+        task_name, model_name = key_values
         last_layer = last_layers[model_name]
-        standard = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0]
+        standard = float(
+            cast(pd.Series, sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"]).iloc[0]
+        )
         heuristic_layer = int(heuristic_depth * last_layer)
-        fixed = sub[(sub["layer"] == heuristic_layer) & (sub["module"] == "ln2")]["accuracy"].iloc[0]
+        fixed = float(
+            cast(pd.Series, sub[(sub["layer"] == heuristic_layer) & (sub["module"] == "ln2")]["accuracy"]).iloc[0]
+        )
         best_rc2 = sub[sub["module"] == "rc2"]["accuracy"].max()
         best_ln2 = sub[sub["module"] == "ln2"]["accuracy"].max()
         rows.append(
@@ -2883,7 +2920,7 @@ def plot_figures() -> None:
     # for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
     #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
-    # # Oracle winning distribution
+    # # Heatmap winning frequency
     # save = True
     # filename = "cls"
     # plot_heatmap_winning_frequency_vision(filename=filename, save=save)
@@ -2905,10 +2942,10 @@ def plot_figures() -> None:
     # plot_probing_depth_language(filename=filename, save=save)
     # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # Oracle winning distribution
-    save = True
-    filename = "mteb"
-    plot_heatmap_winning_frequency_language(filename=filename, save=save)
+    # # Heatmap winning frequency
+    # save = True
+    # filename = "mteb"
+    # plot_heatmap_winning_frequency_language(filename=filename, save=save)
 
     # # Oracle recovery
     # save = True
@@ -2929,9 +2966,9 @@ def get_tables() -> None:
     # filename = "cls"
     # table_winning_module_frequency_vision(filename=filename)
 
-    # Performance comparisons
-    filename = "cls"
-    table_performance_comparison_vision(filename=filename)
+    # # Performance comparisons
+    # filename = "cls"
+    # table_performance_comparison_vision(filename=filename)
     # table_performance_comparison_all_vision(filename=filename)
 
     # # Global statistics
@@ -2940,9 +2977,12 @@ def get_tables() -> None:
     # table_global_statistics_ood_vision(filename=filename)
 
     r"""LLMs tables."""
-    # # Performance comparisons
+    # # Performance comparison
     # filename = "mteb"
     # table_performance_comparison_language(filename=filename)
+    # table_performance_comparison_task_language(filename=filename)
+    # for model_family in ["Qwen3", "Llama3", "Gemma3"]:
+    #     table_performance_comparison_all_language(filename=filename, model_family=model_family)
 
     # # Global statistics
     # filename = "mteb"
