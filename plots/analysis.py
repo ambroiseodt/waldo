@@ -2898,100 +2898,100 @@ def table_global_statistics_language(filename: str) -> None:
 # Results functions
 # ------------------------------------------------------------------------------
 def plot_figures() -> None:
-    # r"""Intro plots."""
-    # plot_intro_findings(save=True)
+    r"""Number of runs"""
+    table_runs()
+
+    r"""Intro plots."""
+    plot_intro_findings(save=True)
 
     r"""VFMs plots."""
-    # # CDF
-    # save = True
-    # plot_cdf_vision(filename="cls", save=save)
+    # CDF
+    save = True
+    plot_cdf_vision(filename="cls", save=save)
 
-    # # Dataset difficulty
-    # save = True
-    # filename = "cls"
-    # plot_transfer_difficulty_vision(filename=filename, save=save)
+    # Dataset difficulty
+    save = True
+    filename = "cls"
+    plot_transfer_difficulty_vision(filename=filename, save=save)
 
-    # # Cifar10-C
-    # save = True
-    # filename = "cifar10_c"
-    # plot_cifar10c_severity(filename=filename, save=save)
-    # plot_cifar10c_optimal_depth(filename=filename, save=save)
+    # Cifar10-C
+    save = True
+    filename = "cifar10_c"
+    plot_cifar10c_severity(filename=filename, save=save)
+    plot_cifar10c_optimal_depth(filename=filename, save=save)
 
-    # # Pretraining scale
-    # save = True
-    # filename = "cls"
-    # plot_pretraining_scale_vision(filename=filename, save=save)
+    # Pretraining scale
+    save = True
+    filename = "cls"
+    plot_pretraining_scale_vision(filename=filename, save=save)
 
-    # # Model family
-    # save = True
-    # filename = "cls"
-    # plot_model_family_vision(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "cls"
+    plot_model_family_vision(filename=filename, save=save)
 
-    # # Probing depth
-    # save = True
-    # filename = "cls"
-    # plot_probing_depth_vision(filename=filename, save=save)
-    # for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
-    #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
+    # Probing depth
+    save = True
+    filename = "cls"
+    plot_probing_depth_vision(filename=filename, save=save)
+    for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
+        plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
-    # # Oracle recovery
-    # save = True
-    # filename = "cls"
-    # plot_oracle_recovery_vision(filename=filename, save=save)
+    # Oracle recovery
+    save = True
+    filename = "cls"
+    plot_oracle_recovery_vision(filename=filename, save=save)
 
     r"""LLMs plots."""
-    # # Model family
-    # save = True
-    # filename = "mteb"
-    # plot_model_family_language(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "mteb"
+    plot_model_family_language(filename=filename, save=save)
 
-    # # Probing depth
-    # save = True
-    # filename = "mteb"
-    # plot_probing_depth_language(filename=filename, save=save)
-    # plot_probing_depth_all_language(filename=filename, save=save)
+    # Probing depth
+    save = True
+    filename = "mteb"
+    plot_probing_depth_language(filename=filename, save=save)
+    plot_probing_depth_all_language(filename=filename, save=save)
 
-    # # Oracle recovery
-    # save = True
-    # filename = "mteb"
-    # plot_oracle_recovery_language(filename=filename, save=save)
+    # Oracle recovery
+    save = True
+    filename = "mteb"
+    plot_oracle_recovery_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
-    r"""Number of runs"""
-    # table_runs()
-
     r"""VFMs tables."""
-    # # Model size
-    # filename = "cls"
-    # table_model_size_vision(filename=filename)
+    # Model size
+    filename = "cls"
+    table_model_size_vision(filename=filename)
 
-    # # Winning module frequency
-    # filename = "cls"
-    # table_winning_module_frequency_vision(filename=filename)
+    # Winning module frequency
+    filename = "cls"
+    table_winning_module_frequency_vision(filename=filename)
 
-    # # Performance comparison
-    # filename = "cls"
-    # table_performance_comparison_vision(filename=filename)
-    # table_performance_comparison_all_vision(filename=filename)
-    # table_performance_comparison_act_fc1_vision(filename=filename)
+    # Performance comparison
+    filename = "cls"
+    table_performance_comparison_vision(filename=filename)
+    table_performance_comparison_all_vision(filename=filename)
+    table_performance_comparison_act_fc1_vision(filename=filename)
 
-    # # Global statistics
-    # filename = "cls"
-    # table_global_statistics_vision(filename=filename)
-    # table_global_statistics_ood_vision(filename=filename)
+    # Global statistics
+    filename = "cls"
+    table_global_statistics_vision(filename=filename)
+    table_global_statistics_ood_vision(filename=filename)
 
     r"""LLMs tables."""
-    # # Performance comparison
-    # filename = "mteb"
-    # table_performance_comparison_language(filename=filename)
-    # table_performance_comparison_task_language(filename=filename)
-    # for model_family in ["Qwen3", "Llama3", "Gemma3"]:
-    #     table_performance_comparison_all_language(filename=filename, model_family=model_family)
+    # Performance comparison
+    filename = "mteb"
+    table_performance_comparison_language(filename=filename)
+    table_performance_comparison_task_language(filename=filename)
+    for model_family in ["Qwen3", "Llama3", "Gemma3"]:
+        table_performance_comparison_all_language(filename=filename, model_family=model_family)
 
-    # # Global statistics
-    # filename = "mteb"
-    # table_global_statistics_language(filename=filename)
+    # Global statistics
+    filename = "mteb"
+    table_global_statistics_language(filename=filename)
 
 
 # %% Main
