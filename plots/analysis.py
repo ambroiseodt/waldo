@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.colors import PowerNorm
 from matplotlib.container import ErrorbarContainer
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
@@ -101,26 +102,30 @@ LLM_SIZES = {
 
 # Plot aesthetic
 FONTSIZE = 21
+TITLE_FONTSIZE = FONTSIZE + 5
 LEG_FONTSIZE = FONTSIZE
 LINEWIDTH = 4
 BARWIDTH = 0.25
 MARKER_LINEWIDTH = 0.5
 ALPHA_GRID = 0.8
 ZOOM_SCALE = 0.7
-GAIN_PALETTE = {"layer": "#7987b8", "module": "#9fc9b1", "oracle": "#c6a4e4"}
+GAIN_PALETTE = {
+    "layer": "#7987B8",
+    "module": "#37abb5",
+    "oracle": "#c6a4e4",
+}
 MODULE_PALETTE = {
     "ln1": "#daa4ac",
-    "mha": "#37abb5",
-    "rc1": "#d0e2c2",
+    "mha": "#4997d0",
+    "rc1": "#fffdd0",
     "ln2": "#b153a1",
     "fc1": "#a291e1",
     "act": "#96c0cf",
     "fc2": "#858ec2",
-    "rc2": "#428379",
+    "rc2": "#848482",
 }
 LLM_PALETTE = {"qwen3": "#7987b8", "llama3": "#9fc9b1", "gemma3": "#c6a4e4"}
 CMAP = "viridis"
-
 
 # Visual parameters
 palette = sns.cubehelix_palette()
@@ -200,23 +205,38 @@ def get_ordered_dataset(filename: str) -> list:
 # ------------------------------------------------------------------------------
 # Intro
 # ------------------------------------------------------------------------------
-def plot_intro_findings(vision_filename: str = "cls", language_filename: str = "mteb", save: bool = False) -> None:
+def plot_intro(
+    vision_filename: str = "cls",
+    language_filename: str = "mteb",
+    save: bool = False,
+) -> None:
     r"""
     Plot side-by-side optimal layer-module heatmaps for VFMs and LLMs.
-
-    The heatmaps share the module axis and the color scale. Marginal bars show
-    the corresponding optimal-depth and optimal-module frequencies.
-
-    Parameters
-    ----------
-    vision_filename: str, default="cls"
-        Vision analysis result filename, without its ``.csv`` suffix.
-    language_filename: str, default="mteb"
-        Language analysis result filename, without its ``.csv`` suffix.
-    save: bool, default=False
-        Whether to save the plot.
     """
-    from matplotlib.colors import PowerNorm
+    # Colorbar
+    COLORBAR_MIN = 0
+    COLORBAR_MAX = 20
+    cmap = sns.cubehelix_palette(rot=0.2, dark=0.45, light=0.95, as_cmap=True)
+    norm = PowerNorm(gamma=0.6, vmin=COLORBAR_MIN, vmax=COLORBAR_MAX)
+    bar_color = cmap(norm(COLORBAR_MAX))
+    star_color = "tab:red"
+    circle_color = "#333333"
+
+    # Figure
+    depth_step = 9
+    n_bins = int(round(100 / depth_step))
+    n_modules = 8
+    cell_width = 0.5
+    cell_height = 0.4
+    heat_width = cell_width * n_bins
+    heat_height = cell_height * n_modules
+    top_height, right_width, gap_width, cbar_width = 1.1, 1.3, 1.0, 0.2
+    width_ratios = [heat_width, right_width, gap_width, heat_width, right_width, 0.3, cbar_width]
+    height_ratios = [top_height, heat_height]
+    width = sum(width_ratios) / 0.9
+    height = sum(height_ratios) / 0.78
+    fig = plt.figure(figsize=(width, height))
+    gs = GridSpec(2, 7, figure=fig, width_ratios=width_ratios, height_ratios=height_ratios, wspace=0.0, hspace=0.0)
 
     # Variables
     modules = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
@@ -230,60 +250,94 @@ def plot_intro_findings(vision_filename: str = "cls", language_filename: str = "
         "fc2": r"$\mathtt{FC2}$",
         "rc2": r"$\mathtt{RC2}$",
     }
-    panel_titles = ["VFM representations", "LLM representations"]
-    depth_step = 5
-    depth_edges = np.arange(0, 100 + depth_step, depth_step, dtype=float)
-    depth_centers = depth_edges[:-1] / depth_step + 0.5
+    panel_titles = ["Vision Foundation Models", "Large Language Models"]
+    bin_width = 100 / n_bins
+    depth_edges = np.linspace(0, 100, n_bins + 1)
     module_centers = np.arange(len(modules)) + 0.5
+    depth_ticks = [0, 25, 50, 75, 100]
+    module_to_idx = {module: i for i, module in enumerate(modules)}
+    strategy_modules = ["act", "ln2"]
+    strategy_depths = [1.0, 0.60]
+    baseline_module = "rc2"
+    depth_grid = np.linspace(0, 100, 501)
+    depth_sigma = bin_width / 2
 
-    # Recover optimal locations
+    # Recover results
     pair_percentages = []
     module_percentages = []
     depth_percentages = []
-    for modality, filename in zip(("vision", "language"), (vision_filename, language_filename), strict=True):
+    depth_densities = []
+    smooth_percentages = []
+    strategy_bins = []
+    for modality_idx, (modality, filename) in enumerate(
+        zip(("vision", "language"), (vision_filename, language_filename), strict=True)
+    ):
         path = RESULT_DIR / "analysis"
-        df = pd.read_csv(path / f"{filename}.csv").copy()
+        df = pd.read_csv(path / f"{filename}.csv")
+        df = df.copy()
         if modality == "vision":
             pattern = "|".join(VFMs)
-            df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+            df = cast(
+                pd.DataFrame,
+                df[df["model_name"].str.contains(pattern, case=False, na=False)],
+            )
             pattern = "|".join(DATASETS.keys())
-            df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
+            df = cast(
+                pd.DataFrame,
+                df[df["dataset_name"].str.contains(pattern, case=False, na=False)],
+            )
         else:
             pattern = "|".join(LLMs)
-            df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+            df = cast(
+                pd.DataFrame,
+                df[df["model_name"].str.contains(pattern, case=False, na=False)],
+            )
 
+        logger.info(f"{modality}: results are presented over a total of {len(df)} runs.")
+
+        # Optimal layer-module pairs
         best_depth = 100 * df["best_layer"].to_numpy(dtype=float) / (df["n_layers"].to_numpy(dtype=float) - 1)
-        bin_index = np.minimum((best_depth / depth_step).astype(int), len(depth_edges) - 2)
+        bin_index = np.minimum((best_depth / bin_width).astype(int), len(depth_edges) - 2)
         pair_counts = np.zeros((len(depth_edges) - 1, len(modules)), dtype=float)
-        module_to_idx = {module: i for i, module in enumerate(modules)}
         for depth_idx, module in zip(bin_index, df["best_module"].to_numpy(dtype=str), strict=True):
             module_idx = module_to_idx.get(module)
             if module_idx is not None:
                 pair_counts[depth_idx, module_idx] += 1
+
         pair_pct = 100 * pair_counts / len(df)
         pair_percentages.append(pair_pct)
         module_percentages.append(pair_pct.sum(axis=0))
         depth_percentages.append(pair_pct.sum(axis=1))
 
-    # Figure
-    bar_color = GAIN_PALETTE["oracle"]
-    cmap = sns.cubehelix_palette(rot=0.2, dark=0.45, light=0.95, as_cmap=True)
-    vmax = max(float(pair.max()) for pair in pair_percentages)
-    cbar_max = max(1, int(np.ceil(vmax)))
-    norm = PowerNorm(gamma=0.6, vmin=0, vmax=cbar_max)
-    fig = plt.figure(figsize=(20, 6.2))
-    gs = GridSpec(
-        2,
-        7,
-        figure=fig,
-        width_ratios=[6.5, 1.6, 0.10, 6.5, 1.6, 0.10, 0.30],
-        height_ratios=[1.1, 4.1],
-        wspace=0.02,
-        hspace=0.0,
-    )
-    reference_heatmap = None
+        # Continuous depth marginal
+        depth_density = sum(
+            np.exp(-0.5 * ((depth_grid - center) / depth_sigma) ** 2)
+            for depth in best_depth
+            for center in (depth, -depth, 200 - depth)
+        )
+        depth_densities.append(depth_density / len(df))
 
-    # Results and visualization
+        # Heatmap smoothed along depth
+        smooth_pct = np.zeros((len(modules), len(depth_grid)))
+
+        for depth, module in zip(best_depth, df["best_module"].to_numpy(dtype=str), strict=True):
+            kernel = sum(
+                np.exp(-0.5 * ((depth_grid - center) / depth_sigma) ** 2) for center in (depth, -depth, 200 - depth)
+            )
+            kernel /= depth_sigma * np.sqrt(2 * np.pi)
+            smooth_pct[module_to_idx[module]] += 100 * bin_width * kernel / len(df)
+        smooth_percentages.append(smooth_pct)
+
+        # Fixed strategy depth
+        n_layers = df["n_layers"].to_numpy(dtype=int)
+        strategy_layer = (strategy_depths[modality_idx] * (n_layers - 1)).astype(int)
+        strategy_depth = 100 * strategy_layer / (n_layers - 1)
+        strategy_bin = np.minimum((strategy_depth / bin_width).astype(int), len(depth_edges) - 2)
+        strategy_bins.append(int(np.bincount(strategy_bin).argmax()))
+
+    # Visualization
+    reference_heatmap = None
+    im = None
     for panel_idx, title in enumerate(panel_titles):
         col = 0 if panel_idx == 0 else 3
         ax_top = fig.add_subplot(gs[0, col])
@@ -293,85 +347,117 @@ def plot_intro_findings(vision_filename: str = "cls", language_filename: str = "
         else:
             ax_heat = fig.add_subplot(gs[1, col], sharey=reference_heatmap)
         ax_right = fig.add_subplot(gs[1, col + 1])
-        pair_pct = pair_percentages[panel_idx]
-        im = ax_heat.pcolormesh(
-            np.arange(len(depth_edges)),
-            np.arange(len(modules) + 1),
-            pair_pct.T,
-            shading="flat",
+        im = ax_heat.imshow(
+            smooth_percentages[panel_idx],
+            extent=(0, len(depth_edges) - 1, len(modules), 0),
+            aspect="auto",
             cmap=cmap,
             norm=norm,
-            edgecolors="white",
-            linewidth=0.25,
+            interpolation="nearest",
         )
-        ax_top.bar(depth_centers, depth_percentages[panel_idx], width=1.0, color=bar_color)
-        ax_right.barh(module_centers, module_percentages[panel_idx], height=1.0, color=bar_color)
+        for row in range(1, len(modules)):
+            ax_heat.axhline(row, color="white", linewidth=1.5)
+        depth_x = depth_grid / bin_width
+        ax_top.fill_between(depth_x, 0, depth_densities[panel_idx], color=bar_color, alpha=0.35, linewidth=0)
+        ax_top.plot(depth_x, depth_densities[panel_idx], color=bar_color, linewidth=2)
 
-        # Heatmap visualization
+        # Discrete module marginal
+        module_pct = pair_percentages[panel_idx]
+        ax_right.barh(
+            module_centers,
+            module_pct.sum(axis=0),
+            height=0.75,
+            color=bar_color,
+            alpha=0.35,
+            edgecolor=bar_color,
+            linewidth=1,
+        )
+
+        # Standard probing and fixed strategy
+        baseline_x = len(depth_edges) - 1
+        strategy_x = 100 * strategy_depths[panel_idx] / bin_width
+        ax_heat.scatter(
+            [baseline_x],
+            [module_centers[module_to_idx[baseline_module]]],
+            s=220,
+            color="white",
+            edgecolor=circle_color,
+            linewidth=2,
+            zorder=5,
+            clip_on=False,
+        )
+        ax_heat.scatter(
+            [strategy_x],
+            [module_centers[module_to_idx[strategy_modules[panel_idx]]]],
+            s=500,
+            marker="*",
+            color=star_color,
+            edgecolor=circle_color,
+            linewidth=0.5,
+            zorder=6,
+            clip_on=False,
+        )
+
+        # Heatmap
+        x_max = len(depth_edges) - 1
         ax_heat.set(
-            xlim=(0, len(depth_edges) - 1),
-            ylim=(0, len(modules)),
-            xticks=[0, 5, 10, 15, 20],
-            xticklabels=["0", "25", "50", "75", "100"],
+            xlim=(0, x_max),
+            ylim=(len(modules), 0),
+            xticks=[tick / bin_width for tick in depth_ticks],
+            xticklabels=[str(tick) for tick in depth_ticks],
             yticks=module_centers,
             yticklabels=[module_labels[module] for module in modules],
-            xlabel="Layer depth (%)",
-            ylabel="Module",
         )
-        ax_heat.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE - 4)
-        ax_heat.grid(False)
-        ax_heat.spines["top"].set_visible(False)
-        ax_heat.spines["right"].set_visible(False)
+
+        # Visualization
+        ax_heat.spines["left"].set_linewidth(1)
+        ax_heat.spines["right"].set_linewidth(1)
+        ax_heat.spines["top"].set_linewidth(1)
+        ax_heat.spines["bottom"].set_linewidth(1)
+        ax_heat.tick_params(axis="both", direction="out", length=5, width=1)
         sns.despine(fig, ax_heat, trim=True, right=True, offset=10)
-
-        # Top marginal visualization
-        ax_top.set_xlim(0, len(depth_edges) - 1)
-        ax_top.set_ylim(0, max(depth_percentages[panel_idx].max() * 1.15, 5))
-        ax_top.set_xticks([])
-        ax_top.set_title(f"{title}\n", fontsize=FONTSIZE, pad=8)
-        depth_best_idx = int(np.argmax(depth_percentages[panel_idx]))
-        ax_top.text(
-            depth_centers[depth_best_idx],
-            depth_percentages[panel_idx][depth_best_idx] + 1,
-            f"{depth_percentages[panel_idx][depth_best_idx]:.1f}%",
+        ax_heat.set_xlabel("Layer depth (%)", fontsize=FONTSIZE)
+        ax_heat.text(
+            0.5,
+            -0.40,
+            title,
+            transform=ax_heat.transAxes,
             ha="center",
-            va="bottom",
-            fontsize=15,
-            fontweight="bold",
+            va="top",
+            fontsize=TITLE_FONTSIZE,
         )
+        # Top marginal
+        ax_top.set_xlim(0, x_max)
+        ax_top.set_ylim(0, 1.1 * depth_densities[panel_idx].max())
+        ax_top.set_xticks([])
 
-        # Right marginal visualization
-        ax_right.set_ylim(0, len(modules))
-        ax_right.set_xlim(0, max(module_percentages[panel_idx].max() * 1.5, 5))
+        # Right marginal
+        module_max = module_pct.sum(axis=0).max()
+        ax_right.set_ylim(len(modules), 0)
+        ax_right.set_xlim(-0.2 * module_max, 1.1 * module_max)
         ax_right.set_xticks([])
         ax_right.set_yticks([])
-        module_best_idx = int(np.argmax(module_percentages[panel_idx]))
-        ax_right.text(
-            module_percentages[panel_idx][module_best_idx] / 2,
-            module_centers[module_best_idx] + 0.42,
-            f"{module_percentages[panel_idx][module_best_idx]:.1f}%",
-            ha="center",
-            va="bottom",
-            fontsize=15,
-            fontweight="bold",
-        )
+
         for axis in (ax_top, ax_right):
             for spine in axis.spines.values():
                 spine.set_visible(False)
+
         ax_top.set_axis_off()
         ax_right.set_axis_off()
 
-    # Shared colorbar and saving
-    ax_cbar = fig.add_subplot(gs[:, 6])
-    cbar_ticks = np.linspace(0, cbar_max, 4, dtype=int)
-    cbar = fig.colorbar(im, cax=ax_cbar, ticks=cbar_ticks)
-    cbar.ax.set_yticklabels([str(tick) for tick in cbar_ticks])
-    cbar.set_label("Optimality frequency (%)", fontsize=FONTSIZE, rotation=270, labelpad=25)
-    cbar.ax.tick_params(labelsize=FONTSIZE - 5)
-    fig.set_layout_engine("none")
-    fig.subplots_adjust(left=0.06, right=0.96, bottom=0.12, top=0.90)
+    if im is not None:
+        ax_cbar = fig.add_subplot(gs[:, 6])
+        cbar_ticks = np.linspace(COLORBAR_MIN, COLORBAR_MAX, 4, dtype=int)
+        cbar = fig.colorbar(im, cax=ax_cbar, ticks=cbar_ticks)
+        cbar.ax.set_yticklabels([str(tick) for tick in cbar_ticks])
+        cbar.set_label("Optimality frequency (%)", fontsize=FONTSIZE, rotation=270, labelpad=25)
+        cbar.ax.tick_params(labelsize=FONTSIZE - 5)
+        fig.set_layout_engine("none")
+        fig.subplots_adjust(left=0.07, right=0.97, bottom=0.14, top=0.92)
+
     if save:
-        save_plot(figname="intro_findings")
+        figname = "intro"
+        save_plot(figname=figname)
 
 
 # ------------------------------------------------------------------------------
@@ -2898,88 +2984,88 @@ def table_global_statistics_language(filename: str) -> None:
 # Results functions
 # ------------------------------------------------------------------------------
 def plot_figures() -> None:
-    r"""Number of runs"""
-    table_runs()
-
     r"""Intro plots."""
-    plot_intro_findings(save=True)
+    # plot_intro(save=True)
 
     r"""VFMs plots."""
-    # CDF
-    save = True
-    plot_cdf_vision(filename="cls", save=save)
+    # # CDF
+    # save = True
+    # plot_cdf_vision(filename="cls", save=save)
 
-    # Dataset difficulty
-    save = True
-    filename = "cls"
-    plot_transfer_difficulty_vision(filename=filename, save=save)
+    # # Dataset difficulty
+    # save = True
+    # filename = "cls"
+    # plot_transfer_difficulty_vision(filename=filename, save=save)
 
-    # Cifar10-C
-    save = True
-    filename = "cifar10_c"
-    plot_cifar10c_severity(filename=filename, save=save)
-    plot_cifar10c_optimal_depth(filename=filename, save=save)
+    # # Cifar10-C
+    # save = True
+    # filename = "cifar10_c"
+    # plot_cifar10c_severity(filename=filename, save=save)
+    # plot_cifar10c_optimal_depth(filename=filename, save=save)
 
-    # Pretraining scale
-    save = True
-    filename = "cls"
-    plot_pretraining_scale_vision(filename=filename, save=save)
+    # # Pretraining scale
+    # save = True
+    # filename = "cls"
+    # plot_pretraining_scale_vision(filename=filename, save=save)
 
-    # Model family
-    save = True
-    filename = "cls"
-    plot_model_family_vision(filename=filename, save=save)
+    # # Model family
+    # save = True
+    # filename = "cls"
+    # plot_model_family_vision(filename=filename, save=save)
 
-    # Probing depth
-    save = True
-    filename = "cls"
-    plot_probing_depth_vision(filename=filename, save=save)
-    for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
-        plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
+    # # Probing depth
+    # save = True
+    # filename = "cls"
+    # plot_probing_depth_vision(filename=filename, save=save)
+    # for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
+    #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
 
-    # Oracle recovery
-    save = True
-    filename = "cls"
-    plot_oracle_recovery_vision(filename=filename, save=save)
+    # # Oracle recovery
+    # save = True
+    # filename = "cls"
+    # plot_oracle_recovery_vision(filename=filename, save=save)
 
     r"""LLMs plots."""
-    # Model family
-    save = True
-    filename = "mteb"
-    plot_model_family_language(filename=filename, save=save)
+    # # Model family
+    # save = True
+    # filename = "mteb"
+    # plot_model_family_language(filename=filename, save=save)
 
-    # Probing depth
-    save = True
-    filename = "mteb"
-    plot_probing_depth_language(filename=filename, save=save)
-    plot_probing_depth_all_language(filename=filename, save=save)
+    # # Probing depth
+    # save = True
+    # filename = "mteb"
+    # plot_probing_depth_language(filename=filename, save=save)
+    # plot_probing_depth_all_language(filename=filename, save=save)
 
-    # Oracle recovery
-    save = True
-    filename = "mteb"
-    plot_oracle_recovery_language(filename=filename, save=save)
+    # # Oracle recovery
+    # save = True
+    # filename = "mteb"
+    # plot_oracle_recovery_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
+    r"""Number of runs"""
+    # table_runs()
+
     r"""VFMs tables."""
-    # Model size
-    filename = "cls"
-    table_model_size_vision(filename=filename)
+    # # Model size
+    # filename = "cls"
+    # table_model_size_vision(filename=filename)
 
-    # Winning module frequency
-    filename = "cls"
-    table_winning_module_frequency_vision(filename=filename)
+    # # Winning module frequency
+    # filename = "cls"
+    # table_winning_module_frequency_vision(filename=filename)
 
-    # Performance comparison
-    filename = "cls"
-    table_performance_comparison_vision(filename=filename)
-    table_performance_comparison_all_vision(filename=filename)
-    table_performance_comparison_act_fc1_vision(filename=filename)
+    # # Performance comparison
+    # filename = "cls"
+    # table_performance_comparison_vision(filename=filename)
+    # table_performance_comparison_all_vision(filename=filename)
+    # table_performance_comparison_act_fc1_vision(filename=filename)
 
-    # Global statistics
-    filename = "cls"
-    table_global_statistics_vision(filename=filename)
-    table_global_statistics_ood_vision(filename=filename)
+    # # Global statistics
+    # filename = "cls"
+    # table_global_statistics_vision(filename=filename)
+    # table_global_statistics_ood_vision(filename=filename)
 
     r"""LLMs tables."""
     # Performance comparison
