@@ -49,7 +49,7 @@ DATASETS = {
     "domainnet-quickdraw": "Quickdraw",
     "domainnet-painting": "Painting",
     "domainnet-sketch": "Sketch",
-    "eurosat": "EuroSat",
+    "eurosat": "EuroSAT",
     "flowers102": "Flowers102",
     "food101": "Food-101",
     "iwildcam": "iWildCam",
@@ -205,11 +205,7 @@ def get_ordered_dataset(filename: str) -> list:
 # ------------------------------------------------------------------------------
 # Intro
 # ------------------------------------------------------------------------------
-def plot_intro(
-    vision_filename: str = "cls",
-    language_filename: str = "mteb",
-    save: bool = False,
-) -> None:
+def plot_intro(vision_filename: str = "cls", language_filename: str = "mteb", save: bool = False) -> None:
     r"""
     Plot side-by-side optimal layer-module heatmaps for VFMs and LLMs.
     """
@@ -254,7 +250,7 @@ def plot_intro(
     bin_width = 100 / n_bins
     depth_edges = np.linspace(0, 100, n_bins + 1)
     module_centers = np.arange(len(modules)) + 0.5
-    depth_ticks = [0, 25, 50, 75, 100]
+    depth_ticks = [0, 50, 100]
     module_to_idx = {module: i for i, module in enumerate(modules)}
     strategy_modules = ["act", "ln2"]
     strategy_depths = [1.0, 0.60]
@@ -927,7 +923,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     print(f"error reduction: {df.groupby('model_name')['error_reduction'].mean()}")
 
     # Results
-    pretraining_labels = {"vit": r"$0.25$T", "dinov2": r"$1.83$T", "aimv2": r"$3.15$T", "dinov3": r"$3.90$T"}
+    pretraining_labels = {"vit": r"$0.25$T", "dinov2": r"$1.75$T", "aimv2": r"$3.15$T", "dinov3": r"$3.90$T"}
     family_order = ["vit", "dinov2", "aimv2", "dinov3"]
     sns.barplot(
         data=df,
@@ -1927,7 +1923,7 @@ def table_performance_comparison_act_fc1_vision(filename: str) -> None:
         for column, label in [
             ("standard", r"\texttt{Baseline}"),
             ("fc1", r"$\texttt{FC1@100}$"),
-            ("act", r"$\texttt{ACT@100}$"),
+            ("act", r"$\texttt{Act@100}$"),
         ]:
             values = [
                 format_accuracy(float(family_df.loc[family_df["dataset"] == str(dataset), column].to_numpy()[0]))
@@ -2113,7 +2109,7 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     gain_labels = ["oracle", "module", "layer"]
     model_labels = {
         "qwen3": ["Qwen3 1.7B", "Qwen3 4B", "Qwen3 8B"],
-        "llama3": ["Llama3.2 1B", "Llama3.2 3B", "Llama3.1 8B"],
+        "llama3": ["Llama3 1B", "Llama3 3B", "Llama3 8B"],
         "gemma3": ["Gemma3 1B", "Gemma3 4B", "Gemma3 12B"],
     }
     for ax, (model_family, model_order) in zip(axes, LLM_FAMILIES.items(), strict=True):
@@ -2208,7 +2204,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
-    model_labels = {"qwen3": "Qwen3 1.7B", "llama3": "Llama3.2 1B", "gemma3": "Gemma3 1B"}
+    model_labels = {"qwen3": "Qwen3 1.7B", "llama3": "Llama3 1B", "gemma3": "Gemma3 1B"}
     tasks = df["task_name"].unique()
     for i, (model_family, model_name) in enumerate(REPRESENTATIVE_LLMs.items()):
         ax = axes[i]
@@ -2319,7 +2315,7 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
     # Results
     model_labels = {
         "qwen3": ["Qwen3 1.7B", "Qwen3 4B", "Qwen3 8B"],
-        "llama3": ["Llama3.2 1B", "Llama3.2 3B", "Llama3.1 8B"],
+        "llama3": ["Llama3 1B", "Llama3 3B", "Llama3 8B"],
         "gemma3": ["Gemma3 1B", "Gemma3 4B", "Gemma3 12B"],
     }
     tasks = df["task_name"].unique()
@@ -2403,7 +2399,7 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
 
 def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     r"""
-    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
+    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over models.
 
     Strategies:
         - Best layer on rc2
@@ -2619,7 +2615,7 @@ def table_performance_comparison_language(filename: str) -> None:
     # Baseline
     values = []
     for model in model_order:
-        standard = float(cast(Any, table.float["Standard", model]))
+        standard = float(cast(Any, table.loc["Standard", model]))
         values.extend([format_accuracy(standard), ""])
     lines.append(r"\texttt{Baseline} & " + " & ".join(values) + r" \\")
 
@@ -2670,7 +2666,13 @@ def table_performance_comparison_language(filename: str) -> None:
 
 def table_performance_comparison_task_language(filename: str) -> None:
     r"""
-    Generate the LaTeX NiceTabular environment for LLM probing results.
+    Generate the LaTeX NiceTabular environment for LLM probing results, per task,
+    averaged over models.
+
+    For each model:
+    - Baseline: RC2 at the last layer.
+    - RC2@60: RC2 at 60% depth.
+    - LN2@60: LN2 at 60% depth.
 
     Parameters
     ----------
@@ -2678,8 +2680,7 @@ def table_performance_comparison_task_language(filename: str) -> None:
         Name of the result file to use.
     """
     # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
+    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
 
     # Keep LLM models
     pattern = "|".join(LLMs)
@@ -2689,30 +2690,26 @@ def table_performance_comparison_task_language(filename: str) -> None:
     rows = []
     for (task, model), sub in df.groupby(["task_name", "model_name"]):
         last_layer = sub.layer.max()
-        standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        heuristic_depth = 0.6
-        heuristic_layer = int(heuristic_depth * last_layer)
-        standard_heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
-        oracle = sub.accuracy.max()
+        heuristic_layer = int(0.6 * last_layer)  # int(l/100 * (L-1)), zero-based
+
+        def acc(layer: int, module: str) -> float:
+            return sub[(sub.layer == layer) & (sub.module == module)].accuracy.iloc[0]
+
         rows.append(
             {
                 "task": task,
                 "model": model,
-                "standard": standard,
-                "standard_heuristic": standard_heuristic,
-                "fixed": heuristic,
-                "oracle": oracle,
+                "standard": acc(last_layer, "rc2"),
+                "standard_heuristic": acc(heuristic_layer, "rc2"),
+                "fixed": acc(heuristic_layer, "ln2"),
             }
         )
 
     summary = pd.DataFrame(rows)
 
-    # Average over models
-    summary = summary.groupby("dataset")[["standard", "standard_heuristic", "fixed", "oracle"]].mean().reset_index()
-
-    # Dataset order
-    ordered_dataset = sorted(summary["dataset"].tolist())
+    # Average over models for each task
+    summary = summary.groupby("task")[["standard", "standard_heuristic", "fixed"]].mean().reset_index()
+    ordered_tasks = sorted(summary["task"].tolist(), key=str.lower)
 
     # Format values
     def format_accuracy(value: float) -> str:
@@ -2727,47 +2724,38 @@ def table_performance_comparison_task_language(filename: str) -> None:
 
     # Header
     header = [
-        "Dataset",
+        "Task",
         r"\multicolumn{2}{c}{\texttt{Baseline}}",
-        r"\multicolumn{2}{c}{$\texttt{RC2@60$}}",
+        r"\multicolumn{2}{c}{\texttt{RC2@60}}",
         r"\multicolumn{2}{c}{$\llm$}",
-        r"\multicolumn{2}{c}{\texttt{Oracle}}",
     ]
 
     # LaTeX table
-    lines = []
-    lines.append(
+    lines = [
         r"\begin{NiceTabular}{"
         r"@{} l "
-        r"*{4}{w{r}{2.8em}@{\hspace{6pt}}w{r}{2.2em}@{\hspace{4pt}}}"
+        r"*{3}{w{r}{2.8em}@{\hspace{6pt}}w{r}{2.2em}@{\hspace{4pt}}}"
         r"@{}"
-        r"}"
-    )
-    lines.append(r"\toprule")
-    lines.append(" & ".join(header) + r" \\")
-    lines.append(r"\midrule")
+        r"}",
+        r"\toprule",
+        " & ".join(header) + r" \\",
+        r"\midrule",
+    ]
 
-    # Dataset rows
-    for dataset in ordered_dataset:
-        row = summary[summary["dataset"] == dataset].iloc[0]
+    # Task rows
+    for task in ordered_tasks:
+        row = summary[summary["task"] == task].iloc[0]
         standard = float(row["standard"])
         standard_heuristic = float(row["standard_heuristic"])
         fixed = float(row["fixed"])
-        oracle = float(row["oracle"])
-        standard_heuristic_gain = standard_heuristic - standard
-        fixed_gain = fixed - standard
-        oracle_gain = oracle - standard
         lines.append(
-            rf"{dataset} & "
+            rf"{task} & "
             rf"{format_accuracy(standard)} & & "
-            rf"{format_accuracy(standard_heuristic)} & {format_gain(standard_heuristic_gain)} & "
-            rf"{format_accuracy(fixed)} & {format_gain(fixed_gain)} & "
-            rf"{format_accuracy(oracle)} & {format_gain(oracle_gain)} \\"
+            rf"{format_accuracy(standard_heuristic)} & {format_gain(standard_heuristic - standard)} & "
+            rf"{format_accuracy(fixed)} & {format_gain(fixed - standard)} \\"
         )
 
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{NiceTabular}")
-
+    lines += [r"\bottomrule", r"\end{NiceTabular}"]
     print("\n".join(lines))
 
 
@@ -2783,32 +2771,17 @@ def table_performance_comparison_all_language(filename: str, model_family: str) 
         LLM family to report, e.g. "Qwen3", "Llama3", or "Gemma3".
     """
     # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
+    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
 
-    # Model configuration
+    # Model configuration: checkpoint name -> displayed name (consistent with the main text)
     model_names = {
-        "Qwen3": [
-            "Qwen3-1.7B",
-            "Qwen3-4B",
-            "Qwen3-8B",
-        ],
-        "Llama3": [
-            "Llama-3.2-1B",
-            "Llama-3.2-3B",
-            "Llama-3.1-8B",
-        ],
-        "Gemma3": [
-            "gemma-3-1b-pt",
-            "gemma-3-4b-pt",
-            "gemma-3-12b-pt",
-        ],
+        "Qwen3": {"Qwen3-1.7B": "Qwen3 1.7B", "Qwen3-4B": "Qwen3 4B", "Qwen3-8B": "Qwen3 8B"},
+        "Llama3": {"Llama-3.2-1B": "Llama3 1B", "Llama-3.2-3B": "Llama3 3B", "Llama-3.1-8B": "Llama3 8B"},
+        "Gemma3": {"gemma-3-1b-pt": "Gemma3 1B", "gemma-3-4b-pt": "Gemma3 4B", "gemma-3-12b-pt": "Gemma3 12B"},
     }
-
     if model_family not in model_names:
         raise ValueError(f"Unknown model family '{model_family}'. Expected one of {list(model_names)}.")
-
-    models = model_names[model_family]
+    models = list(model_names[model_family])
 
     # Keep models from the selected family
     df = df[df["model_name"].isin(models)].copy()
@@ -2817,71 +2790,51 @@ def table_performance_comparison_all_language(filename: str, model_family: str) 
     rows = []
     for (task, model), sub in df.groupby(["task_name", "model_name"]):
         last_layer = sub.layer.max()
-        standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        heuristic_depth = 0.6
-        heuristic_layer = int(heuristic_depth * last_layer)
-        standard_heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "rc2")].accuracy.iloc[0]
-        heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
-        oracle = sub.accuracy.max()
+        heuristic_layer = int(0.6 * last_layer)  # int(l/100 * (L-1)), zero-based
+
+        def acc(layer: int, module: str) -> float:
+            return sub[(sub.layer == layer) & (sub.module == module)].accuracy.iloc[0]
+
         rows.append(
             {
                 "task": task,
                 "model": model,
-                "standard": standard,
-                "standard_heuristic": standard_heuristic,
-                "fixed": heuristic,
-                "oracle": oracle,
+                "standard": acc(last_layer, "rc2"),
+                "standard_heuristic": acc(heuristic_layer, "rc2"),
+                "fixed": acc(heuristic_layer, "ln2"),
             }
         )
     summary = pd.DataFrame(rows)
 
-    # Task order
-    task_order = sorted(summary["task"].unique())
+    # Task order (case-insensitive, consistent across tables)
+    task_order = sorted(summary["task"].unique(), key=str.lower)
 
-    # Format values
     def format_accuracy(value: float) -> str:
         return f"{value:.1f}"
 
     # LaTeX table
-    lines = []
-    lines.append(
+    lines = [
         r"\begin{NiceTabular}{"
         r"@{} l "
-        r"*{4}{w{c}{3.6em}@{\hspace{12pt}}}"
-        r"*{4}{w{c}{3.6em}@{\hspace{12pt}}}"
-        r"*{4}{w{c}{3.6em}@{\hspace{1pt}}}"
+        r"*{3}{w{c}{3.6em}@{\hspace{12pt}}}"
+        r"*{3}{w{c}{3.6em}@{\hspace{12pt}}}"
+        r"*{3}{w{c}{3.6em}@{\hspace{12pt}}}"
         r"@{}"
-        r"}"
-    )
-    lines.append(r"\toprule")
+        r"}",
+        r"\toprule",
+    ]
 
     # Model header
     model_header = [r"\multirow{2}{*}{Task}"]
-
     for model in models:
-        model_header.append(rf"\multicolumn{{4}}{{c}}{{\textit{{{model}}}}}")
-
+        model_header.append(rf"\multicolumn{{3}}{{c}}{{\textit{{{model_names[model_family][model]}}}}}")
     lines.append(" & ".join(model_header) + r" \\")
-
-    # Model separators
-    lines.append(
-        r"\cmidrule(l){2-5} "
-        r"\cmidrule(l){6-9} "
-        r"\cmidrule(l){10-13}"
-    )
+    lines.append(r"\cmidrule(l){2-4} \cmidrule(l){5-7} \cmidrule(l){8-10}")
 
     # Strategy header
     strategy_header = [""]
     for _ in models:
-        strategy_header.extend(
-            [
-                r"\texttt{Baseline}",
-                r"$\mathtt{RC2@60}$",
-                r"$\llm$",
-                r"\textcolor{oraclegray}{\texttt{Oracle}}",
-            ]
-        )
-
+        strategy_header.extend([r"\texttt{Baseline}", r"\texttt{RC2@60}", r"$\llm$"])
     lines.append(" & ".join(strategy_header) + r" \\")
     lines.append(r"\midrule")
 
@@ -2899,17 +2852,125 @@ def table_performance_comparison_all_language(filename: str, model_family: str) 
                     format_accuracy(float(result["standard"])),
                     format_accuracy(float(result["standard_heuristic"])),
                     format_accuracy(float(result["fixed"])),
-                    rf"\textcolor{{oraclegray}}{{{format_accuracy(float(result['oracle']))}}}",
                 ]
             )
         lines.append(" & ".join(row_values) + r" \\")
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{NiceTabular}")
 
+    lines += [r"\bottomrule", r"\end{NiceTabular}"]
     print("\n".join(lines))
 
 
 def table_global_statistics_language(filename: str) -> None:
+    r"""
+    Compute global statistics for fixed, depth-optimized, and oracle language strategies.
+
+    All searched locations (best RC2 layer, best LN2 layer, oracle layer-module pair) are
+    selected per model on the MTEB average over tasks (benchmark level), then evaluated on
+    each task. This matches the oracle definition of Table 2 and Figure 9.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    """
+    # Recover results
+    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
+
+    # Keep LLM models
+    all_models = [m for models in LLM_FAMILIES.values() for m in models]
+    df = cast(pd.DataFrame, df[df["model_name"].isin(all_models)])
+    logger.info(f"Results are presented over a total of {len(df)} probing runs.")
+
+    # Sanity check: each (model, layer, module) must be evaluated on all tasks
+    n_tasks = df["task_name"].nunique()
+    counts = df.groupby(["model_name", "layer", "module"])["task_name"].nunique()
+    if (counts != n_tasks).any():
+        raise ValueError(f"Incomplete evaluations:\n{counts[counts != n_tasks]}")
+
+    # Benchmark-level accuracy (average over tasks) for each model and location
+    bench = df.groupby(["model_name", "layer", "module"], as_index=False)["accuracy"].mean()
+
+    def best_location(model_name: str, module: str | None = None) -> tuple[int, str]:
+        r"""Location maximizing the benchmark accuracy, optionally restricted to a module."""
+        sub = bench[bench["model_name"] == model_name]
+        if module is not None:
+            sub = sub[sub["module"] == module]
+        best = sub.loc[sub["accuracy"].idxmax()]
+        return int(best["layer"]), str(best["module"])
+
+    heuristic_depth = 0.6
+    last_layers = df.groupby("model_name")["layer"].max()
+    locations = {}
+    for model_name in df["model_name"].unique():
+        last_layer = int(last_layers[model_name])
+        locations[model_name] = {
+            "standard": (last_layer, "rc2"),
+            "fixed": (int(heuristic_depth * last_layer), "ln2"),
+            "best_rc2": best_location(model_name, "rc2"),
+            "best_ln2": best_location(model_name, "ln2"),
+            "oracle": best_location(model_name),
+        }
+        logger.info(f"{model_name}: oracle location = {locations[model_name]['oracle']}")
+
+    strategies = ["standard", "fixed", "best_rc2", "best_ln2", "oracle"]
+
+    # Per model-task evaluations at the fixed (per-model) locations
+    rows = []
+    for key_values, sub in cast(Any, df.groupby(["task_name", "model_name"])):
+        task_name, model_name = key_values
+        row = {"task": task_name, "model_name": model_name}
+        for strategy in strategies:
+            layer, module = locations[model_name][strategy]
+            row[strategy] = float(
+                cast(pd.Series, sub[(sub["layer"] == layer) & (sub["module"] == module)]["accuracy"]).iloc[0]
+            )
+        rows.append(row)
+
+    evaluations = pd.DataFrame(rows)
+    tasks = evaluations.groupby("task")[strategies].mean()
+    models = evaluations.groupby("model_name")[strategies].mean()  # benchmark level, = Table 2
+
+    def print_statistics(strategy: str, label: str) -> None:
+        evaluation_wins = (evaluations[strategy] > evaluations["standard"]).sum()
+        evaluation_ties = (evaluations[strategy] == evaluations["standard"]).sum()
+        task_wins = (tasks[strategy] > tasks["standard"]).sum()
+        model_wins = (models[strategy] > models["standard"]).sum()
+        evaluation_gain = (evaluations[strategy] - evaluations["standard"]).mean()
+        task_gain = (tasks[strategy] - tasks["standard"]).mean()
+        model_gain = (models[strategy] - models["standard"]).mean()
+        print(
+            f"{label} model-task evaluations where strategy improves: "
+            f"{evaluation_wins}/{len(evaluations)} ({100 * evaluation_wins / len(evaluations):.1f}%), "
+            f"ties: {evaluation_ties}"
+        )
+        print(
+            f"{label} tasks where strategy improves on average: "
+            f"{task_wins}/{len(tasks)} ({100 * task_wins / len(tasks):.1f}%)"
+        )
+        print(f"{label} models where strategy improves: {model_wins}/{len(models)}")
+        print(f"{label} average gain over model-task evaluations: {evaluation_gain:.2f} pp")
+        print(f"{label} average gain over tasks: {task_gain:.2f} pp")
+        print(f"{label} average gain over models (benchmark level): {model_gain:.2f} pp")
+
+    print("\nFixed module comparison: LN2@60 vs. standard RC2@100.")
+    print_statistics("fixed", "Fixed LN2")
+    print("\nDepth-optimized module comparison (layer selected on the benchmark average).")
+    print_statistics("best_rc2", "Depth-RC2")
+    print_statistics("best_ln2", "Depth-LN2")
+    print("\nOracle comparison (layer-module pair selected on the benchmark average).")
+    print_statistics("oracle", "Oracle")
+
+    # Oracle gain recovery at the benchmark level (Figure 9)
+    oracle_gain = models["oracle"] - models["standard"]
+    print("\nRecovery of the benchmark-level oracle gain, averaged over models:")
+    for strategy, label in [("best_rc2", "Best RC2"), ("fixed", "LN2@60"), ("best_ln2", "Best LN2")]:
+        recovery = (models[strategy] - models["standard"]) / oracle_gain
+        print(
+            f"{label}: {100 * recovery.mean():.1f}% (min {100 * recovery.min():.1f}%, max {100 * recovery.max():.1f}%)"
+        )
+
+
+def table_global_statistics_language_(filename: str) -> None:
     r"""
     Compute global statistics for fixed and oracle language strategies.
 
@@ -2985,7 +3046,7 @@ def table_global_statistics_language(filename: str) -> None:
 # ------------------------------------------------------------------------------
 def plot_figures() -> None:
     r"""Intro plots."""
-    # plot_intro(save=True)
+    plot_intro(save=True)
 
     r"""VFMs plots."""
     # # CDF
@@ -3068,16 +3129,16 @@ def get_tables() -> None:
     # table_global_statistics_ood_vision(filename=filename)
 
     r"""LLMs tables."""
-    # Performance comparison
-    filename = "mteb"
-    table_performance_comparison_language(filename=filename)
-    table_performance_comparison_task_language(filename=filename)
-    for model_family in ["Qwen3", "Llama3", "Gemma3"]:
-        table_performance_comparison_all_language(filename=filename, model_family=model_family)
+    # # Performance comparison
+    # filename = "mteb"
+    # table_performance_comparison_language(filename=filename)
+    # table_performance_comparison_task_language(filename=filename)
+    # for model_family in ["Qwen3", "Llama3", "Gemma3"]:
+    #     table_performance_comparison_all_language(filename=filename, model_family=model_family)
 
-    # Global statistics
-    filename = "mteb"
-    table_global_statistics_language(filename=filename)
+    # # Global statistics
+    # filename = "mteb"
+    # table_global_statistics_language(filename=filename)
 
 
 # %% Main
