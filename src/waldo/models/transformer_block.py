@@ -58,7 +58,8 @@ class TransformerBlockAdapter(ABC):
     up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
     the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
     their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj.
+    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. The process_output
+    method allows to process output, for instance to recover FC1 output for DINOv2-giant.
 
     References
     ----------
@@ -139,21 +140,8 @@ class TransformerBlockAdapter(ABC):
             "rc2": self.rc2,
         }
 
-
-# -------------------------------------------------------------------
-#   Gated activation wrapper
-# -------------------------------------------------------------------
-class SwiGLUGateProjection(nn.Module):
-    r"""
-    Wraps a linear layer and returns only the first half of its output.
-    It can be used to recover the gate projection of the Dinov2 SwiGLU feedforward network.
-    """
-
-    def __init__(self, linear: nn.Linear):
-        super().__init__()
-        self.linear = linear
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.linear(x)
-        x1, _ = out.chunk(2, dim=-1)
-        return x1
+    def process_output(self, module_name: str, output: torch.Tensor) -> torch.Tensor:
+        r"""
+        Optionally post-process a hooked module output before storing it.
+        """
+        return output

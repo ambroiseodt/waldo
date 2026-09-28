@@ -46,13 +46,10 @@ _pooling = [
     "mean_pooling",
 ]
 
-
 _transformer_block = [
-    "SwiGLUGateProjection",
     "TransformerBlockAdapter",
     "TRANSFORMER_MODULES",
 ]
-
 
 _vision = [
     "BaseVisionModel",

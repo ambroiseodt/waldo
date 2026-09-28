@@ -153,10 +153,16 @@ class BaseVisionModel(nn.Module, ABC):
 
         return pre_hook_fn
 
-    def _make_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
+    def _make_hook(
+        self,
+        embeddings: dict[str, torch.Tensor],
+        key: str,
+        processor: Callable[[torch.Tensor], torch.Tensor] | None = None,
+    ) -> Callable:
         r"""
         Create a forward hook that captures the OUTPUT of a module.
-        The pooling is done at the hook level for efficiency.
+        An optional processor can transform the output before pooling,
+        for instance to recover FC1 module in DINOv2.
 
         Parameters
         ----------
@@ -164,6 +170,8 @@ class BaseVisionModel(nn.Module, ABC):
             Shared dict where the captured embedding will be stored.
         key: str
             Key under which the embedding is stored, e.g. "block_3_mha".
+        processor: Callable[[torch.Tensor], torch.Tensor] | None
+            Optional function applied to the module output before pooling.
 
         Returns
         -------
@@ -178,6 +186,9 @@ class BaseVisionModel(nn.Module, ABC):
         ) -> None:
             # Some modules output a tuple in HuggingFace, e.g. the attention module
             out = output[0] if isinstance(output, tuple) else output
+
+            if processor is not None:
+                out = processor(out)
 
             # Recover embedding after global average pooling over the sequence of tokens
             embeddings[key] = self.pooling(hidden_states=out)
@@ -235,7 +246,17 @@ class BaseVisionModel(nn.Module, ABC):
                     )
                 # Modules for which we hook the output
                 else:
-                    handles.append(module.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
+                    handles.append(
+                        module.register_forward_hook(
+                            self._make_hook(
+                                embeddings,
+                                key,
+                                processor=lambda out, adapter=adapter, name=module_name: adapter.process_output(
+                                    name, out
+                                ),
+                            )
+                        )
+                    )
 
         # Forward pass
         try:
@@ -247,7 +268,6 @@ class BaseVisionModel(nn.Module, ABC):
         finally:
             for handle in handles:
                 handle.remove()
-
         return embeddings
 
     def __repr__(self) -> str:

@@ -40,7 +40,7 @@ from transformers import Dinov2Model, PreTrainedModel
 from transformers.models.dinov2.modeling_dinov2 import Dinov2Encoder, Dinov2MLP, Dinov2SwiGLUFFN
 
 from ..pooling import mean_pooling
-from ..transformer_block import SwiGLUGateProjection, TransformerBlockAdapter
+from ..transformer_block import TransformerBlockAdapter
 from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)
@@ -129,6 +129,10 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
     TransformerBlockAdapter
     """
 
+    def __init__(self, layer: nn.Module):
+        self.is_swiglu = isinstance(layer.mlp, Dinov2SwiGLUFFN)
+        super().__init__(layer)
+
     def _get_ln1(self, layer: nn.Module) -> nn.Module:
         return cast(nn.Module, layer.norm1)
 
@@ -144,18 +148,19 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
         r"""
-        When SwiGLUFFN is used, the DINOv2 implementation concatenates the gate_proj and up_proj
-        using a matrix weight_in of shape emb_dim x 2 * hidden_dim and then recover gate_proj
-        and up_proj by chunk. The SwiGLUGateProjection allows us to recover only the gate_proj to
-        obtain fc1.
+        Returns the native FC1 projection module.
+
+        For SwiGLU blocks, ``weights_in`` produces the concatenated gate and
+        up projections; ``process_output`` extracts the gate projection used
+        as FC1 for probing.
 
         See also
         --------
         https://github.com/huggingface/transformers/blob/main/src/transformers/models/dinov2/modeling_dinov2.py
-        and SwiGLUGateProjection in models/utils.py
         """
         if isinstance(layer.mlp, Dinov2SwiGLUFFN):
-            return cast(nn.Module, SwiGLUGateProjection(layer.mlp.weights_in))
+            # weights_in outputs [gate, up]; process_output extracts the gate as FC1.
+            return cast(nn.Module, layer.mlp.weights_in)
         elif isinstance(layer.mlp, Dinov2MLP):
             return cast(nn.Module, layer.mlp.fc1)
         else:
@@ -193,6 +198,14 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
             return {"rc1"}
         else:
             raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+
+    def process_output(self, module_name: str, output: torch.Tensor) -> torch.Tensor:
+        r"""
+        Extracts the gate projection from the concatenated SwiGLU ``weights_in`` output.
+        """
+        if module_name == "fc1" and self.is_swiglu:
+            return output.chunk(2, dim=-1)[0]
+        return output
 
 
 # -------------------------------------------------------------------
