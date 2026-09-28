@@ -513,7 +513,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         """
         # Valid layer and module
         if layer is not None:
-            if layer > self.n_layers:
+            if layer >= self.n_layers:
                 raise ValueError(f"Layer index {layer} is out of range for a model with {self.n_layers} layers.")
             self.layer = layer
         if module is not None:

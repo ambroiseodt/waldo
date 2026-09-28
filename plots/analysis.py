@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.colors import PowerNorm
 from matplotlib.container import ErrorbarContainer
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
@@ -48,7 +49,7 @@ DATASETS = {
     "domainnet-quickdraw": "Quickdraw",
     "domainnet-painting": "Painting",
     "domainnet-sketch": "Sketch",
-    "eurosat": "EuroSat",
+    "eurosat": "EuroSAT",
     "flowers102": "Flowers102",
     "food101": "Food-101",
     "iwildcam": "iWildCam",
@@ -101,26 +102,30 @@ LLM_SIZES = {
 
 # Plot aesthetic
 FONTSIZE = 21
+TITLE_FONTSIZE = FONTSIZE + 5
 LEG_FONTSIZE = FONTSIZE
 LINEWIDTH = 4
 BARWIDTH = 0.25
 MARKER_LINEWIDTH = 0.5
 ALPHA_GRID = 0.8
 ZOOM_SCALE = 0.7
-GAIN_PALETTE = {"layer": "#7987b8", "module": "#9fc9b1", "oracle": "#c6a4e4"}
+GAIN_PALETTE = {
+    "layer": "#7987B8",
+    "module": "#37abb5",
+    "oracle": "#c6a4e4",
+}
 MODULE_PALETTE = {
     "ln1": "#daa4ac",
-    "mha": "#37abb5",
-    "rc1": "#d0e2c2",
+    "mha": "#4997d0",
+    "rc1": "#fffdd0",
     "ln2": "#b153a1",
     "fc1": "#a291e1",
     "act": "#96c0cf",
     "fc2": "#858ec2",
-    "rc2": "#428379",
+    "rc2": "#848482",
 }
 LLM_PALETTE = {"qwen3": "#7987b8", "llama3": "#9fc9b1", "gemma3": "#c6a4e4"}
 CMAP = "viridis"
-
 
 # Visual parameters
 palette = sns.cubehelix_palette()
@@ -174,6 +179,281 @@ def table_runs() -> None:
 
     # Total
     print(f"There are a total of {comp} runs.")
+
+
+def get_ordered_dataset(filename: str) -> list:
+    # Recover results
+    path = RESULT_DIR / "analysis"
+    df = pd.read_csv(path / f"{filename}.csv")
+    df = df.copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+
+    # Keep datasets
+    pattern = "|".join(DATASETS.keys())
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Recover mean probing error across models
+    ordered_dataset = df.groupby("dataset_name")["baseline_accuracy"].mean().rsub(100).sort_values().index.tolist()
+
+    return ordered_dataset
+
+
+# ------------------------------------------------------------------------------
+# Intro
+# ------------------------------------------------------------------------------
+def plot_intro(vision_filename: str = "cls", language_filename: str = "mteb", save: bool = False) -> None:
+    r"""
+    Plot side-by-side optimal layer-module heatmaps for VFMs and LLMs.
+    """
+    # Colorbar
+    COLORBAR_MIN = 0
+    COLORBAR_MAX = 20
+    cmap = sns.cubehelix_palette(rot=0.2, dark=0.45, light=0.95, as_cmap=True)
+    norm = PowerNorm(gamma=0.6, vmin=COLORBAR_MIN, vmax=COLORBAR_MAX)
+    bar_color = cmap(norm(COLORBAR_MAX))
+    star_color = "tab:red"
+    circle_color = "#333333"
+
+    # Figure
+    depth_step = 9
+    n_bins = int(round(100 / depth_step))
+    n_modules = 8
+    cell_width = 0.5
+    cell_height = 0.4
+    heat_width = cell_width * n_bins
+    heat_height = cell_height * n_modules
+    top_height, right_width, gap_width, cbar_width = 1.1, 1.3, 1.0, 0.2
+    width_ratios = [heat_width, right_width, gap_width, heat_width, right_width, 0.3, cbar_width]
+    height_ratios = [top_height, heat_height]
+    width = sum(width_ratios) / 0.9
+    height = sum(height_ratios) / 0.78
+    fig = plt.figure(figsize=(width, height))
+    gs = GridSpec(2, 7, figure=fig, width_ratios=width_ratios, height_ratios=height_ratios, wspace=0.0, hspace=0.0)
+
+    # Variables
+    modules = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
+    module_labels = {
+        "ln1": r"$\mathtt{LN1}$",
+        "mha": r"$\mathtt{MHA}$",
+        "rc1": r"$\mathtt{RC1}$",
+        "ln2": r"$\mathtt{LN2}$",
+        "fc1": r"$\mathtt{FC1}$",
+        "act": r"$\mathtt{Act}$",
+        "fc2": r"$\mathtt{FC2}$",
+        "rc2": r"$\mathtt{RC2}$",
+    }
+    panel_titles = ["Vision Foundation Models", "Large Language Models"]
+    bin_width = 100 / n_bins
+    depth_edges = np.linspace(0, 100, n_bins + 1)
+    module_centers = np.arange(len(modules)) + 0.5
+    depth_ticks = [0, 50, 100]
+    module_to_idx = {module: i for i, module in enumerate(modules)}
+    strategy_modules = ["act", "ln2"]
+    strategy_depths = [1.0, 0.60]
+    baseline_module = "rc2"
+    depth_grid = np.linspace(0, 100, 501)
+    depth_sigma = bin_width / 2
+
+    # Recover results
+    pair_percentages = []
+    module_percentages = []
+    depth_percentages = []
+    depth_densities = []
+    smooth_percentages = []
+    strategy_bins = []
+    for modality_idx, (modality, filename) in enumerate(
+        zip(("vision", "language"), (vision_filename, language_filename), strict=True)
+    ):
+        path = RESULT_DIR / "analysis"
+        df = pd.read_csv(path / f"{filename}.csv")
+        df = df.copy()
+        if modality == "vision":
+            pattern = "|".join(VFMs)
+            df = cast(
+                pd.DataFrame,
+                df[df["model_name"].str.contains(pattern, case=False, na=False)],
+            )
+            pattern = "|".join(DATASETS.keys())
+            df = cast(
+                pd.DataFrame,
+                df[df["dataset_name"].str.contains(pattern, case=False, na=False)],
+            )
+        else:
+            pattern = "|".join(LLMs)
+            df = cast(
+                pd.DataFrame,
+                df[df["model_name"].str.contains(pattern, case=False, na=False)],
+            )
+
+        logger.info(f"{modality}: results are presented over a total of {len(df)} runs.")
+
+        # Optimal layer-module pairs
+        best_depth = 100 * df["best_layer"].to_numpy(dtype=float) / (df["n_layers"].to_numpy(dtype=float) - 1)
+        bin_index = np.minimum((best_depth / bin_width).astype(int), len(depth_edges) - 2)
+        pair_counts = np.zeros((len(depth_edges) - 1, len(modules)), dtype=float)
+        for depth_idx, module in zip(bin_index, df["best_module"].to_numpy(dtype=str), strict=True):
+            module_idx = module_to_idx.get(module)
+            if module_idx is not None:
+                pair_counts[depth_idx, module_idx] += 1
+
+        pair_pct = 100 * pair_counts / len(df)
+        pair_percentages.append(pair_pct)
+        module_percentages.append(pair_pct.sum(axis=0))
+        depth_percentages.append(pair_pct.sum(axis=1))
+
+        # Continuous depth marginal
+        depth_density = sum(
+            np.exp(-0.5 * ((depth_grid - center) / depth_sigma) ** 2)
+            for depth in best_depth
+            for center in (depth, -depth, 200 - depth)
+        )
+        depth_densities.append(depth_density / len(df))
+
+        # Heatmap smoothed along depth
+        smooth_pct = np.zeros((len(modules), len(depth_grid)))
+
+        for depth, module in zip(best_depth, df["best_module"].to_numpy(dtype=str), strict=True):
+            kernel = sum(
+                np.exp(-0.5 * ((depth_grid - center) / depth_sigma) ** 2) for center in (depth, -depth, 200 - depth)
+            )
+            kernel /= depth_sigma * np.sqrt(2 * np.pi)
+            smooth_pct[module_to_idx[module]] += 100 * bin_width * kernel / len(df)
+        smooth_percentages.append(smooth_pct)
+
+        # Fixed strategy depth
+        n_layers = df["n_layers"].to_numpy(dtype=int)
+        strategy_layer = (strategy_depths[modality_idx] * (n_layers - 1)).astype(int)
+        strategy_depth = 100 * strategy_layer / (n_layers - 1)
+        strategy_bin = np.minimum((strategy_depth / bin_width).astype(int), len(depth_edges) - 2)
+        strategy_bins.append(int(np.bincount(strategy_bin).argmax()))
+
+    # Visualization
+    reference_heatmap = None
+    im = None
+    for panel_idx, title in enumerate(panel_titles):
+        col = 0 if panel_idx == 0 else 3
+        ax_top = fig.add_subplot(gs[0, col])
+        if reference_heatmap is None:
+            ax_heat = fig.add_subplot(gs[1, col])
+            reference_heatmap = ax_heat
+        else:
+            ax_heat = fig.add_subplot(gs[1, col], sharey=reference_heatmap)
+        ax_right = fig.add_subplot(gs[1, col + 1])
+        im = ax_heat.imshow(
+            smooth_percentages[panel_idx],
+            extent=(0, len(depth_edges) - 1, len(modules), 0),
+            aspect="auto",
+            cmap=cmap,
+            norm=norm,
+            interpolation="nearest",
+        )
+        for row in range(1, len(modules)):
+            ax_heat.axhline(row, color="white", linewidth=1.5)
+        depth_x = depth_grid / bin_width
+        ax_top.fill_between(depth_x, 0, depth_densities[panel_idx], color=bar_color, alpha=0.35, linewidth=0)
+        ax_top.plot(depth_x, depth_densities[panel_idx], color=bar_color, linewidth=2)
+
+        # Discrete module marginal
+        module_pct = pair_percentages[panel_idx]
+        ax_right.barh(
+            module_centers,
+            module_pct.sum(axis=0),
+            height=0.75,
+            color=bar_color,
+            alpha=0.35,
+            edgecolor=bar_color,
+            linewidth=1,
+        )
+
+        # Standard probing and fixed strategy
+        baseline_x = len(depth_edges) - 1
+        strategy_x = 100 * strategy_depths[panel_idx] / bin_width
+        ax_heat.scatter(
+            [baseline_x],
+            [module_centers[module_to_idx[baseline_module]]],
+            s=220,
+            color="white",
+            edgecolor=circle_color,
+            linewidth=2,
+            zorder=5,
+            clip_on=False,
+        )
+        ax_heat.scatter(
+            [strategy_x],
+            [module_centers[module_to_idx[strategy_modules[panel_idx]]]],
+            s=500,
+            marker="*",
+            color=star_color,
+            edgecolor=circle_color,
+            linewidth=0.5,
+            zorder=6,
+            clip_on=False,
+        )
+
+        # Heatmap
+        x_max = len(depth_edges) - 1
+        ax_heat.set(
+            xlim=(0, x_max),
+            ylim=(len(modules), 0),
+            xticks=[tick / bin_width for tick in depth_ticks],
+            xticklabels=[str(tick) for tick in depth_ticks],
+            yticks=module_centers,
+            yticklabels=[module_labels[module] for module in modules],
+        )
+
+        # Visualization
+        ax_heat.spines["left"].set_linewidth(1)
+        ax_heat.spines["right"].set_linewidth(1)
+        ax_heat.spines["top"].set_linewidth(1)
+        ax_heat.spines["bottom"].set_linewidth(1)
+        ax_heat.tick_params(axis="both", direction="out", length=5, width=1)
+        sns.despine(fig, ax_heat, trim=True, right=True, offset=10)
+        ax_heat.set_xlabel("Layer depth (%)", fontsize=FONTSIZE)
+        ax_heat.text(
+            0.5,
+            -0.40,
+            title,
+            transform=ax_heat.transAxes,
+            ha="center",
+            va="top",
+            fontsize=TITLE_FONTSIZE,
+        )
+        # Top marginal
+        ax_top.set_xlim(0, x_max)
+        ax_top.set_ylim(0, 1.1 * depth_densities[panel_idx].max())
+        ax_top.set_xticks([])
+
+        # Right marginal
+        module_max = module_pct.sum(axis=0).max()
+        ax_right.set_ylim(len(modules), 0)
+        ax_right.set_xlim(-0.2 * module_max, 1.1 * module_max)
+        ax_right.set_xticks([])
+        ax_right.set_yticks([])
+
+        for axis in (ax_top, ax_right):
+            for spine in axis.spines.values():
+                spine.set_visible(False)
+
+        ax_top.set_axis_off()
+        ax_right.set_axis_off()
+
+    if im is not None:
+        ax_cbar = fig.add_subplot(gs[:, 6])
+        cbar_ticks = np.linspace(COLORBAR_MIN, COLORBAR_MAX, 4, dtype=int)
+        cbar = fig.colorbar(im, cax=ax_cbar, ticks=cbar_ticks)
+        cbar.ax.set_yticklabels([str(tick) for tick in cbar_ticks])
+        cbar.set_label("Optimality frequency (%)", fontsize=FONTSIZE, rotation=270, labelpad=25)
+        cbar.ax.tick_params(labelsize=FONTSIZE - 5)
+        fig.set_layout_engine("none")
+        fig.subplots_adjust(left=0.07, right=0.97, bottom=0.14, top=0.92)
+
+    if save:
+        figname = "intro"
+        save_plot(figname=figname)
 
 
 # ------------------------------------------------------------------------------
@@ -235,7 +515,7 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
     ax.set_ylim(-1, 101)
     yticks = [0, 25, 50, 75, 100]
     ax.set_yticks(yticks)
-    ax.set_xlabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+    ax.set_xlabel("Gain over probing baseline (pp)", fontsize=FONTSIZE)
     label = ax.set_ylabel(r"Probing runs with gain $> x$", fontsize=FONTSIZE)
     x, y = label.get_position()
     label.set_position((x, 0.4))
@@ -643,7 +923,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     print(f"error reduction: {df.groupby('model_name')['error_reduction'].mean()}")
 
     # Results
-    pretraining_labels = {"vit": r"$0.25$T", "dinov2": r"$1.83$T", "aimv2": r"$3.15$T", "dinov3": r"$3.90$T"}
+    pretraining_labels = {"vit": r"$0.25$T", "dinov2": r"$1.75$T", "aimv2": r"$3.15$T", "dinov3": r"$3.90$T"}
     family_order = ["vit", "dinov2", "aimv2", "dinov3"]
     sns.barplot(
         data=df,
@@ -721,7 +1001,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
     """
     # Figure
     width = 5.5
-    height = 4.4
+    height = 5
     ncols = len(REPRESENTATIVE_DATASETS)
     figsize = ncols * width, height
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
@@ -760,9 +1040,8 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
             var_name="gain_type",
             value_name="gain_value",
         )
-        agg_long["gain_type"] = agg_long["gain_type"].map(
-            lambda value: dict(zip(gain_types, gain_labels, strict=False))[value]
-        )
+        gain_map = dict(zip(gain_types, gain_labels, strict=False))
+        agg_long["gain_type"] = agg_long["gain_type"].map(gain_map)
         sns.barplot(
             data=agg_long,
             x="model_name",
@@ -789,7 +1068,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
         ax.set_xticks(range(len(model_order)))
         ax.set_xticklabels([VFM_NAMES[model] for model in model_order])
         if i == 0:
-            ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+            ax.set_ylabel("Gain over probing baseline (pp)", fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
@@ -985,14 +1264,14 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
     save: bool, default=False
         Whether to save the plot.
     """
+    # Recover dataset order
+    ordered_dataset = get_ordered_dataset(filename=filename)
+
     # Figure
     width = 5
     height = 4
     sizes = VFM_SIZES[model_name]
-    nrows = len(sizes)
-    ncols = len(REPRESENTATIVE_DATASETS)
-    figsize = ncols * width, nrows * height
-    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharex=True)
+    ncols = len(sizes)
 
     # Recover results
     path = RESULT_DIR
@@ -1015,277 +1294,86 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
         "dinov3": ["DINOv3-S", "DINOv3-B", "DINOv3-L", "DINOv3-7B"],
         "aimv2": ["AIMv2-L", "AIMv2-H", "AIMv2-1B", "AIMv2-3B"],
     }
-    for i, model_size in enumerate(sizes):
-        for j, dataset_name in enumerate(REPRESENTATIVE_DATASETS):
-            ax = axes[i, j]
-            for module in ["act", "rc2"]:
-                subset = df[
-                    (df["model_name"] == model_name)
-                    & (df["model_size"] == model_size)
-                    & (df["dataset_name"] == dataset_name)
-                    & (df["module"] == module)
-                ].copy()
-                subset = cast(pd.DataFrame, subset).sort_values(by="layer")
-                n_layers = subset["layer"].max()
-                subset["depth"] = 100 * subset["layer"] / n_layers
-                ax.plot(
-                    subset["depth"],
-                    subset["accuracy"],
-                    color=MODULE_PALETTE[module],
-                    linewidth=LINEWIDTH,
-                    linestyle="-" if module != "rc2" else "--",
-                    label=module.upper() if module != "act" else "Act",
-                )
 
-                # Mark the highest act performance
-                if module == "act":
-                    index = np.argmax(subset["accuracy"])
-                    ax.scatter(
-                        subset["depth"].values[index],
-                        subset["accuracy"].values[index],
-                        label="Best Act",
-                        edgecolor="#333333",
-                        s=300,
-                        c=MODULE_PALETTE[module],
-                        marker="*",
-                        zorder=3,
+    n_parts = 3
+    nrows = len(ordered_dataset) // n_parts
+    for part in range(n_parts):
+        figsize = ncols * width, nrows * height
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharex=True)
+        datasets = ordered_dataset[nrows * part : nrows * (part + 1)]
+        for i, dataset_name in enumerate(datasets):
+            for j, model_size in enumerate(sizes):
+                ax = axes[i, j]
+                for module in ["act", "rc2"]:
+                    subset = df[
+                        (df["model_name"] == model_name)
+                        & (df["model_size"] == model_size)
+                        & (df["dataset_name"] == dataset_name)
+                        & (df["module"] == module)
+                    ].copy()
+                    subset = cast(pd.DataFrame, subset).sort_values(by="layer")
+                    n_layers = subset["layer"].max()
+                    subset["depth"] = 100 * subset["layer"] / n_layers
+                    ax.plot(
+                        subset["depth"],
+                        subset["accuracy"],
+                        color=MODULE_PALETTE[module],
+                        linewidth=LINEWIDTH,
+                        linestyle="-" if module != "rc2" else "--",
+                        label=module.upper() if module != "act" else "Act",
                     )
 
-            # Visualization
-            ax.grid(alpha=ALPHA_GRID, lw=1.3)
-            ax.spines["left"].set_linewidth(1)
-            ax.spines["right"].set_linewidth(1)
-            ax.spines["top"].set_linewidth(1)
-            ax.spines["bottom"].set_linewidth(1)
-            ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-            ymin, ymax = ax.get_ylim()
-            tol = 1
-            ax.set_yticks(np.linspace(ymin - tol, ymax - tol, 3).astype(int))
-            if i == 0:
-                ax.set_title(f"{DATASETS[dataset_name]}\n", fontsize=FONTSIZE)
-            if i == nrows - 1:
-                ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
-            if j == 0:
-                ax.set_ylabel(f"{model_labels[model_name][i]}\n" + r"Accuracy ($\%$)", fontsize=FONTSIZE)
-    sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
+                    # Mark the highest act performance
+                    if module == "act":
+                        index = np.argmax(subset["accuracy"])
+                        ax.scatter(
+                            subset["depth"].values[index],
+                            subset["accuracy"].values[index],
+                            label="Best Act",
+                            edgecolor="#333333",
+                            s=300,
+                            c=MODULE_PALETTE[module],
+                            marker="*",
+                            zorder=3,
+                        )
 
-    # Common legend
-    legend = axes[0, 0].legend(
-        loc="upper center",
-        bbox_to_anchor=(0.63, 0.52),
-        fancybox=True,
-        borderaxespad=0,
-        shadow=False,
-        frameon=True,
-        handlelength=1.9,
-        fontsize=LEG_FONTSIZE,
-    )
-    legend.get_frame().set_edgecolor("none")
-    legend.get_frame().set_facecolor("white")
-    legend.get_frame().set_alpha(1.0)
-    legend.set_zorder(10)
-    plt.tight_layout()
-    if save:
-        figname = f"probing_depth_family_{model_name}_vision_{filename}"
-        save_plot(figname=figname)
+                # Visualization
+                ax.grid(alpha=ALPHA_GRID, lw=1.3)
+                ax.spines["left"].set_linewidth(1)
+                ax.spines["right"].set_linewidth(1)
+                ax.spines["top"].set_linewidth(1)
+                ax.spines["bottom"].set_linewidth(1)
+                ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+                ymin, ymax = ax.get_ylim()
+                tol = 1
+                ax.set_yticks(np.linspace(ymin - tol, ymax - tol, 3).astype(int))
+                if i == 0:
+                    ax.set_title(f"{model_labels[model_name][j]}\n", fontsize=FONTSIZE)
+                if i == nrows - 1:
+                    ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
+                if j == 0:
+                    ax.set_ylabel(f"{DATASETS[dataset_name]}\n" + r"Accuracy ($\%$)", fontsize=FONTSIZE)
+        sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
 
-
-def plot_heatmap_winning_frequency_vision(filename: str, save: bool = False) -> None:
-    r"""
-    Plot the distribution of winning layer-module locations for vision models.
-
-    Each model-dataset pair contributes one vote to its jointly optimal layer-module pair. Relative
-    depth is aggregated into configurable bins for both the heatmap and the depth marginal.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    save: bool, default=False
-        Whether to save the plot.
-    """
-    # Figure
-    n_modules = 8
-    depth_step = 5
-    n_bins = 100 // depth_step
-    width = 10
-    height = 4
-    figsize = width, height
-    fig = plt.figure(figsize=figsize)
-    bar_color = "#c6a4e4"
-    cmap = sns.cubehelix_palette(
-        # start=0,
-        rot=0.2,
-        dark=0.45,
-        light=0.95,
-        as_cmap=True,
-    )
-    heatmap_ratio = n_bins / n_modules
-    gs = GridSpec(
-        2,
-        3,
-        figure=fig,
-        width_ratios=[heatmap_ratio, 0.55, 0.06],
-        height_ratios=[0.45, 1.0],
-        wspace=0.05,
-        hspace=0.05,
-    )
-    ax_top = fig.add_subplot(gs[0, 0])
-    ax_heatmap = fig.add_subplot(gs[1, 0])
-    ax_right = fig.add_subplot(gs[1, 1])
-    ax_cbar = fig.add_subplot(gs[1, 2])
-
-    # Recover results
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep vision models
-    pattern = "|".join(VFMs)
-    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
-
-    # Keep datasets
-    pattern = "|".join(DATASETS.keys())
-    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
-
-    # Results
-    modules = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
-    module_labels = {
-        "ln1": r"$\mathtt{LN1}$",
-        "mha": r"$\mathtt{MHA}$",
-        "rc1": r"$\mathtt{RC1}$",
-        "ln2": r"$\mathtt{LN2}$",
-        "fc1": r"$\mathtt{FC1}$",
-        "act": r"$\mathtt{Act}$",
-        "fc2": r"$\mathtt{FC2}$",
-        "rc2": r"$\mathtt{RC2}$",
-    }
-
-    best_depth = 100 * df["best_layer"].to_numpy(dtype=float) / (df["n_layers"].to_numpy(dtype=float) - 1)
-    depth_bins = np.arange(0, 100 + depth_step, depth_step, dtype=float)
-    n_bins = len(depth_bins) - 1
-    depth_bin = np.minimum(
-        (best_depth / depth_step).astype(int),
-        n_bins - 1,
-    )
-    pair_counts = np.zeros((n_bins, len(modules)), dtype=float)
-    module_to_idx = {module: i for i, module in enumerate(modules)}
-
-    for bin_idx, module in zip(
-        depth_bin,
-        df["best_module"].to_numpy(dtype=str),
-        strict=True,
-    ):
-        module_idx = module_to_idx.get(module)
-        if module_idx is not None:
-            pair_counts[bin_idx, module_idx] += 1
-
-    n_pairs = len(df)
-    pair_pct = 100 * pair_counts / n_pairs
-    module_pct = pair_pct.sum(axis=0)
-    depth_pct = pair_pct.sum(axis=1)
-
-    print("\nOptimal module frequency:")
-    for module, frequency in sorted(
-        zip(modules, module_pct, strict=True),
-        key=lambda x: x[1],
-        reverse=True,
-    ):
-        print(f"  {module:>4s}: {frequency:.1f}%")
-
-    print("\nOptimal depth frequency:")
-    for i, frequency in enumerate(depth_pct):
-        if frequency > 0:
-            lower = depth_bins[i]
-            upper = depth_bins[i + 1]
-            print(f"  {lower:.0f}–{upper:.0f}%: {frequency:.1f}%")
-
-    # Results
-    heatmap_edges = np.arange(n_bins + 1)
-    module_edges = np.arange(len(modules) + 1)
-    im = ax_heatmap.pcolormesh(heatmap_edges, module_edges, pair_pct.T, shading="flat", cmap=cmap, edgecolors="none")
-    depth_centers = np.arange(n_bins) + 0.5
-    ax_top.bar(depth_centers, depth_pct, color=bar_color, width=1.0)
-    module_centers = np.arange(len(modules)) + 0.5
-    ax_right.barh(module_centers, module_pct, color=bar_color, height=1.0)
-
-    # Visualization heatmap
-    ax = ax_heatmap
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(
-        axis="both",
-        direction="out",
-        length=5,
-        width=1,
-        labelsize=FONTSIZE,
-    )
-    ax.set_xlim(0, n_bins)
-    ax.set_ylim(0, len(modules))
-    ax.set_xticks([0, 5, 10, 15, 20])
-    ax.set_xticklabels(["0", "25", "50", "75", "100"])
-    ax.set_yticks(module_centers)
-    ax.set_yticklabels([module_labels[module] for module in modules])
-    ax.set_xlabel("Layer depth (%)")
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    # Visualiation colorbar
-    cbar = fig.colorbar(im, cax=ax_cbar, ticks=np.linspace(pair_pct.min(), pair_pct.max(), 3))
-    cbar.set_label("Optimality frequency (%)", fontsize=FONTSIZE, rotation=270, labelpad=25)
-    ax = ax_cbar
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-    ax.set_yticks([0, 13, 26])
-
-    # Visualization top marginal
-    ax = ax_top
-    ax.set_xlim(0, n_bins)
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-    best_idx = np.argmax(depth_pct)
-    ax.text(
-        depth_centers[best_idx],
-        depth_pct[best_idx] + 1,
-        f"{depth_pct[best_idx]:.1f}%",
-        ha="center",
-        va="bottom",
-        fontsize=12,
-        color="black",
-    )
-
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    # Visualization right marginal
-    ax = ax_right
-    ax.set_ylim(0, len(modules))
-    ax.set_xlim(0, module_pct.max() * 1.5)
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-    best_idx = np.argmax(module_pct)
-    ax.text(
-        module_pct[best_idx] + 1,
-        module_centers[best_idx],
-        f"{module_pct[best_idx]:.1f}%",
-        ha="left",
-        va="center",
-        fontsize=12,
-        color="black",
-    )
-
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    # Save
-    if save:
-        save_plot(figname=f"heatmap_winning_frequency_vision_{filename}")
+        # Common legend
+        legend = axes[0, 0].legend(
+            loc="upper center",
+            bbox_to_anchor=(0.63, 0.52),
+            fancybox=True,
+            borderaxespad=0,
+            shadow=False,
+            frameon=True,
+            handlelength=1.9,
+            fontsize=LEG_FONTSIZE,
+        )
+        legend.get_frame().set_edgecolor("none")
+        legend.get_frame().set_facecolor("white")
+        legend.get_frame().set_alpha(1.0)
+        legend.set_zorder(10)
+        plt.tight_layout()
+        if save:
+            figname = f"probing_depth_family_{model_name}_part_{part}_vision_{filename}"
+            save_plot(figname=figname)
 
 
 def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
@@ -1401,7 +1489,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xticklabels(["Best RC2", r"$\mathtt{Act@100}$", "Best Act"])
+    ax.set_xticklabels([r"Best $\mathtt{RC2}$", r"$\mathtt{Act@100}$", r"Best $\mathtt{Act}$"])
     ax.set_ylim(15, 85)
     ax.set_yticks([15, 50, 85])
     ax.set_xlabel("")
@@ -1505,24 +1593,31 @@ def table_winning_module_frequency_vision(filename: str) -> None:
 
 
 def table_performance_comparison_vision(filename: str) -> None:
-    r"""Generate the LaTeX table for representative vision probing results."""
+    r"""Get results on large vision models, with datasets ordered by increasing transfer difficulty."""
+    # Recover dataset ordered by increasing transfer difficutly
+    ordered_dataset = get_ordered_dataset(filename=filename)
+
+    # Recover results
     path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep vision models
     pattern = "|".join(VFMs)
     df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+
+    # Keep datasets
     pattern = "|".join(DATASETS)
     df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
-    last_layer = df.groupby(["dataset_name", "model_name"])["layer"].transform("max")
-    standard_rows = df[(df["layer"] == last_layer) & (df["module"] == "rc2")]
-    transfer_difficulty = cast(
-        pd.Series, standard_rows.groupby("dataset_name")["accuracy"].mean().rsub(100)
-    ).sort_values()
-    dataset_order = [str(dataset) for dataset in transfer_difficulty.index.tolist()]
+
+    # Keep representative models
     mask = np.zeros(len(df), dtype=bool)
     for model, size in REPRESENTATIVE_VFMs.items():
         mask |= (df["model_name"] == model) & (df["model_size"] == size)
     df = cast(pd.DataFrame, df[mask])
     family_order: list[str] = list(REPRESENTATIVE_VFMs.keys())
+
+    # Results
+    last_layer = df.groupby(["dataset_name", "model_name"])["layer"].transform("max")
     model_labels = {"vit": "ViT", "dinov2": "DINOv2", "dinov3": "DINOv3", "aimv2": "AIMv2"}
     dataset_labels = {
         "cifar10": "Cifar10",
@@ -1576,10 +1671,10 @@ def table_performance_comparison_vision(filename: str) -> None:
 
     header = (
         ["Strategy"]
-        + [rf"\rotatebox{{90}}{{{dataset_labels.get(dataset, dataset)}}}" for dataset in dataset_order]
+        + [rf"\rotatebox{{90}}{{{dataset_labels.get(dataset, dataset)}}}" for dataset in ordered_dataset]
         + [r"\rotatebox{90}{Average}"]
     )
-    n_result_columns = len(dataset_order) + 1
+    n_result_columns = len(ordered_dataset) + 1
     column_spec = "l" + "c" * n_result_columns
     lines = [rf"\begin{{NiceTabular}}{{{column_spec}}}", r"\toprule", " & ".join(header), r"\\[-1pt]", r"\midrule"]
     n_columns = n_result_columns + 1
@@ -1588,20 +1683,20 @@ def table_performance_comparison_vision(filename: str) -> None:
         lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{{model_labels[family]}}}}} \\")
         lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
         values = [
-            format_accuracy(float(family_df.loc[family_df["dataset"] == dataset, "standard"].to_numpy()[0]))
-            for dataset in dataset_order
+            format_accuracy(float(family_df.loc[family_df["dataset"] == str(dataset), "standard"].to_numpy()[0]))
+            for dataset in ordered_dataset
         ]
         values.append(format_accuracy(float(family_df["standard"].mean())))
-        lines.append(r"\texttt{Standard} & " + " & ".join(values) + r" \\")
+        lines.append(r"\texttt{Baseline} & " + " & ".join(values) + r" \\")
         values = [
-            format_gain(float(family_df.loc[family_df["dataset"] == dataset, "fixed"].to_numpy()[0]))
-            for dataset in dataset_order
+            format_gain(float(family_df.loc[family_df["dataset"] == str(dataset), "fixed"].to_numpy()[0]))
+            for dataset in ordered_dataset
         ]
         values.append(format_gain(float(family_df["fixed"].mean())))
         lines.append(r"$\vfm$ & " + " & ".join(values) + r" \\")
         values = [
-            format_gain(float(family_df.loc[family_df["dataset"] == dataset, "oracle"].to_numpy()[0]))
-            for dataset in dataset_order
+            format_gain(float(family_df.loc[family_df["dataset"] == str(dataset), "oracle"].to_numpy()[0]))
+            for dataset in ordered_dataset
         ]
         values.append(format_gain(float(family_df["oracle"].mean())))
         lines.append(r"\oraclerow \texttt{Oracle} & " + " & ".join(values) + r" \\")
@@ -1613,19 +1708,24 @@ def table_performance_comparison_vision(filename: str) -> None:
 
 
 def table_performance_comparison_all_vision(filename: str) -> None:
-    r"""Generate the LaTeX table for all vision model sizes."""
+    r"""Get results on all vision models, with datasets ordered by increasing transfer difficulty."""
+    # Recover dataset ordered by increasing transfer difficutly
+    ordered_dataset = get_ordered_dataset(filename=filename)
+
+    # Recover results
     path = RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep vision models
     pattern = "|".join(VFMs)
     df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+
+    # Keep datasets
     pattern = "|".join(DATASETS)
     df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
+
+    # Results
     last_layer = df.groupby(["dataset_name", "model_name", "model_size"])["layer"].transform("max")
-    standard_rows = df[(df["layer"] == last_layer) & (df["module"] == "rc2")]
-    transfer_difficulty = cast(
-        pd.Series, standard_rows.groupby("dataset_name")["accuracy"].mean().rsub(100)
-    ).sort_values()
-    dataset_order = [str(dataset) for dataset in transfer_difficulty.index.tolist()]
     family_order: list[str] = list(VFM_NAMES.keys())
     model_labels = {
         "vit": ["B", "L", "H"],
@@ -1675,10 +1775,10 @@ def table_performance_comparison_all_vision(filename: str) -> None:
     summary: pd.DataFrame = pd.DataFrame(rows)
     header = (
         ["Model", "Strategy"]
-        + [rf"\rotatebox{{90}}{{{dataset_labels.get(dataset, dataset)}}}" for dataset in dataset_order]
+        + [rf"\rotatebox{{90}}{{{dataset_labels.get(dataset, dataset)}}}" for dataset in ordered_dataset]
         + [r"\rotatebox{90}{Average}"]
     )
-    n_columns = len(dataset_order) + 3
+    n_columns = len(ordered_dataset) + 3
     lines = [
         rf"\begin{{NiceTabular}}{{{'l' + 'c' * (n_columns - 1)}}}",
         r"\toprule",
@@ -1691,37 +1791,27 @@ def table_performance_comparison_all_vision(filename: str) -> None:
         lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{{VFM_NAMES[family]}}}}} \\")
         lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
         for model_idx, model_label in enumerate(model_labels[family]):
-            model_rows = cast(
-                pd.DataFrame,
-                family_df[
-                    family_df["size"]
-                    .astype(str)
-                    .apply(
-                        lambda size: (
-                            model_label.lower().replace(VFM_NAMES[family].lower(), "").strip("-") in size.lower()
-                        )
-                    )
-                ],
-            )
+            model_size = VFM_SIZES[family][model_idx]
+            model_rows = family_df[family_df["size"].eq(model_size)]
             if model_rows.empty:
                 continue
             values = [
-                f"{float(model_rows.loc[model_rows['dataset'] == dataset, 'standard'].to_numpy()[0]):.1f}"
-                for dataset in dataset_order
+                f"{float(model_rows.loc[model_rows['dataset'] == str(dataset), 'standard'].to_numpy()[0]):.1f}"
+                for dataset in ordered_dataset
             ]
             values.append(f"{float(model_rows['standard'].mean()):.1f}")
             lines.append(
-                rf"\multirow{{3}}{{*}}{{{model_label}}} & \texttt{{Standard}} & " + " & ".join(values) + r" \\"
+                rf"\multirow{{3}}{{*}}{{{model_label}}} & \texttt{{Baseline}} & " + " & ".join(values) + r" \\"
             )
             values = [
-                f"{float(model_rows.loc[model_rows['dataset'] == dataset, 'fixed'].to_numpy()[0]):.1f}"
-                for dataset in dataset_order
+                f"{float(model_rows.loc[model_rows['dataset'] == str(dataset), 'fixed'].to_numpy()[0]):.1f}"
+                for dataset in ordered_dataset
             ]
             values.append(f"{float(model_rows['fixed'].mean()):.1f}")
             lines.append(r" & $\vfm$ & " + " & ".join(values) + r" \\")
             values = [
-                f"{float(model_rows.loc[model_rows['dataset'] == dataset, 'oracle'].to_numpy()[0]):.1f}"
-                for dataset in dataset_order
+                f"{float(model_rows.loc[model_rows['dataset'] == str(dataset), 'oracle'].to_numpy()[0]):.1f}"
+                for dataset in ordered_dataset
             ]
             values.append(f"{float(model_rows['oracle'].mean()):.1f}")
             lines.append(r" & \oraclerow \texttt{Oracle} & " + " & ".join(values) + r" \\")
@@ -1730,6 +1820,122 @@ def table_performance_comparison_all_vision(filename: str) -> None:
         lines.append(r"\arrayrulecolor{black}")
         if family_idx != len(family_order) - 1:
             lines.append(r"\midrule")
+    lines.extend([r"\bottomrule", r"\end{NiceTabular}"])
+    print("\n".join(lines))
+
+
+def table_performance_comparison_act_fc1_vision(filename: str) -> None:
+    r"""Compare final-layer RC2, ACT, and FC1 on large vision models."""
+    # Recover dataset ordered by increasing transfer difficulty
+    ordered_dataset = get_ordered_dataset(filename=filename)
+
+    # Recover results
+    path = RESULT_DIR
+    df = pd.read_csv(path / f"{filename}.csv").copy()
+
+    # Keep vision models
+    pattern = "|".join(VFMs)
+    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+
+    # Keep datasets
+    pattern = "|".join(DATASETS)
+    df = cast(pd.DataFrame, df[df["dataset_name"].str.contains(pattern, case=False, na=False)])
+
+    # Keep representative models
+    mask = np.zeros(len(df), dtype=bool)
+    for model, size in REPRESENTATIVE_VFMs.items():
+        mask |= (df["model_name"] == model) & (df["model_size"] == size)
+    df = cast(pd.DataFrame, df[mask])
+    family_order: list[str] = list(REPRESENTATIVE_VFMs.keys())
+
+    # Results
+    model_labels = {"vit": "ViT", "dinov2": "DINOv2", "dinov3": "DINOv3", "aimv2": "AIMv2"}
+    dataset_labels = {
+        "cifar10": "Cifar10",
+        "cifar100": "Cifar100",
+        "dtd": "DTD",
+        "eurosat": "EuroSAT",
+        "flowers102": "Flowers102",
+        "food101": "Food-101",
+        "pet": "Pet",
+        "cifar10_c-corruption-contrast-severity-5": "Contrast",
+        "cifar10_c-corruption-motion_blur-severity-5": "Motion Blur",
+        "cifar10_c-corruption-speckle_noise-severity-5": "Speckle Noise",
+        "aircraft": "Aircraft",
+        "domainnet-clipart": "Clipart",
+        "domainnet-infograph": "Infograph",
+        "domainnet-quickdraw": "Quickdraw",
+        "domainnet-painting": "Painting",
+        "domainnet-sketch": "Sketch",
+        "iwildcam": "iWildCam",
+        "rxrx1": "RxRx1",
+    }
+
+    rows: list[dict[str, object]] = []
+    for key_values, sub in cast(Any, df.groupby(["dataset_name", "model_name"])):
+        dataset, family = key_values
+        last_layer = int(sub["layer"].max())
+
+        def get_accuracy(module: str, sub: pd.DataFrame = sub, last_layer: int = last_layer) -> float:
+            return float(
+                cast(
+                    pd.Series,
+                    sub[(sub["layer"] == last_layer) & (sub["module"] == module)]["accuracy"],
+                ).iloc[0]
+            )
+
+        rows.append(
+            {
+                "dataset": str(dataset),
+                "family": str(family),
+                "standard": get_accuracy(module="rc2"),
+                "fc1": get_accuracy(module="fc1"),
+                "act": get_accuracy(module="act"),
+            }
+        )
+
+    summary: pd.DataFrame = pd.DataFrame(rows)
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    header = (
+        ["Strategy"]
+        + [rf"\rotatebox{{90}}{{{dataset_labels.get(dataset, dataset)}}}" for dataset in ordered_dataset]
+        + [r"\rotatebox{90}{Average}"]
+    )
+    n_result_columns = len(ordered_dataset) + 1
+    column_spec = "l" + "c" * n_result_columns
+    lines = [
+        rf"\begin{{NiceTabular}}{{{column_spec}}}",
+        r"\toprule",
+        " & ".join(header),
+        r"\\[-1pt]",
+        r"\midrule",
+    ]
+    n_columns = n_result_columns + 1
+
+    for family_idx, family in enumerate(family_order):
+        family_df = cast(pd.DataFrame, summary[summary["family"] == family])
+        lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{{model_labels[family]}}}}} \\")
+        lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
+
+        for column, label in [
+            ("standard", r"\texttt{Baseline}"),
+            ("fc1", r"$\texttt{FC1@100}$"),
+            ("act", r"$\texttt{Act@100}$"),
+        ]:
+            values = [
+                format_accuracy(float(family_df.loc[family_df["dataset"] == str(dataset), column].to_numpy()[0]))
+                for dataset in ordered_dataset
+            ]
+            values.append(format_accuracy(float(family_df[column].mean())))
+            lines.append(label + " & " + " & ".join(values) + r" \\")
+
+        lines.append(r"\arrayrulecolor{black}")
+        if family_idx != len(family_order) - 1:
+            lines.append(r"\midrule")
+
     lines.extend([r"\bottomrule", r"\end{NiceTabular}"])
     print("\n".join(lines))
 
@@ -1883,7 +2089,7 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     """
     # Figure
     width = 5.5
-    height = 4.4
+    height = 5
     ncols = len(LLM_FAMILIES)
     figsize = ncols * width, height
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
@@ -1903,7 +2109,7 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     gain_labels = ["oracle", "module", "layer"]
     model_labels = {
         "qwen3": ["Qwen3 1.7B", "Qwen3 4B", "Qwen3 8B"],
-        "llama3": ["Llama3.2 1B", "Llama3.2 3B", "Llama3.1 8B"],
+        "llama3": ["Llama3 1B", "Llama3 3B", "Llama3 8B"],
         "gemma3": ["Gemma3 1B", "Gemma3 4B", "Gemma3 12B"],
     }
     for ax, (model_family, model_order) in zip(axes, LLM_FAMILIES.items(), strict=True):
@@ -1914,9 +2120,8 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
             var_name="gain_type",
             value_name="gain_value",
         )
-        agg_long["gain_type"] = agg_long["gain_type"].map(
-            lambda value: dict(zip(gain_types, gain_labels, strict=False))[value]
-        )
+        gain_map = dict(zip(gain_types, gain_labels, strict=False))
+        agg_long["gain_type"] = agg_long["gain_type"].map(gain_map)
         sns.barplot(
             data=agg_long,
             x="model_name",
@@ -1941,7 +2146,7 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
         ax.set_xticks(range(len(model_order)))
         ax.set_xticklabels([model_name for model_name in model_labels[model_family]])
         if ax == axes[0]:
-            ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+            ax.set_ylabel("Gain over probing baseline (pp)", fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
@@ -1983,7 +2188,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
     """
     # Figure
     width = 5.5
-    height = 4.4
+    height = 5
     ncols = len(REPRESENTATIVE_LLMs)
     figsize = ncols * width, height
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
@@ -1999,7 +2204,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
-    model_labels = {"qwen3": "Qwen3 1.7B", "llama3": "Llama3.2 1B", "gemma3": "Gemma3 1B"}
+    model_labels = {"qwen3": "Qwen3 1.7B", "llama3": "Llama3 1B", "gemma3": "Gemma3 1B"}
     tasks = df["task_name"].unique()
     for i, (model_family, model_name) in enumerate(REPRESENTATIVE_LLMs.items()):
         ax = axes[i]
@@ -2054,7 +2259,7 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
         ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
         if i == 0:
             ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
-        ax.set_title(f"{model_labels[model_family]}\n", fontsize=FONTSIZE)
+        ax.set_title(f"{model_labels[model_family]}", fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
@@ -2110,7 +2315,7 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
     # Results
     model_labels = {
         "qwen3": ["Qwen3 1.7B", "Qwen3 4B", "Qwen3 8B"],
-        "llama3": ["Llama3.2 1B", "Llama3.2 3B", "Llama3.1 8B"],
+        "llama3": ["Llama3 1B", "Llama3 3B", "Llama3 8B"],
         "gemma3": ["Gemma3 1B", "Gemma3 4B", "Gemma3 12B"],
     }
     tasks = df["task_name"].unique()
@@ -2192,203 +2397,9 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
         save_plot(figname=figname)
 
 
-def plot_heatmap_winning_frequency_language(filename: str, save: bool = False) -> None:
-    r"""
-    Plot the distribution of winning layer-module locations for language models.
-
-    Each model contributes one vote to its jointly optimal layer-module pair. Relative depth is
-    aggregated into configurable bins for both the heatmap and the depth marginal.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    save: bool, default=False
-        Whether to save the plot.
-    """
-    # Figure
-    n_modules = 8
-    depth_step = 5
-    n_bins = 100 // depth_step
-    width = 10
-    height = 4
-    figsize = width, height
-    fig = plt.figure(figsize=figsize)
-    bar_color = "#c6a4e4"
-    cmap = sns.cubehelix_palette(
-        # start=0,
-        rot=0.2,
-        dark=0.45,
-        light=0.95,
-        as_cmap=True,
-    )
-    heatmap_ratio = n_bins / n_modules
-    gs = GridSpec(
-        2,
-        3,
-        figure=fig,
-        width_ratios=[heatmap_ratio, 0.55, 0.06],
-        height_ratios=[0.45, 1.0],
-        wspace=0.05,
-        hspace=0.05,
-    )
-    ax_top = fig.add_subplot(gs[0, 0])
-    ax_heatmap = fig.add_subplot(gs[1, 0])
-    ax_right = fig.add_subplot(gs[1, 1])
-    ax_cbar = fig.add_subplot(gs[1, 2])
-
-    # Recover results
-    path = RESULT_DIR / "analysis"
-    df = pd.read_csv(path / f"{filename}.csv")
-    df = df.copy()
-
-    # Keep vision models
-    pattern = "|".join(LLMs)
-    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
-
-    # Results
-    modules = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
-    module_labels = {
-        "ln1": r"$\mathtt{LN1}$",
-        "mha": r"$\mathtt{MHA}$",
-        "rc1": r"$\mathtt{RC1}$",
-        "ln2": r"$\mathtt{LN2}$",
-        "fc1": r"$\mathtt{FC1}$",
-        "act": r"$\mathtt{Act}$",
-        "fc2": r"$\mathtt{FC2}$",
-        "rc2": r"$\mathtt{RC2}$",
-    }
-
-    best_depth = 100 * df["best_layer"].to_numpy(dtype=float) / (df["n_layers"].to_numpy(dtype=float) - 1)
-    depth_bins = np.arange(0, 100 + depth_step, depth_step, dtype=float)
-    n_bins = len(depth_bins) - 1
-    depth_bin = np.minimum(
-        (best_depth / depth_step).astype(int),
-        n_bins - 1,
-    )
-    pair_counts = np.zeros((n_bins, len(modules)), dtype=float)
-    module_to_idx = {module: i for i, module in enumerate(modules)}
-
-    for bin_idx, module in zip(
-        depth_bin,
-        df["best_module"].to_numpy(dtype=str),
-        strict=True,
-    ):
-        module_idx = module_to_idx.get(module)
-        if module_idx is not None:
-            pair_counts[bin_idx, module_idx] += 1
-
-    n_pairs = len(df)
-    pair_pct = 100 * pair_counts / n_pairs
-    module_pct = pair_pct.sum(axis=0)
-    depth_pct = pair_pct.sum(axis=1)
-
-    print("\nOptimal module frequency:")
-    for module, frequency in sorted(
-        zip(modules, module_pct, strict=True),
-        key=lambda x: x[1],
-        reverse=True,
-    ):
-        print(f"  {module:>4s}: {frequency:.1f}%")
-
-    print("\nOptimal depth frequency:")
-    for i, frequency in enumerate(depth_pct):
-        if frequency > 0:
-            lower = depth_bins[i]
-            upper = depth_bins[i + 1]
-            print(f"  {lower:.0f}–{upper:.0f}%: {frequency:.1f}%")
-
-    # Results
-    heatmap_edges = np.arange(n_bins + 1)
-    module_edges = np.arange(len(modules) + 1)
-    im = ax_heatmap.pcolormesh(heatmap_edges, module_edges, pair_pct.T, shading="flat", cmap=cmap, edgecolors="none")
-    depth_centers = np.arange(n_bins) + 0.5
-    ax_top.bar(depth_centers, depth_pct, color=bar_color, width=1.0)
-    module_centers = np.arange(len(modules)) + 0.5
-    ax_right.barh(module_centers, module_pct, color=bar_color, height=1.0)
-
-    # Visualization heatmap
-    ax = ax_heatmap
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(
-        axis="both",
-        direction="out",
-        length=5,
-        width=1,
-        labelsize=FONTSIZE,
-    )
-    ax.set_xlim(0, n_bins)
-    ax.set_ylim(0, len(modules))
-    ax.set_xticks([0, 5, 10, 15, 20])
-    ax.set_xticklabels(["0", "25", "50", "75", "100"])
-    ax.set_yticks(module_centers)
-    ax.set_yticklabels([module_labels[module] for module in modules])
-    ax.set_xlabel("Layer depth (%)")
-    sns.despine(fig, ax, trim=True, right=True, offset=10)
-
-    # Visualiation colorbar
-    cbar = fig.colorbar(im, cax=ax_cbar, ticks=np.linspace(pair_pct.min(), pair_pct.max(), 3))
-    cbar.set_label("Optimality frequency (%)", fontsize=FONTSIZE, rotation=270, labelpad=25)
-    ax = ax_cbar
-    ax.spines["left"].set_linewidth(1)
-    ax.spines["right"].set_linewidth(1)
-    ax.spines["top"].set_linewidth(1)
-    ax.spines["bottom"].set_linewidth(1)
-    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-    ax.set_yticks([0, 13, 26])
-
-    # Visualization top marginal
-    ax = ax_top
-    ax.set_xlim(0, n_bins)
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-    best_idx = np.argmax(depth_pct)
-    ax.text(
-        depth_centers[best_idx],
-        depth_pct[best_idx] + 1,
-        f"{depth_pct[best_idx]:.1f}%",
-        ha="center",
-        va="bottom",
-        fontsize=12,
-        color="black",
-    )
-
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    # Visualization right marginal
-    ax = ax_right
-    ax.set_ylim(0, len(modules))
-    ax.set_xlim(0, module_pct.max() * 1.5)
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-    best_idx = np.argmax(module_pct)
-    ax.text(
-        module_pct[best_idx] + 1,
-        module_centers[best_idx],
-        f"{module_pct[best_idx]:.1f}%",
-        ha="left",
-        va="center",
-        fontsize=12,
-        color="black",
-    )
-
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    # Save
-    if save:
-        save_plot(figname=f"heatmap_winning_frequency_language_{filename}")
-
-
 def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     r"""
-    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over all datasets and models.
+    Recover the table of oracle gain recovery (computed as gain / oracle_gain) averaged over models.
 
     Strategies:
         - Best layer on rc2
@@ -2496,7 +2507,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     ax.spines["top"].set_linewidth(1)
     ax.spines["bottom"].set_linewidth(1)
     ax.tick_params(axis="both", direction="out", length=5, width=1)
-    ax.set_xticklabels(["Best RC2", r"$\mathtt{LN2@60}$", "Best LN2"])
+    ax.set_xticklabels([r"Best $\mathtt{RC2}$", r"$\mathtt{LN2@60}$", r"Best $\mathtt{LN2}$"])
     ax.set_ylim(20, 100)
     ax.set_yticks([20, 40, 60, 80, 100])
     ax.set_xlabel("")
@@ -2533,6 +2544,7 @@ def table_performance_comparison_language(filename: str) -> None:
         standard = sub[(sub.layer == last_layer) & (sub.module == "rc2")].accuracy.iloc[0]
         heuristic_depth = 0.6
         heuristic_layer = int(heuristic_depth * last_layer)
+        standard_heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "rc2")].accuracy.iloc[0]
         heuristic = sub[(sub.layer == heuristic_layer) & (sub.module == "ln2")].accuracy.iloc[0]
         oracle = sub.accuracy.max()
         rows.extend(
@@ -2541,6 +2553,11 @@ def table_performance_comparison_language(filename: str) -> None:
                     "model_name": model_name,
                     "strategy": "Standard",
                     "accuracy": standard,
+                },
+                {
+                    "model_name": model_name,
+                    "strategy": "Standard60",
+                    "accuracy": standard_heuristic,
                 },
                 {
                     "model_name": model_name,
@@ -2556,107 +2573,90 @@ def table_performance_comparison_language(filename: str) -> None:
         )
     summary = pd.DataFrame(rows)
     table = summary.pivot(index="strategy", columns="model_name", values="accuracy")
-    table = table.loc[["Standard", "Fixed", "Oracle"]]
-    print(table.to_latex(float_format="%.1f", bold_rows=True, escape=False))
+    table = table.loc[["Standard", "Standard60", "Fixed", "Oracle"]]
 
-
-def table_performance_comparison_task_language(filename: str) -> None:
-    r"""
-    Generate the LaTeX NiceTabular environment for LLM probing results.
-
-    Parameters
-    ----------
-    filename: str
-        Name of the result file to use.
-    """
-    # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
-
-    # Keep LLM models
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
-
-    # Results
-    rows = []
-    for (dataset, model), sub in df.groupby(["task_name", "model_name"]):
-        last_layer = sub["layer"].max()
-        n_layers = last_layer + 1
-        fixed_layer = int(0.60 * (n_layers - 1))
-
-        standard = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0]
-
-        fixed = sub[(sub["layer"] == fixed_layer) & (sub["module"] == "ln2")]["accuracy"].iloc[0]
-
-        oracle = sub["accuracy"].max()
-
-        rows.append(
-            {
-                "dataset": dataset,
-                "model": model,
-                "standard": standard,
-                "fixed": fixed,
-                "oracle": oracle,
-            }
-        )
-
-    summary = pd.DataFrame(rows)
-
-    # Average over models
-    summary = summary.groupby("dataset")[["standard", "fixed", "oracle"]].mean().reset_index()
-
-    # Dataset order
-    dataset_order = sorted(summary["dataset"].tolist())
-
-    # Format values
     def format_accuracy(value: float) -> str:
         return f"{value:.1f}"
 
     def format_gain(value: float) -> str:
         if round(value, 1) > 0:
-            return rf"\add{{+{value:.1f}}}"
+            return rf"\addsmall{{+{value:.1f}}}"
         if round(value, 1) < 0:
-            return rf"\sub{{{value:.1f}}}"
+            return rf"\subsmall{{{value:.1f}}}"
         return "0.0"
 
-    # Header
-    header = [
-        "Dataset",
-        r"\multicolumn{2}{c}{\texttt{Standard}}",
-        r"\multicolumn{2}{c}{$\llm$}",
-        r"\multicolumn{2}{c}{\texttt{Oracle}}",
-    ]
+    # Model order and displayed sizes
+    model_order = [model for models in LLM_FAMILIES.values() for model in models]
+    model_sizes = ["1.7B", "4B", "8B", "1B", "3B", "8B", "1B", "4B", "12B"]
 
-    # LaTeX table
+    # LaTeX NiceTabular
     lines = []
     lines.append(
         r"\begin{NiceTabular}{"
         r"@{} l "
-        r"*{3}{w{r}{2.8em}@{\hspace{6pt}}w{r}{2.2em}@{\hspace{4pt}}}"
-        r"@{}"
+        r"*{9}{w{r}{2.8em}"
+        r"@{\hspace{3pt}}"
+        r"w{r}{1.7em}"
+        r"@{\hspace{1pt}}"
+        r"}@{}"
         r"}"
     )
     lines.append(r"\toprule")
-    lines.append(" & ".join(header) + r" \\")
+    lines.append(
+        r"\multirow{2}{*}{Strategy} & "
+        r"\multicolumn{6}{c}{\textit{Qwen3}} & "
+        r"\multicolumn{6}{c}{\textit{Llama3}} & "
+        r"\multicolumn{6}{c}{\textit{Gemma3}} \\"
+    )
+    lines.append(r"\cmidrule(l){2-7} \cmidrule(l){8-13} \cmidrule(l){14-19}")
+    lines.append(" & " + " & ".join(rf"\multicolumn{{2}}{{c}}{{{size}}}" for size in model_sizes) + r" \\")
     lines.append(r"\midrule")
 
-    # Dataset rows
-    for dataset in dataset_order:
-        row = summary[summary["dataset"] == dataset].iloc[0]
+    # Baseline
+    values = []
+    for model in model_order:
+        standard = float(cast(Any, table.loc["Standard", model]))
+        values.extend([format_accuracy(standard), ""])
+    lines.append(r"\texttt{Baseline} & " + " & ".join(values) + r" \\")
 
-        standard = float(row["standard"])
-        fixed = float(row["fixed"])
-        oracle = float(row["oracle"])
-
-        fixed_gain = fixed - standard
-        oracle_gain = oracle - standard
-
-        lines.append(
-            rf"{dataset} & "
-            rf"{format_accuracy(standard)} & & "
-            rf"{format_accuracy(fixed)} & {format_gain(fixed_gain)} & "
-            rf"{format_accuracy(oracle)} & {format_gain(oracle_gain)} \\"
+    # Baseline heuristic
+    values = []
+    for model in model_order:
+        standard = float(cast(Any, table.loc["Standard", model]))
+        fixed = float(cast(Any, table.loc["Standard60", model]))
+        values.extend(
+            [
+                format_accuracy(fixed),
+                format_gain(fixed - standard),
+            ]
         )
+    lines.append(r"\texttt{RC2@60} & " + " & ".join(values) + r" \\")
+
+    # Fixed strategy
+    values = []
+    for model in model_order:
+        standard = float(cast(Any, table.loc["Standard", model]))
+        fixed = float(cast(Any, table.loc["Fixed", model]))
+        values.extend(
+            [
+                format_accuracy(fixed),
+                format_gain(fixed - standard),
+            ]
+        )
+    lines.append(r"$\llm$ & " + " & ".join(values) + r" \\")
+
+    # Oracle
+    values = []
+    for model in model_order:
+        standard = float(cast(Any, table.loc["Standard", model]))
+        oracle = float(cast(Any, table.loc["Oracle", model]))
+        values.extend(
+            [
+                format_accuracy(oracle),
+                format_gain(oracle - standard),
+            ]
+        )
+    lines.append(r"\oraclerow \texttt{Oracle} & " + " & ".join(values) + r" \\")
 
     lines.append(r"\bottomrule")
     lines.append(r"\end{NiceTabular}")
@@ -2664,10 +2664,102 @@ def table_performance_comparison_task_language(filename: str) -> None:
     print("\n".join(lines))
 
 
-def table_performance_comparison_all_language(
-    filename: str,
-    model_family: str,
-) -> None:
+def table_performance_comparison_task_language(filename: str) -> None:
+    r"""
+    Generate the LaTeX NiceTabular environment for LLM probing results, per task,
+    averaged over models.
+
+    For each model:
+    - Baseline: RC2 at the last layer.
+    - RC2@60: RC2 at 60% depth.
+    - LN2@60: LN2 at 60% depth.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    """
+    # Recover results
+    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
+
+    # Keep LLM models
+    pattern = "|".join(LLMs)
+    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+
+    # Results
+    rows = []
+    for (task, model), sub in df.groupby(["task_name", "model_name"]):
+        last_layer = sub.layer.max()
+        heuristic_layer = int(0.6 * last_layer)
+
+        def acc(layer: int, module: str, sub: pd.DataFrame = sub) -> float:
+            return sub[(sub.layer == layer) & (sub.module == module)].accuracy.iloc[0]
+
+        rows.append(
+            {
+                "task": task,
+                "model": model,
+                "standard": acc(last_layer, "rc2"),
+                "standard_heuristic": acc(heuristic_layer, "rc2"),
+                "fixed": acc(heuristic_layer, "ln2"),
+            }
+        )
+
+    summary = pd.DataFrame(rows)
+
+    # Average over models for each task
+    summary = summary.groupby("task")[["standard", "standard_heuristic", "fixed"]].mean().reset_index()
+    ordered_tasks = sorted(summary["task"].tolist(), key=str.lower)
+
+    # Format values
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\addsmall{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\subsmall{{{value:.1f}}}"
+        return "0.0"
+
+    # Header
+    header = [
+        "Task",
+        r"\multicolumn{2}{c}{\texttt{Baseline}}",
+        r"\multicolumn{2}{c}{\texttt{RC2@60}}",
+        r"\multicolumn{2}{c}{$\llm$}",
+    ]
+
+    # LaTeX table
+    lines = [
+        r"\begin{NiceTabular}{"
+        r"@{} l "
+        r"*{3}{w{r}{2.8em}@{\hspace{6pt}}w{r}{2.2em}@{\hspace{4pt}}}"
+        r"@{}"
+        r"}",
+        r"\toprule",
+        " & ".join(header) + r" \\",
+        r"\midrule",
+    ]
+
+    # Task rows
+    for task in ordered_tasks:
+        row = summary[summary["task"] == task].iloc[0]
+        standard = float(row["standard"])
+        standard_heuristic = float(row["standard_heuristic"])
+        fixed = float(row["fixed"])
+        lines.append(
+            rf"{task} & "
+            rf"{format_accuracy(standard)} & & "
+            rf"{format_accuracy(standard_heuristic)} & {format_gain(standard_heuristic - standard)} & "
+            rf"{format_accuracy(fixed)} & {format_gain(fixed - standard)} \\"
+        )
+
+    lines += [r"\bottomrule", r"\end{NiceTabular}"]
+    print("\n".join(lines))
+
+
+def table_performance_comparison_all_language(filename: str, model_family: str) -> None:
     r"""
     Generate the LaTeX NiceTabular environment for task-level LLM results.
 
@@ -2679,32 +2771,17 @@ def table_performance_comparison_all_language(
         LLM family to report, e.g. "Qwen3", "Llama3", or "Gemma3".
     """
     # Recover results
-    path = RESULT_DIR
-    df = pd.read_csv(path / f"{filename}.csv").copy()
+    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
 
-    # Model configuration
+    # Model configuration: checkpoint name -> displayed name (consistent with the main text)
     model_names = {
-        "Qwen3": [
-            "Qwen3-1.7B",
-            "Qwen3-4B",
-            "Qwen3-8B",
-        ],
-        "Llama3": [
-            "Llama-3.2-1B",
-            "Llama-3.2-3B",
-            "Llama-3.1-8B",
-        ],
-        "Gemma3": [
-            "gemma-3-1b-pt",
-            "gemma-3-4b-pt",
-            "gemma-3-12b-pt",
-        ],
+        "Qwen3": {"Qwen3-1.7B": "Qwen3 1.7B", "Qwen3-4B": "Qwen3 4B", "Qwen3-8B": "Qwen3 8B"},
+        "Llama3": {"Llama-3.2-1B": "Llama3 1B", "Llama-3.2-3B": "Llama3 3B", "Llama-3.1-8B": "Llama3 8B"},
+        "Gemma3": {"gemma-3-1b-pt": "Gemma3 1B", "gemma-3-4b-pt": "Gemma3 4B", "gemma-3-12b-pt": "Gemma3 12B"},
     }
-
     if model_family not in model_names:
         raise ValueError(f"Unknown model family '{model_family}'. Expected one of {list(model_names)}.")
-
-    models = model_names[model_family]
+    models = list(model_names[model_family])
 
     # Keep models from the selected family
     df = df[df["model_name"].isin(models)].copy()
@@ -2712,107 +2789,188 @@ def table_performance_comparison_all_language(
     # Results
     rows = []
     for (task, model), sub in df.groupby(["task_name", "model_name"]):
-        last_layer = sub["layer"].max()
-        n_layers = last_layer + 1
-        fixed_layer = int(0.60 * (n_layers - 1))
+        last_layer = sub.layer.max()
+        heuristic_layer = int(0.6 * last_layer)
 
-        standard = sub[(sub["layer"] == last_layer) & (sub["module"] == "rc2")]["accuracy"].iloc[0]
-
-        fixed = sub[(sub["layer"] == fixed_layer) & (sub["module"] == "ln2")]["accuracy"].iloc[0]
-
-        oracle = sub["accuracy"].max()
+        def acc(layer: int, module: str, sub: pd.DataFrame = sub) -> float:
+            return sub[(sub.layer == layer) & (sub.module == module)].accuracy.iloc[0]
 
         rows.append(
             {
                 "task": task,
                 "model": model,
-                "standard": standard,
-                "fixed": fixed,
-                "oracle": oracle,
+                "standard": acc(last_layer, "rc2"),
+                "standard_heuristic": acc(heuristic_layer, "rc2"),
+                "fixed": acc(heuristic_layer, "ln2"),
             }
         )
-
     summary = pd.DataFrame(rows)
 
-    # Task order
-    task_order = sorted(summary["task"].unique())
+    # Task order (case-insensitive, consistent across tables)
+    task_order = sorted(summary["task"].unique(), key=str.lower)
 
-    # Format values
     def format_accuracy(value: float) -> str:
         return f"{value:.1f}"
 
     # LaTeX table
-    lines = []
-    lines.append(
+    lines = [
         r"\begin{NiceTabular}{"
         r"@{} l "
         r"*{3}{w{c}{3.6em}@{\hspace{12pt}}}"
         r"*{3}{w{c}{3.6em}@{\hspace{12pt}}}"
-        r"*{3}{w{c}{3.6em}@{\hspace{1pt}}}"
+        r"*{3}{w{c}{3.6em}@{\hspace{12pt}}}"
         r"@{}"
-        r"}"
-    )
-    lines.append(r"\toprule")
+        r"}",
+        r"\toprule",
+    ]
 
     # Model header
     model_header = [r"\multirow{2}{*}{Task}"]
-
     for model in models:
-        model_header.append(rf"\multicolumn{{3}}{{c}}{{\textit{{{model}}}}}")
-
+        model_header.append(rf"\multicolumn{{3}}{{c}}{{\textit{{{model_names[model_family][model]}}}}}")
     lines.append(" & ".join(model_header) + r" \\")
-
-    # Model separators
-    lines.append(
-        r"\cmidrule(l){2-4} "
-        r"\cmidrule(l){5-7} "
-        r"\cmidrule(l){8-10}"
-    )
+    lines.append(r"\cmidrule(l){2-4} \cmidrule(l){5-7} \cmidrule(l){8-10}")
 
     # Strategy header
     strategy_header = [""]
     for _ in models:
-        strategy_header.extend(
-            [
-                r"\texttt{Standard}",
-                r"$\llm$",
-                r"\textcolor{oraclegray}{\texttt{Oracle}}",
-            ]
-        )
-
+        strategy_header.extend([r"\texttt{Baseline}", r"\texttt{RC2@60}", r"$\llm$"])
     lines.append(" & ".join(strategy_header) + r" \\")
     lines.append(r"\midrule")
 
     # Task rows
     for task in task_order:
         row_values = [task]
-
         for model in models:
             sub = summary[(summary["task"] == task) & (summary["model"] == model)]
-
             if sub.empty:
                 row_values.extend(["", "", ""])
                 continue
-
             result = sub.iloc[0]
-
             row_values.extend(
                 [
                     format_accuracy(float(result["standard"])),
+                    format_accuracy(float(result["standard_heuristic"])),
                     format_accuracy(float(result["fixed"])),
-                    rf"\textcolor{{oraclegray}}{{{format_accuracy(float(result['oracle']))}}}",
                 ]
             )
-
         lines.append(" & ".join(row_values) + r" \\")
 
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{NiceTabular}")
-
+    lines += [r"\bottomrule", r"\end{NiceTabular}"]
     print("\n".join(lines))
 
 
 def table_global_statistics_language(filename: str) -> None:
+    r"""
+    Compute global statistics for fixed, depth-optimized, and oracle language strategies.
+
+    All searched locations (best RC2 layer, best LN2 layer, oracle layer-module pair) are
+    selected per model on the MTEB average over tasks (benchmark level), then evaluated on
+    each task. This matches the oracle definition of Table 2 and Figure 9.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the result file to use.
+    """
+    # Recover results
+    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
+
+    # Keep LLM models
+    all_models = [m for models in LLM_FAMILIES.values() for m in models]
+    df = cast(pd.DataFrame, df[df["model_name"].isin(all_models)])
+    logger.info(f"Results are presented over a total of {len(df)} probing runs.")
+
+    # Sanity check: each (model, layer, module) must be evaluated on all tasks
+    n_tasks = df["task_name"].nunique()
+    counts = df.groupby(["model_name", "layer", "module"])["task_name"].nunique()
+    if (counts != n_tasks).any():
+        raise ValueError(f"Incomplete evaluations:\n{counts[counts != n_tasks]}")
+
+    # Benchmark-level accuracy (average over tasks) for each model and location
+    bench = df.groupby(["model_name", "layer", "module"], as_index=False)["accuracy"].mean()
+
+    def best_location(model_name: str, module: str | None = None) -> tuple[int, str]:
+        r"""Location maximizing the benchmark accuracy, optionally restricted to a module."""
+        sub = bench[bench["model_name"] == model_name]
+        if module is not None:
+            sub = sub[sub["module"] == module]
+        best = sub.loc[sub["accuracy"].idxmax()]
+        return int(best["layer"]), str(best["module"])
+
+    heuristic_depth = 0.6
+    last_layers = df.groupby("model_name")["layer"].max()
+    locations = {}
+    for model_name in df["model_name"].unique():
+        last_layer = int(last_layers[model_name])
+        locations[model_name] = {
+            "standard": (last_layer, "rc2"),
+            "fixed": (int(heuristic_depth * last_layer), "ln2"),
+            "best_rc2": best_location(model_name, "rc2"),
+            "best_ln2": best_location(model_name, "ln2"),
+            "oracle": best_location(model_name),
+        }
+        logger.info(f"{model_name}: oracle location = {locations[model_name]['oracle']}")
+
+    strategies = ["standard", "fixed", "best_rc2", "best_ln2", "oracle"]
+
+    # Per model-task evaluations at the fixed (per-model) locations
+    rows = []
+    for key_values, sub in cast(Any, df.groupby(["task_name", "model_name"])):
+        task_name, model_name = key_values
+        row = {"task": task_name, "model_name": model_name}
+        for strategy in strategies:
+            layer, module = locations[model_name][strategy]
+            row[strategy] = float(
+                cast(pd.Series, sub[(sub["layer"] == layer) & (sub["module"] == module)]["accuracy"]).iloc[0]
+            )
+        rows.append(row)
+
+    evaluations = pd.DataFrame(rows)
+    tasks = evaluations.groupby("task")[strategies].mean()
+    models = evaluations.groupby("model_name")[strategies].mean()  # benchmark level, = Table 2
+
+    def print_statistics(strategy: str, label: str) -> None:
+        evaluation_wins = (evaluations[strategy] > evaluations["standard"]).sum()
+        evaluation_ties = (evaluations[strategy] == evaluations["standard"]).sum()
+        task_wins = (tasks[strategy] > tasks["standard"]).sum()
+        model_wins = (models[strategy] > models["standard"]).sum()
+        evaluation_gain = (evaluations[strategy] - evaluations["standard"]).mean()
+        task_gain = (tasks[strategy] - tasks["standard"]).mean()
+        model_gain = (models[strategy] - models["standard"]).mean()
+        print(
+            f"{label} model-task evaluations where strategy improves: "
+            f"{evaluation_wins}/{len(evaluations)} ({100 * evaluation_wins / len(evaluations):.1f}%), "
+            f"ties: {evaluation_ties}"
+        )
+        print(
+            f"{label} tasks where strategy improves on average: "
+            f"{task_wins}/{len(tasks)} ({100 * task_wins / len(tasks):.1f}%)"
+        )
+        print(f"{label} models where strategy improves: {model_wins}/{len(models)}")
+        print(f"{label} average gain over model-task evaluations: {evaluation_gain:.2f} pp")
+        print(f"{label} average gain over tasks: {task_gain:.2f} pp")
+        print(f"{label} average gain over models (benchmark level): {model_gain:.2f} pp")
+
+    print("\nFixed module comparison: LN2@60 vs. standard RC2@100.")
+    print_statistics("fixed", "Fixed LN2")
+    print("\nDepth-optimized module comparison (layer selected on the benchmark average).")
+    print_statistics("best_rc2", "Depth-RC2")
+    print_statistics("best_ln2", "Depth-LN2")
+    print("\nOracle comparison (layer-module pair selected on the benchmark average).")
+    print_statistics("oracle", "Oracle")
+
+    # Oracle gain recovery at the benchmark level (Figure 9)
+    oracle_gain = models["oracle"] - models["standard"]
+    print("\nRecovery of the benchmark-level oracle gain, averaged over models:")
+    for strategy, label in [("best_rc2", "Best RC2"), ("fixed", "LN2@60"), ("best_ln2", "Best LN2")]:
+        recovery = (models[strategy] - models["standard"]) / oracle_gain
+        print(
+            f"{label}: {100 * recovery.mean():.1f}% (min {100 * recovery.min():.1f}%, max {100 * recovery.max():.1f}%)"
+        )
+
+
+def table_global_statistics_language_(filename: str) -> None:
     r"""
     Compute global statistics for fixed and oracle language strategies.
 
@@ -2887,106 +3045,100 @@ def table_global_statistics_language(filename: str) -> None:
 # Results functions
 # ------------------------------------------------------------------------------
 def plot_figures() -> None:
+    r"""Intro plots."""
+    plot_intro(save=True)
+
     r"""VFMs plots."""
-    # # CDF
-    # save = True
-    # plot_cdf_vision(filename="cls", save=save)
+    # CDF
+    save = True
+    plot_cdf_vision(filename="cls", save=save)
 
-    # # Dataset difficulty
-    # save = True
-    # filename = "cls"
-    # plot_transfer_difficulty_vision(filename=filename, save=save)
-
-    # # Cifar10-C
-    # save = True
-    # filename = "cifar10_c"
-    # plot_cifar10c_severity(filename=filename, save=save)
-    # plot_cifar10c_optimal_depth(filename=filename, save=save)
-
-    # # Pretraining scale
-    # save = True
-    # filename = "cls"
-    # plot_pretraining_scale_vision(filename=filename, save=save)
-
-    # # Model family
-    # save = True
-    # filename = "cls"
-    # plot_model_family_vision(filename=filename, save=save)
-
-    # # Probing depth
-    # save = True
-    # filename = "cls"
-    # plot_probing_depth_vision(filename=filename, save=save)
-    # for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
-    #     plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
-
-    # Heatmap winning frequency
+    # Dataset difficulty
     save = True
     filename = "cls"
-    plot_heatmap_winning_frequency_vision(filename=filename, save=save)
+    plot_transfer_difficulty_vision(filename=filename, save=save)
 
-    # # Oracle recovery
-    # save = True
-    # filename = "cls"
-    # plot_oracle_recovery_vision(filename=filename, save=save)
+    # Cifar10-C
+    save = True
+    filename = "cifar10_c"
+    plot_cifar10c_severity(filename=filename, save=save)
+    plot_cifar10c_optimal_depth(filename=filename, save=save)
+
+    # Pretraining scale
+    save = True
+    filename = "cls"
+    plot_pretraining_scale_vision(filename=filename, save=save)
+
+    # Model family
+    save = True
+    filename = "cls"
+    plot_model_family_vision(filename=filename, save=save)
+
+    # Probing depth
+    save = True
+    filename = "cls"
+    plot_probing_depth_vision(filename=filename, save=save)
+    for model_name in ["vit", "dinov2", "dinov3", "aimv2"]:
+        plot_probing_depth_family_vision(filename=filename, model_name=model_name, save=save)
+
+    # Oracle recovery
+    save = True
+    filename = "cls"
+    plot_oracle_recovery_vision(filename=filename, save=save)
 
     r"""LLMs plots."""
-    # # Model family
-    # save = True
-    # filename = "mteb"
-    # plot_model_family_language(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "mteb"
+    plot_model_family_language(filename=filename, save=save)
 
-    # # Probing depth
-    # save = True
-    # filename = "mteb"
-    # plot_probing_depth_language(filename=filename, save=save)
-    # plot_probing_depth_all_language(filename=filename, save=save)
+    # Probing depth
+    save = True
+    filename = "mteb"
+    plot_probing_depth_language(filename=filename, save=save)
+    plot_probing_depth_all_language(filename=filename, save=save)
 
-    # # Heatmap winning frequency
-    # save = True
-    # filename = "mteb"
-    # plot_heatmap_winning_frequency_language(filename=filename, save=save)
-
-    # # Oracle recovery
-    # save = True
-    # filename = "mteb"
-    # plot_oracle_recovery_language(filename=filename, save=save)
+    # Oracle recovery
+    save = True
+    filename = "mteb"
+    plot_oracle_recovery_language(filename=filename, save=save)
 
 
 def get_tables() -> None:
     r"""Number of runs"""
-    # table_runs()
+    table_runs()
 
     r"""VFMs tables."""
-    # # Model size
-    # filename = "cls"
-    # table_model_size_vision(filename=filename)
+    # Model size
+    filename = "cls"
+    table_model_size_vision(filename=filename)
 
-    # # Winning module frequency
-    # filename = "cls"
-    # table_winning_module_frequency_vision(filename=filename)
+    # Winning module frequency
+    filename = "cls"
+    table_winning_module_frequency_vision(filename=filename)
 
-    # # Performance comparisons
-    # filename = "cls"
-    # table_performance_comparison_vision(filename=filename)
-    # table_performance_comparison_all_vision(filename=filename)
+    # Performance comparison
+    filename = "cls"
+    table_performance_comparison_vision(filename=filename)
+    table_performance_comparison_all_vision(filename=filename)
+    table_performance_comparison_act_fc1_vision(filename=filename)
 
-    # # Global statistics
-    # filename = "cls"
-    # table_global_statistics_vision(filename=filename)
-    # table_global_statistics_ood_vision(filename=filename)
+    # Global statistics
+    filename = "cls"
+    table_global_statistics_vision(filename=filename)
+    table_global_statistics_ood_vision(filename=filename)
 
     r"""LLMs tables."""
-    # # Performance comparison
-    # filename = "mteb"
-    # table_performance_comparison_language(filename=filename)
-    # table_performance_comparison_task_language(filename=filename)
-    # for model_family in ["Qwen3", "Llama3", "Gemma3"]:
-    #     table_performance_comparison_all_language(filename=filename, model_family=model_family)
+    # Performance comparison
+    filename = "mteb"
+    table_performance_comparison_language(filename=filename)
+    table_performance_comparison_task_language(filename=filename)
+    for model_family in ["Qwen3", "Llama3", "Gemma3"]:
+        table_performance_comparison_all_language(filename=filename, model_family=model_family)
 
-    # # Global statistics
-    # filename = "mteb"
-    # table_global_statistics_language(filename=filename)
+    # Global statistics
+    filename = "mteb"
+    table_global_statistics_language(filename=filename)
 
 
 # %% Main
