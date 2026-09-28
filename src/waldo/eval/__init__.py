@@ -1,5 +1,5 @@
 r"""
-Codebase to evaluation VFMs and VLMs via linear probing.
+Codebase to evaluate VFMs via linear probing.
 
 License
 -------

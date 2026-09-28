@@ -1,5 +1,5 @@
 r"""
-Analyze evaluation results from VFMs, VLMs and LLMs.
+Analyze evaluation results from VFMs and LLMs.
 
 License
 -------

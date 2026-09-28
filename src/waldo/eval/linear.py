@@ -1,5 +1,5 @@
 r"""
-Linear probing to evaluate VFMs and VLMs on image classification tasks.
+Linear probing to evaluate VFMs on image classification tasks.
 
 References
 ----------

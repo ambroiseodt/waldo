@@ -1,5 +1,5 @@
 r"""
-Aggregate evaluation results from VFMs, VLMs and LLMs.
+Aggregate evaluation results from VFMs and LLMs.
 
 License
 -------

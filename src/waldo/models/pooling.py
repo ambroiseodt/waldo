@@ -1,5 +1,5 @@
 r"""
-Pooling functions for VFMs, VLMs and LLMs.
+Pooling functions for VFMs and LLMs.
 
 License
 -------

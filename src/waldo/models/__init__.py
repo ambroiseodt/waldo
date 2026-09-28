@@ -1,5 +1,5 @@
 r"""
-Codebase to study pretrained VFMs, VLMs and LLMs from HuggingFace.
+Codebase to study pretrained VFMs and LLMs from HuggingFace.
 
 License
 -------
@@ -29,19 +29,6 @@ _language = [
     "Qwen3Config",
 ]
 
-_multimodal = [
-    "BaseVisionLanguageModel",
-    "Clip",
-    "ClipBlockAdapter",
-    "ClipConfig",
-    "Siglip",
-    "SiglipBlockAdapter",
-    "SiglipConfig",
-    "Siglip2",
-    "Siglip2BlockAdapter",
-    "Siglip2Config",
-]
-
 _pooling = [
     "mean_pooling",
 ]
@@ -68,9 +55,7 @@ _vision = [
 ]
 
 
-__all__ = (
-    list(_factory) + list(_language) + list(_multimodal) + list(_pooling) + list(_transformer_block) + list(_vision)
-)  # type: ignore
+__all__ = list(_factory) + list(_language) + list(_pooling) + list(_transformer_block) + list(_vision)  # type: ignore
 
 
 def __dir__():
@@ -82,8 +67,6 @@ def __getattr__(name: str) -> Any:
         return getattr(importlib.import_module("waldo.models.factory"), name)
     if name in _language:
         return getattr(importlib.import_module("waldo.models.language"), name)
-    if name in _multimodal:
-        return getattr(importlib.import_module("waldo.models.multimodal"), name)
     if name in _pooling:
         return getattr(importlib.import_module("waldo.models.pooling"), name)
     if name in _transformer_block:

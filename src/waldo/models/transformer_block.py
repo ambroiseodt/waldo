@@ -1,5 +1,5 @@
 r"""
-Transformer primitives shared across VFMs, VLMs and LLMs.
+Transformer primitives shared across VFMs and LLMs.
 
 License
 -------

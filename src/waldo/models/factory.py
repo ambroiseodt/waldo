@@ -1,5 +1,5 @@
 r"""
-Model instantiation factory for VFMs, VLMs and LLMs.
+Model instantiation factory for VFMs and LLMs.
 
 License
 -------
@@ -63,25 +63,6 @@ def build_model(config: dict[str, Any], return_config: bool = False) -> nn.Modul
 
             model_type = ViT
             config_obj = build_with_type_check(ViTConfig, config)
-
-        # Vision Language Models (VLMs)
-        case "clip":
-            from waldo.models import Clip, ClipConfig
-
-            model_type = Clip
-            config_obj = build_with_type_check(ClipConfig, config)
-
-        case "siglip":
-            from waldo.models import Siglip, SiglipConfig
-
-            model_type = Siglip
-            config_obj = build_with_type_check(SiglipConfig, config)
-
-        case "siglip2":
-            from waldo.models import Siglip2, Siglip2Config
-
-            model_type = Siglip2
-            config_obj = build_with_type_check(Siglip2Config, config)
 
         # Large Language Models (LLMs)
         case "gemma3":
