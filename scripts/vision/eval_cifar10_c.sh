@@ -15,7 +15,7 @@ severities="[1,3,5]"
 
 # ViT
 model_name="vit"
-device="cuda:4"
+device="cuda:0"
 patch_size=16
 
 # Runs
@@ -33,7 +33,7 @@ done
 
 # ViT
 model_name="vit"
-device="cuda:4"
+device="cuda:0"
 patch_size=14
 model_size="huge"
 batch_size=128
@@ -48,7 +48,7 @@ tmux send-keys -t ${session} "${command}" C-m
 
 # DINOv2
 model_name="dinov2"
-device="cuda:3"
+device="cuda:0"
 batch_size=8
 
 # Runs
@@ -88,7 +88,7 @@ done
 
 # AIMv2
 model_name="aimv2"
-device="cuda:4"
+device="cuda:0"
 batch_size=8
 
 # Runs

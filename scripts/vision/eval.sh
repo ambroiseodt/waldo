@@ -31,7 +31,7 @@ datasets=(
 
 # ViT
 model_name="vit"
-device="cuda:3"
+device="cuda:0"
 patch_size=16
 
 # Runs
@@ -52,7 +52,7 @@ done
 
 # ViT
 model_name="vit"
-device="cuda:3"
+device="cuda:0"
 patch_size=14
 model_size="huge"
 batch_size=128
@@ -70,7 +70,7 @@ done
 
 # DINOv2
 model_name="dinov2"
-device="cuda:2"
+device="cuda:0"
 batch_size=32
 
 # Runs
@@ -93,7 +93,7 @@ done
 
 # DINOv3
 model_name="dinov3"
-device="cuda:1"
+device="cuda:0"
 batch_size=8
 
 # Runs
@@ -116,7 +116,7 @@ done
 
 # AIMv2
 model_name="aimv2"
-device="cuda:3"
+device="cuda:0"
 batch_size=8
 
 # Runs
