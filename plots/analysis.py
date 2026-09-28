@@ -515,7 +515,7 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
     ax.set_ylim(-1, 101)
     yticks = [0, 25, 50, 75, 100]
     ax.set_yticks(yticks)
-    ax.set_xlabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+    ax.set_xlabel("Gain over probing baseline (pp)", fontsize=FONTSIZE)
     label = ax.set_ylabel(r"Probing runs with gain $> x$", fontsize=FONTSIZE)
     x, y = label.get_position()
     label.set_position((x, 0.4))
@@ -1068,7 +1068,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
         ax.set_xticks(range(len(model_order)))
         ax.set_xticklabels([VFM_NAMES[model] for model in model_order])
         if i == 0:
-            ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+            ax.set_ylabel("Gain over probing baseline (pp)", fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
@@ -2146,7 +2146,7 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
         ax.set_xticks(range(len(model_order)))
         ax.set_xticklabels([model_name for model_name in model_labels[model_family]])
         if ax == axes[0]:
-            ax.set_ylabel("Gain over standard probing (pp)", fontsize=FONTSIZE)
+            ax.set_ylabel("Gain over probing baseline (pp)", fontsize=FONTSIZE)
     sns.despine(fig, axes[0], trim=True, right=True, offset=10)
 
     # Common legend
@@ -3049,9 +3049,9 @@ def plot_figures() -> None:
     plot_intro(save=True)
 
     r"""VFMs plots."""
-    # # CDF
-    # save = True
-    # plot_cdf_vision(filename="cls", save=save)
+    # CDF
+    save = True
+    plot_cdf_vision(filename="cls", save=save)
 
     # # Dataset difficulty
     # save = True
@@ -3069,10 +3069,10 @@ def plot_figures() -> None:
     # filename = "cls"
     # plot_pretraining_scale_vision(filename=filename, save=save)
 
-    # # Model family
-    # save = True
-    # filename = "cls"
-    # plot_model_family_vision(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "cls"
+    plot_model_family_vision(filename=filename, save=save)
 
     # # Probing depth
     # save = True
@@ -3087,10 +3087,10 @@ def plot_figures() -> None:
     # plot_oracle_recovery_vision(filename=filename, save=save)
 
     r"""LLMs plots."""
-    # # Model family
-    # save = True
-    # filename = "mteb"
-    # plot_model_family_language(filename=filename, save=save)
+    # Model family
+    save = True
+    filename = "mteb"
+    plot_model_family_language(filename=filename, save=save)
 
     # # Probing depth
     # save = True
