@@ -16,7 +16,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from waldo.models import Gemma3, Gemma3Config, Gemma4, Gemma4Config, Llama3, Llama3Config, Qwen3, Qwen3Config
+from waldo.models import Gemma3, Gemma3Config, Llama3, Llama3Config, Qwen3, Qwen3Config
 
 # Default parameters
 N_LAYERS = 3
@@ -78,21 +78,6 @@ class MockGatedMLP(nn.Module):
 
 
 class MockGemma3Block(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.input_layernorm = MockRMSNorm()
-        self.self_attn = MockAttention()
-        self.pre_feedforward_layernorm = MockRMSNorm()
-        self.mlp = MockGatedMLP()
-
-    def forward(self, x: torch.Tensor, **kwargs) -> tuple[torch.Tensor]:
-        attn_out, _ = self.self_attn(self.input_layernorm(x))
-        rc1 = x + attn_out
-        ffn_out = rc1 + self.mlp(self.pre_feedforward_layernorm(rc1))
-        return (ffn_out,)
-
-
-class MockGemma4Block(nn.Module):
     def __init__(self):
         super().__init__()
         self.input_layernorm = MockRMSNorm()
@@ -219,35 +204,6 @@ def mock_gemma3_model(make_mock_language_model: Callable[..., tuple[MagicMock, n
 
         config = Gemma3Config(model_size="1b", device="cpu")
         model = Gemma3(config)
-
-    model.model = mock_hf
-    return model
-
-
-@pytest.fixture
-def mock_gemma4_model(make_mock_language_model: Callable[..., tuple[MagicMock, nn.ModuleList]]) -> Gemma4:
-    r"""
-    A Gemma4 instance whose HuggingFace backbone is fully mocked.
-    Patches Gemma4TextModel.from_pretrained and AutoTokenizer so no network call is made.
-    """
-
-    blocks = [MockGemma4Block() for _ in range(N_LAYERS)]
-    mock_hf, layers = make_mock_language_model(blocks)
-    mock_hf.layers = layers
-
-    with (
-        patch("waldo.models.language.gemma4.Gemma4TextModel.from_pretrained", return_value=mock_hf),
-        patch("waldo.models.language.gemma4.AutoTokenizer.from_pretrained") as mock_tok,
-    ):
-        # Setup mock tokenizer with standard special tokens
-        mock_tokenizer = MagicMock()
-        mock_tokenizer.pad_token_id = 0
-        mock_tokenizer.bos_token_id = 1
-        mock_tokenizer.eos_token_id = 2
-        mock_tok.return_value = mock_tokenizer
-
-        config = Gemma4Config(model_size="E2B", device="cpu")
-        model = Gemma4(config)
 
     model.model = mock_hf
     return model
