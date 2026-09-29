@@ -74,6 +74,18 @@ def _build_primitive(object_type: type, data: Any) -> Any:
         raise ValueError(f"Could not initialize {object_type} with value '{data}'.") from err
 
 
+def _build_dtype(data: Any) -> torch.dtype:
+    r"""
+    Build a torch dtype from its name, e.g., "bfloat16" or "torch.bfloat16", as found in configuration files.
+    """
+    if isinstance(data, torch.dtype):
+        return data
+    dtype = getattr(torch, str(data).removeprefix("torch."), None)
+    if not isinstance(dtype, torch.dtype):
+        raise ValueError(f"Could not initialize {torch.dtype} with value '{data}'.")
+    return dtype
+
+
 def _is_union(origin: Any) -> bool:
     r"""
     Check whether a type origin is a union type.
@@ -105,6 +117,8 @@ def build_with_type_check(object_type: type, data: Any) -> Any:
         return _build_union(args, data)
     if origin is Literal:
         return _build_literal(args, data)
+    if object_type is torch.dtype:
+        return _build_dtype(data)
 
     # Already the right type
     base_type = origin or object_type

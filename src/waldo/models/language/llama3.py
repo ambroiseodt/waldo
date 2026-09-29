@@ -253,7 +253,7 @@ class Llama3(BaseLanguageModel):
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
         model = LlamaModel.from_pretrained(
             model_name,
-            torch_dtype=dtype,
+            dtype=dtype,
             device_map=device,
         )
         model.eval()

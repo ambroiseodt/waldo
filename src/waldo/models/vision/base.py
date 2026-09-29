@@ -211,7 +211,7 @@ class BaseVisionModel(nn.Module, ABC):
         pixel_values: torch.Tensor of shape (N, C, H, W)
             Preprocessed input image on the same device as the model.
         layers: list[int] | None, default=None
-            Layer indices to recover. If None, all layers are recovered.
+            Nonnegative layer indices to recover. If None, all layers are recovered.
         modules: list[str] | None, default=None
             Module names from TRANSFORMER_MODULES. If None, all modules are recovered.
 
@@ -219,10 +219,25 @@ class BaseVisionModel(nn.Module, ABC):
         -------
         embeddings: dict[str, torch.Tensor]
             Maps "block_{layer_idx}_{module_name}" to the pooled patch embeddings of shape (N, E) stored on CPU.
+
+        Raises
+        ------
+        ValueError
+            If a layer index is out of range or a module name is not in TRANSFORMER_MODULES.
         """
         # Recover layers and modules
         layers = layers if layers is not None else list(range(self.n_layers))
         modules = modules if modules is not None else TRANSFORMER_MODULES
+
+        # Valid layers and modules
+        invalid_layers = [layer for layer in layers if not 0 <= layer < self.n_layers]
+        if invalid_layers:
+            raise ValueError(
+                f"Layer indices {invalid_layers} are out of range for a model with {self.n_layers} layers."
+            )
+        invalid_modules = [module for module in modules if module not in TRANSFORMER_MODULES]
+        if invalid_modules:
+            raise ValueError(f"Invalid modules {invalid_modules}. Options are {TRANSFORMER_MODULES}.")
 
         # Initialize embeddings and handles
         embeddings: dict[str, torch.Tensor] = {}

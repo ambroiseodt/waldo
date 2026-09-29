@@ -234,9 +234,10 @@ class Gemma3(BaseLanguageModel):
 
         Notes
         -----
-        The 1b model is purely a language model while the other sizes are multimodal. As such, the
-        1b model must be loaded with Gemma3TextModel, while Gemma3Model can be used for the others
-        In that case, we recover the purely language model using the language_model attribute.
+        The 1b model is purely a language model while the other sizes are vision-language models. As such,
+        the 1b model is loaded with Gemma3TextModel, while the others are loaded with Gemma3Model, from which
+        we recover the language model using the language_model attribute. We focus on the language part only:
+        the vision tower is discarded and all the probing is done on the transformer blocks of the language model.
         The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
         running statistics). Call `model.train()` explicitly if you intend to fine-tune.
         The model is loaded in bfloat16 to reduce memory footprint.
@@ -249,7 +250,7 @@ class Gemma3(BaseLanguageModel):
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
-        if model_name == "gemma-3-1b-pt":
+        if model_name == "google/gemma-3-1b-pt":
             model = Gemma3TextModel.from_pretrained(
                 model_name,
                 dtype=dtype,

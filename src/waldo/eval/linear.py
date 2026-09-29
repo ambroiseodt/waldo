@@ -310,25 +310,26 @@ class LinearProbing:
         overwrite: bool
             Whether to overwrite existing results.
         """
-        # Check whether results already exists
+        # Check whether results already exist. The info file is only written once the evaluation
+        # is complete, so results without it come from an interrupted run and are recomputed.
         results_path = cache_path / "results"
+        info_path = cache_path / "info.json"
+        if info_path.exists() and not overwrite:
+            logger.info(
+                f"Skipping evaluation: results already exist at '{results_path}'. "
+                f"If this behavior is not expected, set overwrite=True to force a clean rerun."
+            )
+            return
         if results_path.exists():
-            # Overwrite result folder
             if overwrite:
                 logger.info(
                     f"Deleting cached results found at '{results_path}'. "
                     f"If this behavior is not expected, set overwrite=False to keep results and skip evaluation."
                 )
-                shutil.rmtree(results_path, ignore_errors=True)
-
-            # Skip evaluation
             else:
-                logger.info(
-                    f"Skipping evaluation: results already exists at '{results_path}'. "
-                    f"Please make sure these files are complete and viable. "
-                    f"If this behavior is not expected, set overwrite=True to force a clean rerun."
-                )
-                return
+                logger.info(f"Deleting incomplete results found at '{results_path}' from an interrupted run.")
+            shutil.rmtree(results_path, ignore_errors=True)
+        info_path.unlink(missing_ok=True)
 
         # Create temporary path
         temp_path = results_path / "temp_embeddings"
@@ -385,7 +386,6 @@ class LinearProbing:
 
                         # Save result
                         metric_path = results_path / f"layer_{layer}_module_{module}.json"
-                        # metric_path.parent.mkdir(exist_ok=True, parents=True)
                         with open(metric_path, "w") as f:
                             json.dump({"acc_test": acc_test}, f, indent=4)
 
@@ -402,9 +402,9 @@ class LinearProbing:
                         # Update progress bar
                         pbar.update(1)
 
-            # Save evaluation time
+            # Save evaluation time, which also marks the evaluation as complete
             info["eval_time"] = time.time() - start
-            with open(cache_path / "info.json", "w") as f:
+            with open(info_path, "w") as f:
                 json.dump(info, f, indent=4)
             logger.info("Evaluation done.")
 
@@ -441,33 +441,43 @@ class LinearProbing:
         overwrite: bool
             Whether to overwrite existing results.
         """
-        # Check whether results already exists
+        # Recover the test sets already evaluated. The info file is only written once the evaluation is complete
+        # and lists the evaluated test sets, so results of test sets missing from it come from an interrupted run.
         results_path = cache_path / "results"
-        all_keys = set(test_loader.keys())
+        info_path = cache_path / "info.json"
+        completed_keys = set()
+        if info_path.exists():
+            with open(info_path) as f:
+                previous_info = json.load(f)
+            # Runs saved before test sets were tracked in the info file are complete for all existing results
+            legacy_keys = {key for key in test_loader if (results_path / key).exists()}
+            completed_keys = set(previous_info.get("test_sets", legacy_keys))
+
+        # Select the test sets to evaluate
+        keys = []
         for key in test_loader:
             path = results_path / key
+            if key in completed_keys and not overwrite:
+                logger.info(
+                    f"Skipping evaluation for {key}: results already exist at '{path}'. "
+                    f"If this behavior is not expected, set overwrite=True to force a clean rerun."
+                )
+                continue
             if path.exists():
-                # Overwrite result folder
                 if overwrite:
                     logger.info(
                         f"Deleting cached results found at '{path}'. "
                         f"If this behavior is not expected, set overwrite=False to keep results and skip evaluation."
                     )
-                    shutil.rmtree(path, ignore_errors=True)
-                # Skip evaluation
                 else:
-                    logger.info(
-                        f"Skipping evaluation for {key}: results already exists at '{path}'. "
-                        f"Please make sure these files are complete and viable. "
-                        f"If this behavior is not expected, set overwrite=True to force a clean rerun."
-                    )
-                    all_keys.discard(key)
+                    logger.info(f"Deleting incomplete results found at '{path}' from an interrupted run.")
+                shutil.rmtree(path, ignore_errors=True)
+            completed_keys.discard(key)
+            keys.append(key)
 
-        # If overwrite is False andall results already exists, skip the evaluation
-        if not all_keys:
-            logger.info(
-                "Skipping the entire evaluation loop: all results already exists and overwrite is set to False."
-            )
+        # If overwrite is False and all results already exist, skip the evaluation
+        if not keys:
+            logger.info("Skipping the entire evaluation loop: all results already exist and overwrite is set to False.")
             return
 
         # Create temporary path
@@ -486,7 +496,7 @@ class LinearProbing:
             test_path = {}
             test_labels = {}
             start = time.time()
-            for key in test_loader:
+            for key in keys:
                 split = f"test/{key}"
                 self._extract_embeddings(model=model, loader=test_loader[key], split=split, temp_path=temp_path)
                 test_path[key] = temp_path / split
@@ -496,7 +506,7 @@ class LinearProbing:
             # Loop over layers
             logger.info("Start evaluation.")
             start = time.time()
-            total_runs = sum(1 for root, dirs, files in os.walk(train_path) if not dirs)
+            total_runs = len(keys) * sum(1 for root, dirs, files in os.walk(train_path) if not dirs)
             with tqdm(total=total_runs, desc="Evaluation", unit="run") as pbar:
                 layer_folders = [f.name for f in train_path.iterdir() if f.is_dir()]
                 for layer_folder in layer_folders:
@@ -518,7 +528,7 @@ class LinearProbing:
                         )
 
                         # Evaluate classifier on test embeddings
-                        for key in test_loader:
+                        for key in keys:
                             test_emb_path = test_path[key] / layer_folder / module_folder
                             test_files = sorted(test_emb_path.glob("batch_*.npy"), key=self._get_index)
                             test_embeddings = np.concatenate([np.load(f) for f in test_files], axis=0)
@@ -550,9 +560,10 @@ class LinearProbing:
                         if "cuda" in self.device and torch.cuda.is_available():
                             torch.cuda.empty_cache()
 
-            # Save evaluation time
+            # Save evaluation time and evaluated test sets, which also marks the evaluation as complete
             info["eval_time"] = time.time() - start
-            with open(cache_path / "info.json", "w") as f:
+            info["test_sets"] = sorted(completed_keys | set(keys))
+            with open(info_path, "w") as f:
                 json.dump(info, f, indent=4)
             logger.info("Evaluation done.")
 

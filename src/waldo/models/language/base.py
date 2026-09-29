@@ -304,6 +304,28 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
         return hook_fn
 
+    def _check_probing(self, layer: int | None, module: str | None) -> None:
+        r"""
+        Check that the layer index and module name are valid. Negative layer indices are allowed
+        and follow the Python convention, e.g., -1 corresponds to the last transformer block.
+
+        Parameters
+        ----------
+        layer: int | None
+            Index of the layer to probe. Skipped if None.
+        module: str | None
+            Module name from TRANSFORMER_MODULES to probe. Skipped if None.
+
+        Raises
+        ------
+        ValueError
+            If the layer index is out of range or the module name is not in TRANSFORMER_MODULES.
+        """
+        if layer is not None and not -self.n_layers <= layer < self.n_layers:
+            raise ValueError(f"Layer index {layer} is out of range for a model with {self.n_layers} layers.")
+        if module is not None and module not in TRANSFORMER_MODULES:
+            raise ValueError(f"Invalid module '{module}'. Options are {TRANSFORMER_MODULES}.")
+
     @torch.inference_mode()
     def _get_hidden_states(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         r"""
@@ -325,11 +347,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         handles: list[torch.utils.hooks.RemovableHandle] = []
 
         # Valid layer and module
-        if self.layer > self.n_layers:
-            raise ValueError(f"Layer index {self.layer} is out of range for a model with {self.n_layers} layers.")
-        if self.module is not None:
-            if self.module not in TRANSFORMER_MODULES:
-                raise ValueError(f"Invalid module '{self.module}'. Options are {TRANSFORMER_MODULES}.")
+        self._check_probing(layer=self.layer, module=self.module)
 
         # Recover embedding from the specified layer and module
         key = f"block_{self.layer}_{self.module}"
@@ -512,13 +530,10 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
             Module name from TRANSFORMER_MODULES to probe.
         """
         # Valid layer and module
+        self._check_probing(layer=layer, module=module)
         if layer is not None:
-            if layer >= self.n_layers:
-                raise ValueError(f"Layer index {layer} is out of range for a model with {self.n_layers} layers.")
             self.layer = layer
         if module is not None:
-            if module not in TRANSFORMER_MODULES:
-                raise ValueError(f"Invalid module '{module}'. Options are {TRANSFORMER_MODULES}.")
             self.module = module
 
     def __repr__(self) -> str:
