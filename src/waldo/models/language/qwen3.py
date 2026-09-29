@@ -1,5 +1,5 @@
 r"""
-Qwen3 pretrained model following [1]_. It allows to study specific layers and modules.
+Qwen3 pretrained and post-trained models following [1]_. It allows to study specific layers and modules.
 
 Comments abbreviations
 ----------------------
@@ -9,7 +9,8 @@ Comments abbreviations
 
 Notes
 -----
-We focus on the pretrained dense models available on HuggingFace for text generation.
+We focus on the dense models available on HuggingFace for text generation, both pretrained (e.g., Qwen3-0.6B-Base)
+and post-trained (e.g., Qwen3-0.6B). Note that no pretrained version of Qwen3-32B is publicly available.
 See https://huggingface.co/collections/Qwen/qwen3 for other variants.
 
 References
@@ -58,7 +59,8 @@ class Qwen3Config:
     Parameters
     ----------
     model_size: str
-        Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B".
+        Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B" for the post-trained models,
+        and "0.6B-Base", "1.7B-Base", "4B-Base", "8B-Base", "14B-Base" for the pretrained models.
     dtype: torch.dtype
         Dtype to load the model weights in. Defaults to bfloat16 since Qwen3 was
         pretrained in bfloat16, which halves memory footprint vs float32 with no
@@ -77,10 +79,10 @@ class Qwen3Config:
         self.__post_init__()
 
     def __post_init__(self):
-        if self.model_size not in ["0.6B", "1.7B", "4B", "8B", "14B", "32B"]:
-            raise ValueError(
-                f"Invalid model size '{self.model_size}'. Options are '0.6B', '1.7B', '4B', '8B', '14B', '32B'."
-            )
+        post_trained = ["0.6B", "1.7B", "4B", "8B", "14B", "32B"]
+        pretrained = ["0.6B-Base", "1.7B-Base", "4B-Base", "8B-Base", "14B-Base"]
+        if self.model_size not in post_trained + pretrained:
+            raise ValueError(f"Invalid model size '{self.model_size}'. Options are {post_trained + pretrained}.")
 
 
 # -------------------------------------------------------------------
@@ -186,9 +188,10 @@ class Qwen3(BaseLanguageModel):
     ----------
     config: configuration class with
         model_size: str
-            Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B".
+            Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B" for the post-trained
+            models, and "0.6B-Base", "1.7B-Base", "4B-Base", "8B-Base", "14B-Base" for the pretrained models.
         dtype: torch.dtype
-            Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
+            Dtype to load the model weights in. Defaults to bfloat16 since Qwen3 was
             pretrained in bfloat16, which halves memory footprint vs float32 with no
             accuracy loss. Use float16 for older GPUs that do not support bfloat16,
             or float32 for CPU inference or when full precision is required.
@@ -227,7 +230,12 @@ class Qwen3(BaseLanguageModel):
                 "Qwen/Qwen3-4B",
                 "Qwen/Qwen3-8B",
                 "Qwen/Qwen3-14B",
-                "Qwen/Qwen3-32B".
+                "Qwen/Qwen3-32B",
+                "Qwen/Qwen3-0.6B-Base",
+                "Qwen/Qwen3-1.7B-Base",
+                "Qwen/Qwen3-4B-Base",
+                "Qwen/Qwen3-8B-Base",
+                "Qwen/Qwen3-14B-Base".
         dtype: torch.dtype
             Dtype to load the model weights in. Defaults to bfloat16 since Qwen3 was
             pretrained in bfloat16, which halves memory footprint vs float32 with no
@@ -249,14 +257,18 @@ class Qwen3(BaseLanguageModel):
             "Qwen/Qwen3-8B",
             "Qwen/Qwen3-14B",
             "Qwen/Qwen3-32B",
+            "Qwen/Qwen3-0.6B-Base",
+            "Qwen/Qwen3-1.7B-Base",
+            "Qwen/Qwen3-4B-Base",
+            "Qwen/Qwen3-8B-Base",
+            "Qwen/Qwen3-14B-Base",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
 
-        # Qwen3 uses the Qwen2 model class for text-only dense variants
         model = Qwen3Model.from_pretrained(
             model_name,
-            torch_dtype=dtype,
+            dtype=dtype,
             device_map=device,
         )
         model.eval()
@@ -329,9 +341,9 @@ class Qwen3(BaseLanguageModel):
 
         Notes
         -----
-        Since we consider pretrained models and not instruction-tuned variants,
-        we do not expect special tokens related to multi-turn or thinking. As such,
-        we only excluse separation and padding tokens.
+        Since we encode raw text without chat template, for both the pretrained and post-trained
+        models, we do not expect special tokens related to multi-turn or thinking. As such,
+        we only exclude separation and padding tokens.
         """
         return [
             self.tokenizer.bos_token_id,
