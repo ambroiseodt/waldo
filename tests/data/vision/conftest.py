@@ -26,8 +26,6 @@ from waldo.data import (
     Cifar10CDatasetConfig,
     Cifar10Dataset,
     Cifar10DatasetConfig,
-    Cifar100CDataset,
-    Cifar100CDatasetConfig,
     Cifar100Dataset,
     Cifar100DatasetConfig,
     DomainNetDataset,
@@ -40,10 +38,6 @@ from waldo.data import (
     Flowers102DatasetConfig,
     Food101Dataset,
     Food101DatasetConfig,
-    ImageNetCDataset,
-    ImageNetCDatasetConfig,
-    ImageNetDataset,
-    ImageNetDatasetConfig,
     PetDataset,
     PetDatasetConfig,
 )
@@ -158,7 +152,7 @@ def mock_dataset_pet_factory() -> Callable[..., Dataset[tuple]]:
 
 @pytest.fixture
 def mock_dataset_image_folder_factory() -> Callable[..., Dataset[tuple]]:
-    r"""A mock dataset for datasets using torchvision.datasets.ImageFolder (ImageNet, ImageNet-C, DomainNet)"""
+    r"""A mock dataset for datasets using torchvision.datasets.ImageFolder (DomainNet, EuroSAT)"""
 
     def _factory(
         config_class: Callable[..., Any],
@@ -244,19 +238,6 @@ def mock_cifar10_dataset(mock_dataset_cifar_factory: Callable[..., Dataset[tuple
 
 
 @pytest.fixture
-def mock_cifar100c_dataset(mock_dataset_numpy_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    r"""A mock Cifar100CDataset."""
-    return mock_dataset_numpy_factory(
-        config_class=Cifar100CDatasetConfig,
-        dataset_class=Cifar100CDataset,
-        n_classes=100,
-        corruption_type="brightness",
-        corruption_severity=1,
-        mode="train",
-    )
-
-
-@pytest.fixture
 def mock_cifar100_dataset(mock_dataset_cifar_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
     r"""A mock Cifar100Dataset with 10 samples, no disk I/O."""
     return mock_dataset_cifar_factory(
@@ -321,30 +302,6 @@ def mock_food101_dataset(mock_dataset_torchvision_factory: Callable[..., Dataset
         config_class=Food101DatasetConfig,
         dataset_class=Food101Dataset,
         patch_target="waldo.data.vision.food101.torchvision.datasets.Food101",
-        mode="train",
-    )
-
-
-@pytest.fixture
-def mock_imagenetc_dataset(mock_dataset_image_folder_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    r"""A mock ImageNetCDataset with 10 samples, no disk I/O."""
-    return mock_dataset_image_folder_factory(
-        config_class=ImageNetCDatasetConfig,
-        dataset_class=ImageNetCDataset,
-        patch_target="waldo.data.vision.imagenet_c.torchvision.datasets.ImageFolder",
-        corruption_type="brightness",
-        corruption_severity=1,
-        mode="train",
-    )
-
-
-@pytest.fixture
-def mock_imagenet_dataset(mock_dataset_image_folder_factory: Callable[..., Dataset[tuple]]) -> Dataset[tuple]:
-    r"""A mock ImageNetDataset with 10 samples, no disk I/O."""
-    return mock_dataset_image_folder_factory(
-        config_class=ImageNetDatasetConfig,
-        dataset_class=ImageNetDataset,
-        patch_target="waldo.data.vision.imagenet.torchvision.datasets.ImageFolder",
         mode="train",
     )
 

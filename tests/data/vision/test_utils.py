@@ -97,7 +97,6 @@ class TestBuildDataset:
             ("eurosat", "waldo.data.vision.eurosat", "EuroSATDataset"),
             ("flowers102", "waldo.data.vision.flowers102", "Flowers102Dataset"),
             ("food101", "waldo.data.vision.food101", "Food101Dataset"),
-            ("imagenet", "waldo.data.vision.imagenet", "ImageNetDataset"),
             ("pet", "waldo.data.vision.pet", "PetDataset"),
         ],
     )
@@ -116,8 +115,6 @@ class TestBuildDataset:
         [
             ("cifar10_c-corruption-brightness-severity-1", "brightness", "1"),
             ("cifar10_c-corruption-fog-severity-3", "fog", "3"),
-            ("cifar100_c-corruption-snow-severity-5", "snow", "5"),
-            ("imagenet_c-corruption-gaussian_noise-severity-2", "gaussian_noise", "2"),
         ],
     )
     def test_corruption_dataset_name_parsing(
@@ -134,8 +131,6 @@ class TestBuildDataset:
         base = dataset_name.split("-corruption")[0]
         module_map = {
             "cifar10_c": ("waldo.data.vision.cifar10_c", "Cifar10CDataset"),
-            "cifar100_c": ("waldo.data.vision.cifar100_c", "Cifar100CDataset"),
-            "imagenet_c": ("waldo.data.vision.imagenet_c", "ImageNetCDataset"),
         }
         module, cls_name = module_map[base]
         with (

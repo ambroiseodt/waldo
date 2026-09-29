@@ -88,12 +88,6 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
             dataset_type = AircraftDataset
             config_obj = build_with_type_check(AircraftDatasetConfig, config)
 
-        case "camelyon17":
-            from waldo.data.vision.camelyon17 import Camelyon17Dataset, Camelyon17DatasetConfig
-
-            dataset_type = Camelyon17Dataset
-            config_obj = build_with_type_check(Camelyon17DatasetConfig, config)
-
         case x if "cifar10_c" in x:
             from waldo.data.vision.cifar10_c import Cifar10CDataset, Cifar10CDatasetConfig
 
@@ -110,17 +104,6 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
 
             dataset_type = Cifar10Dataset
             config_obj = build_with_type_check(Cifar10DatasetConfig, config)
-
-        case x if "cifar100_c" in x:
-            from waldo.data.vision.cifar100_c import Cifar100CDataset, Cifar100CDatasetConfig
-
-            dataset_type = Cifar100CDataset
-
-            # Dataset name format should be cifar100_c-corruption-brightness-severity-1
-            substring = dataset_name.split("cifar100_c", 1)[-1]
-            substring = substring.split("-corruption-", 1)[-1]
-            config["corruption_type"], config["corruption_severity"] = substring.split("-severity-", 1)
-            config_obj = build_with_type_check(Cifar100CDatasetConfig, config)
 
         case "cifar100":
             from waldo.data.vision.cifar100 import Cifar100Dataset, Cifar100DatasetConfig
@@ -155,34 +138,11 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
             dataset_type = Flowers102Dataset
             config_obj = build_with_type_check(Flowers102DatasetConfig, config)
 
-        case "fmow":
-            from waldo.data.vision.fmow import FMoWDataset, FMoWDatasetConfig
-
-            dataset_type = FMoWDataset
-            config_obj = build_with_type_check(FMoWDatasetConfig, config)
-
         case "food101":
             from waldo.data.vision.food101 import Food101Dataset, Food101DatasetConfig
 
             dataset_type = Food101Dataset
             config_obj = build_with_type_check(Food101DatasetConfig, config)
-
-        case x if "imagenet_c" in x:
-            from waldo.data.vision.imagenet_c import ImageNetCDataset, ImageNetCDatasetConfig
-
-            dataset_type = ImageNetCDataset
-
-            # Dataset name format should be imagenet_c-corruption-brightness-severity-1
-            substring = dataset_name.split("imagenet_c", 1)[-1]
-            substring = substring.split("-corruption-", 1)[-1]
-            config["corruption_type"], config["corruption_severity"] = substring.split("-severity-", 1)
-            config_obj = build_with_type_check(ImageNetCDatasetConfig, config)
-
-        case "imagenet":
-            from waldo.data.vision.imagenet import ImageNetDataset, ImageNetDatasetConfig
-
-            dataset_type = ImageNetDataset
-            config_obj = build_with_type_check(ImageNetDatasetConfig, config)
 
         case "iwildcam":
             from waldo.data.vision.iwildcam import IWildCamDataset, IWildCamDatasetConfig
@@ -195,12 +155,6 @@ def build_dataset(config: dict[str, Any]) -> tuple[Dataset, int]:
 
             dataset_type = PetDataset
             config_obj = build_with_type_check(PetDatasetConfig, config)
-
-        case "pcam":
-            from waldo.data.vision.pcam import PCAMDataset, PCAMDatasetConfig
-
-            dataset_type = PCAMDataset
-            config_obj = build_with_type_check(PCAMDatasetConfig, config)
 
         case "rxrx1":
             from waldo.data.vision.rxrx1 import RxRx1Dataset, RxRx1DatasetConfig

@@ -28,8 +28,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from cuml.linear_model import LogisticRegression as cuMLLogisticRegression
-from cuml.preprocessing import StandardScaler as cuMLStandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -37,7 +35,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from ..infra import DEVICE
-from ..models import BaseVisionLanguageModel, BaseVisionModel
+from ..models import BaseVisionModel
 
 logger = logging.getLogger(__name__)
 
@@ -129,27 +127,26 @@ class LinearProbing:
         return int(path.stem.split("batch_")[1])
 
     @torch.inference_mode()
-    def _extract_embeddings(
-        self, model: BaseVisionModel | BaseVisionLanguageModel, loader: DataLoader, split: str, temp_path: Path
-    ) -> None:
+    def _extract_embeddings(self, model: BaseVisionModel, loader: DataLoader, split: str, temp_path: Path) -> None:
         r"""
-        Extract embeddings of a model accross its layers and modules.
+        Extract embeddings of a model across its layers and modules.
         The model is expected to be on the device defined in the config.
 
         Parameters
         ----------
-        model: BaseVisionModel | BaseVisionLanguageModel
+        model: BaseVisionModel
             Model to evaluate.
         loader: DataLoader
             DataLoader to use for evaluation.
         split: str
             Split to evaluate on. Options are "train" and "test".
             This is used to save the embeddings temporarily on the disk.
+        temp_path: Path
+            Directory where the embeddings are temporarily saved.
 
         See also
         --------
         BaseVisionModel
-        BaseVisionLanguageModel
         """
         model.eval()
         label_buffer = []
@@ -203,10 +200,18 @@ class LinearProbing:
     def _pipeline(self) -> Pipeline:
         r"""
         Return a sklearn Pipeline with StandardScaler and LogisticRegression.
-        If GPU is available, use cuML implementation for faster training.
+        If the device is a GPU, use cuML implementation for faster training.
+
+        Notes
+        -----
+        cuML is imported lazily since it requires an NVIDIA GPU and CUDA. This allows to
+        use the sklearn implementation on CPU-only machines where cuML is not installed.
         """
         # GPU-friendly logistic regression
-        if torch.cuda.is_available():
+        if "cuda" in self.device and torch.cuda.is_available():
+            from cuml.linear_model import LogisticRegression as cuMLLogisticRegression
+            from cuml.preprocessing import StandardScaler as cuMLStandardScaler
+
             scaler = cuMLStandardScaler()
             solver = cuMLLogisticRegression(
                 penalty="l2",
