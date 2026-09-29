@@ -73,7 +73,7 @@ from torch.nn import ModuleList
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
-from ..transformer_block import TRANSFORMER_MODULES, TransformerBlockAdapter
+from ..transformer_block import RC2NORM, TRANSFORMER_MODULES, TransformerBlockAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
+        - final_norm: returns the norm applied to the output of the last transformer block
         - special_token_ids: returns the list of special token ids to exclude from pooling
         - mteb_model_meta: returns the model metadata needed for compatibility with the MTEB benchmark
 
@@ -235,6 +236,15 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
     @property
     @abstractmethod
+    def final_norm(self) -> nn.Module:
+        r"""
+        Return the norm applied to the output of the last transformer block, whose output is the standard output
+        of the model (last_hidden_state in HuggingFace). It is used to probe the rc2norm module.
+        """
+        ...
+
+    @property
+    @abstractmethod
     def special_token_ids(self) -> list[Any]:
         r"""Return the list of special tokens to exclude from the pooling."""
         ...
@@ -312,19 +322,25 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         Parameters
         ----------
         layer: int | None
-            Index of the layer to probe. Skipped if None.
+            Index of the layer to probe. If None, the current layer is used.
         module: str | None
-            Module name from TRANSFORMER_MODULES to probe. Skipped if None.
+            Module name from TRANSFORMER_MODULES, or RC2NORM for the output of the final norm, which is only
+            defined for the last layer. If None, the current module is used.
 
         Raises
         ------
         ValueError
-            If the layer index is out of range or the module name is not in TRANSFORMER_MODULES.
+            If the layer index is out of range, the module name is invalid, or RC2NORM is not probed at the last layer.
         """
-        if layer is not None and not -self.n_layers <= layer < self.n_layers:
+        layer = self.layer if layer is None else layer
+        module = self.module if module is None else module
+        if not -self.n_layers <= layer < self.n_layers:
             raise ValueError(f"Layer index {layer} is out of range for a model with {self.n_layers} layers.")
-        if module is not None and module not in TRANSFORMER_MODULES:
-            raise ValueError(f"Invalid module '{module}'. Options are {TRANSFORMER_MODULES}.")
+        valid_modules = TRANSFORMER_MODULES + [RC2NORM]
+        if module not in valid_modules:
+            raise ValueError(f"Invalid module '{module}'. Options are {valid_modules}.")
+        if module == RC2NORM and layer % self.n_layers != self.n_layers - 1:
+            raise ValueError(f"Module '{RC2NORM}' is only defined for the last layer (-1 or {self.n_layers - 1}).")
 
     @torch.inference_mode()
     def _get_hidden_states(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
@@ -351,13 +367,18 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
         # Recover embedding from the specified layer and module
         key = f"block_{self.layer}_{self.module}"
-        adapter = self.block_adapter(self.blocks[self.layer])
-        module_obj = adapter.module_map()[self.module]
-
-        if self.module in adapter.pre_hooks:
-            handles.append(module_obj.register_forward_pre_hook(self._make_pre_hook(embeddings=embeddings, key=key)))
+        if self.module == RC2NORM:
+            # Output of the final norm, only defined for the last layer
+            handles.append(self.final_norm.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
         else:
-            handles.append(module_obj.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
+            adapter = self.block_adapter(self.blocks[self.layer])
+            module_obj = adapter.module_map()[self.module]
+            if self.module in adapter.pre_hooks:
+                handles.append(
+                    module_obj.register_forward_pre_hook(self._make_pre_hook(embeddings=embeddings, key=key))
+                )
+            else:
+                handles.append(module_obj.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
 
         try:
             self.model(input_ids=input_ids, attention_mask=attention_mask)
@@ -524,10 +545,11 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
         Parameters
         ----------
-        layer: int
-            Index of the layer index to probe.
-        module: str
-            Module name from TRANSFORMER_MODULES to probe.
+        layer: int | None
+            Index of the layer to probe.
+        module: str | None
+            Module name from TRANSFORMER_MODULES to probe, or RC2NORM for the output of the final norm
+            (only with the last layer).
         """
         # Valid layer and module
         self._check_probing(layer=layer, module=module)

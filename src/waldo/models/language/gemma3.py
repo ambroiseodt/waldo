@@ -327,6 +327,11 @@ class Gemma3(BaseLanguageModel):
         return cast(ModuleList, self.model.layers)
 
     @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.norm)
+
+    @property
     def special_token_ids(self) -> list[Any]:
         r"""
         Return BOS, EOS and padding token ids to exclude from pooling.

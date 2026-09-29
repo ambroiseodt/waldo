@@ -45,7 +45,6 @@ from transformers.models.dinov2_with_registers.modeling_dinov2_with_registers im
     Dinov2WithRegistersSwiGLUFFN,
 )
 
-from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
 from .base import BaseVisionModel
 
@@ -69,6 +68,9 @@ class Dinov2Config:
     model_size: str
         Type of model to use. Options are "small", "base", "large", and "giant", and their variants trained
         with register tokens [1]_ "small-registers", "base-registers", "large-registers", and "giant-registers".
+    pooling: str
+        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
+        and "all" (concatenation of the CLS token and the mean over the patch tokens).
     device: str
         Device to use.
 
@@ -78,6 +80,7 @@ class Dinov2Config:
     """
 
     model_size: str = "base"
+    pooling: str = "content"
     device: str = "cpu"
 
     def __init__(self, **kwargs):
@@ -90,6 +93,10 @@ class Dinov2Config:
         valid_sizes = sizes + [f"{size}-registers" for size in sizes]
         if self.model_size not in valid_sizes:
             raise ValueError(f"Invalid model size {self.model_size}. Options are {valid_sizes}.")
+
+        # Valid pooling
+        if self.pooling not in ["content", "all"]:
+            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content' and 'all'.")
 
 
 # -------------------------------------------------------------------
@@ -239,6 +246,9 @@ class Dinov2(BaseVisionModel):
             Type of model to use. Options are "small", "base", "large", and "giant", and their variants
             trained with register tokens "small-registers", "base-registers", "large-registers", and
             "giant-registers".
+        pooling: str
+            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
+            and "all" (concatenation of the CLS token and the mean over the patch tokens).
         device: str
             Device to use.
 
@@ -258,6 +268,7 @@ class Dinov2(BaseVisionModel):
     def __init__(self, config: Dinov2Config):
         super().__init__()
         self.device = config.device
+        self.pooling_type = config.pooling
         # Models with registers are named facebook/dinov2-with-registers-{size} on HuggingFace
         size, registers = config.model_size.removesuffix("-registers"), config.model_size.endswith("-registers")
         prefix = "dinov2-with-registers" if registers else "dinov2"
@@ -306,26 +317,6 @@ class Dinov2(BaseVisionModel):
         model.eval()
         return model
 
-    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        r"""
-        Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
-        from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
-
-        In DINOv2, there is a CLS token, possibly followed by register tokens, so we exclude them before the
-        global pooling.
-
-        Parameters
-        ----------
-        hidden_states: torch.Tensor of shape (N, L, E)
-            Sequence of tokens to pool.
-
-        Returns
-        -------
-        torch.Tensor of shape (N, E)
-            Pooled embedding stored on CPU.
-        """
-        return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
-
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
         r"""Return the block adapter class for the model's transformer blocks."""
@@ -336,6 +327,11 @@ class Dinov2(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(Dinov2Encoder, self.model.encoder)
         return cast(ModuleList, encoder.layer)
+
+    @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.layernorm)
 
     @property
     def n_prefix_tokens(self) -> int:

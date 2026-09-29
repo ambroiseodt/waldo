@@ -35,13 +35,11 @@ import logging
 from dataclasses import dataclass
 from typing import cast
 
-import torch
 import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import PreTrainedModel, ViTModel
 from transformers.models.vit.modeling_vit import ViTEncoder, ViTIntermediate, ViTOutput
 
-from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
 from .base import BaseVisionModel
 
@@ -62,12 +60,16 @@ class ViTConfig:
         Type of model to use. Options are "base", "large", and "huge".
     patch_size: int
         Size of the patches to be extracted from the image. Options are 14, 16 and 32.
+    pooling: str
+        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
+        and "all" (concatenation of the CLS token and the mean over the patch tokens).
     device: str
         Device to use.
     """
 
     model_size: str = "base"
     patch_size: int = 16
+    pooling: str = "content"
     device: str = "cpu"
 
     def __init__(self, **kwargs):
@@ -82,6 +84,10 @@ class ViTConfig:
         # Valid patch size
         if self.patch_size not in [14, 16, 32]:
             raise ValueError(f"Invalid patch size {self.patch_size}. Options are 14, 16 and 32.")
+
+        # Valid pooling
+        if self.pooling not in ["content", "all"]:
+            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content' and 'all'.")
 
 
 # -------------------------------------------------------------------
@@ -164,6 +170,9 @@ class ViT(BaseVisionModel):
             Size of the patches to be extracted from the image.
         resolution: int
             Image resolution.
+        pooling: str
+            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
+            and "all" (concatenation of the CLS token and the mean over the patch tokens).
         device: str
             Device to use.
 
@@ -182,6 +191,7 @@ class ViT(BaseVisionModel):
     def __init__(self, config: ViTConfig):
         super().__init__()
         self.device = config.device
+        self.pooling_type = config.pooling
         self.model_name = f"google/vit-{config.model_size}-patch{config.patch_size}-224-in21k"
         self.model = self._load_model(model_name=self.model_name, device=self.device)
 
@@ -221,25 +231,6 @@ class ViT(BaseVisionModel):
         model.eval()
         return model
 
-    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        r"""
-        Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
-        from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
-
-        In ViT, there is a CLS token, so we exclude it before the global pooling.
-
-        Parameters
-        ----------
-        hidden_states: torch.Tensor of shape (N, L, E)
-            Sequence of tokens to pool.
-
-        Returns
-        -------
-        torch.Tensor of shape (N, E)
-            Pooled embedding stored on CPU.
-        """
-        return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
-
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
         r"""Return the block adapter class for the model's transformer blocks."""
@@ -250,6 +241,11 @@ class ViT(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(ViTEncoder, self.model.encoder)
         return cast(ModuleList, encoder.layer)
+
+    @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.layernorm)
 
     @property
     def n_prefix_tokens(self) -> int:

@@ -16,6 +16,11 @@ import torch.nn as nn
 
 TRANSFORMER_MODULES = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 
+# Output of the final norm applied to the residual stream of the last transformer block (rc2 of the last layer).
+# It corresponds to the standard output of the model (e.g., last_hidden_state in HuggingFace) and is only
+# defined for the last layer. It is not part of TRANSFORMER_MODULES, so it is only probed when explicitly requested.
+RC2NORM = "rc2norm"
+
 
 # -------------------------------------------------------------------
 #   Transformer block adapter

@@ -51,6 +51,11 @@ class EvaluationConfig:
     domains: list = field(default_factory=lambda: ["clipart", "infograph", "painting", "quickdraw", "sketch"])
     batch_size: int = 512
 
+    # Probing: pooling over tokens, and layers / modules to probe (["all"] to probe all of them)
+    pooling: str = "content"
+    layers: list[int | str] = field(default_factory=lambda: ["all"])
+    modules: list[str] = field(default_factory=lambda: ["all"])
+
     # Linear probing
     tol: float = 1e-4
     max_iter: int = 1000
@@ -103,6 +108,7 @@ def eval(config: EvaluationConfig) -> None:
         "model_size": config.model_size,
         "patch_size": config.patch_size,
         "resolution": config.resolution,
+        "pooling": config.pooling,
         "device": config.device,
     }
     model = build_model(config=model_config, return_config=False)
@@ -151,6 +157,8 @@ def eval(config: EvaluationConfig) -> None:
         test_loader=test_loader,
         cache_path=cache_path,
         overwrite=config.overwrite,
+        layers=None if config.layers == ["all"] else config.layers,
+        modules=None if config.modules == ["all"] else config.modules,
     )
 
 

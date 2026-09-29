@@ -127,7 +127,15 @@ class LinearProbing:
         return int(path.stem.split("batch_")[1])
 
     @torch.inference_mode()
-    def _extract_embeddings(self, model: BaseVisionModel, loader: DataLoader, split: str, temp_path: Path) -> None:
+    def _extract_embeddings(
+        self,
+        model: BaseVisionModel,
+        loader: DataLoader,
+        split: str,
+        temp_path: Path,
+        layers: list[int] | None = None,
+        modules: list[str] | None = None,
+    ) -> None:
         r"""
         Extract embeddings of a model across its layers and modules.
         The model is expected to be on the device defined in the config.
@@ -143,6 +151,11 @@ class LinearProbing:
             This is used to save the embeddings temporarily on the disk.
         temp_path: Path
             Directory where the embeddings are temporarily saved.
+        layers: list[int] | None, default=None
+            Layer indices to probe. If None, all layers are probed.
+        modules: list[str] | None, default=None
+            Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
+            TRANSFORMER_MODULES are probed.
 
         See also
         --------
@@ -158,7 +171,7 @@ class LinearProbing:
             x_batch, y_batch = map(lambda x: x.to(self.device), (x_batch, y_batch))
 
             # Recover features
-            embeddings = model.get_embeddings(x_batch)
+            embeddings = model.get_embeddings(x_batch, layers=layers, modules=modules)
 
             for key, embedding in embeddings.items():
                 # Recover layer index and module
@@ -291,6 +304,8 @@ class LinearProbing:
         test_loader: DataLoader,
         cache_path: Path,
         overwrite: bool,
+        layers: list[int] | None = None,
+        modules: list[str] | None = None,
     ) -> None:
         r"""
         Evaluate the model with linear probing on a pair of train and test dataloaders.
@@ -309,6 +324,11 @@ class LinearProbing:
             Path where the results are saved.
         overwrite: bool
             Whether to overwrite existing results.
+        layers: list[int] | None, default=None
+            Layer indices to probe. If None, all layers are probed.
+        modules: list[str] | None, default=None
+            Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
+            TRANSFORMER_MODULES are probed.
         """
         # Check whether results already exist. The info file is only written once the evaluation
         # is complete, so results without it come from an interrupted run and are recomputed.
@@ -338,14 +358,18 @@ class LinearProbing:
             # Extract train embeddings and recover label
             info = {}
             start = time.time()
-            self._extract_embeddings(model=model, loader=train_loader, split="train", temp_path=temp_path)
+            self._extract_embeddings(
+                model=model, loader=train_loader, split="train", temp_path=temp_path, layers=layers, modules=modules
+            )
             train_path = temp_path / "train"
             train_labels = np.load(train_path / "labels.npy").ravel()
             info["train_extraction_time"] = time.time() - start
 
             # Extract test embeddings and recover label
             start = time.time()
-            self._extract_embeddings(model=model, loader=test_loader, split="test", temp_path=temp_path)
+            self._extract_embeddings(
+                model=model, loader=test_loader, split="test", temp_path=temp_path, layers=layers, modules=modules
+            )
             test_path = temp_path / "test"
             test_labels = np.load(test_path / "labels.npy").ravel()
             info["test_extraction_time"] = time.time() - start
@@ -421,6 +445,8 @@ class LinearProbing:
         test_loader: dict[str, DataLoader],
         cache_path: Path,
         overwrite: bool,
+        layers: list[int] | None = None,
+        modules: list[str] | None = None,
     ) -> None:
         r"""
         Evaluate the model with linear probing on a train dataloader and several test dataloaders.
@@ -440,6 +466,11 @@ class LinearProbing:
             Path where the results are saved.
         overwrite: bool
             Whether to overwrite existing results.
+        layers: list[int] | None, default=None
+            Layer indices to probe. If None, all layers are probed.
+        modules: list[str] | None, default=None
+            Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
+            TRANSFORMER_MODULES are probed.
         """
         # Recover the test sets already evaluated. The info file is only written once the evaluation is complete
         # and lists the evaluated test sets, so results of test sets missing from it come from an interrupted run.
@@ -487,7 +518,9 @@ class LinearProbing:
             # Extract train embeddings and recover label
             info = {}
             start = time.time()
-            self._extract_embeddings(model=model, loader=train_loader, split="train", temp_path=temp_path)
+            self._extract_embeddings(
+                model=model, loader=train_loader, split="train", temp_path=temp_path, layers=layers, modules=modules
+            )
             train_path = temp_path / "train"
             train_labels = np.load(train_path / "labels.npy").ravel()
             info["train_extraction_time"] = time.time() - start
@@ -498,7 +531,14 @@ class LinearProbing:
             start = time.time()
             for key in keys:
                 split = f"test/{key}"
-                self._extract_embeddings(model=model, loader=test_loader[key], split=split, temp_path=temp_path)
+                self._extract_embeddings(
+                    model=model,
+                    loader=test_loader[key],
+                    split=split,
+                    temp_path=temp_path,
+                    layers=layers,
+                    modules=modules,
+                )
                 test_path[key] = temp_path / split
                 test_labels[key] = np.load(test_path[key] / "labels.npy").ravel()
             info["test_extraction_time"] = time.time() - start
@@ -580,6 +620,8 @@ class LinearProbing:
         test_loader: DataLoader | dict[str, DataLoader],
         cache_path: Path,
         overwrite: bool,
+        layers: list[int] | None = None,
+        modules: list[str] | None = None,
     ) -> None:
         r"""
         Evaluate the model with linear probing on a pair of train and test dataloaders.
@@ -599,6 +641,11 @@ class LinearProbing:
             Path where the results are saved.
         overwrite: bool
             Whether to overwrite existing results.
+        layers: list[int] | None, default=None
+            Layer indices to probe. If None, all layers are probed.
+        modules: list[str] | None, default=None
+            Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
+            TRANSFORMER_MODULES are probed.
         """
         # Evaluation on multiple test loaders (independently)
         if isinstance(test_loader, dict):
@@ -608,6 +655,8 @@ class LinearProbing:
                 test_loader=test_loader,
                 cache_path=cache_path,
                 overwrite=overwrite,
+                layers=layers,
+                modules=modules,
             )
         # Evaluation on a single test loader
         else:
@@ -617,4 +666,6 @@ class LinearProbing:
                 test_loader=test_loader,
                 cache_path=cache_path,
                 overwrite=overwrite,
+                layers=layers,
+                modules=modules,
             )

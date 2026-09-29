@@ -33,13 +33,11 @@ import logging
 from dataclasses import dataclass
 from typing import cast
 
-import torch
 import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import Aimv2VisionModel, PreTrainedModel
 from transformers.models.aimv2.modeling_aimv2 import Aimv2Encoder, Aimv2MLP
 
-from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
 from .base import BaseVisionModel
 
@@ -60,12 +58,16 @@ class Aimv2Config:
         Type of model to use. Options are "large", "huge", "1B", and "3B".
     resolution: int
         Image resolution. Options are 224, 336, 448.
+    pooling: str
+        Pooling over the sequence of tokens. Only "content" (mean over all tokens) is available since
+        AIMv2 has no CLS token.
     device: str
         Device to use.
     """
 
     model_size: str = "large"
     resolution: int = 224
+    pooling: str = "content"
     device: str = "cpu"
 
     def __init__(self, **kwargs):
@@ -80,6 +82,10 @@ class Aimv2Config:
         # Valid resolution
         if self.resolution not in [224, 336, 448]:
             raise ValueError(f"Invalid resolution {self.resolution}. Options are 224, 336 and 448.")
+
+        # Valid pooling
+        if self.pooling != "content":
+            raise ValueError(f"Invalid pooling {self.pooling}. AIMv2 has no CLS token, the only option is 'content'.")
 
 
 # -------------------------------------------------------------------
@@ -188,6 +194,9 @@ class Aimv2(BaseVisionModel):
             Type of model to use. Options are "large", "huge", "1B", and "3B".
         resolution: int
             Image resolution. Options are 224, 336, 448.
+        pooling: str
+            Pooling over the sequence of tokens. Only "content" (mean over all tokens) is available since
+            AIMv2 has no CLS token.
         device: str
             Device to use.
 
@@ -205,6 +214,7 @@ class Aimv2(BaseVisionModel):
     def __init__(self, config: Aimv2Config):
         super().__init__()
         self.device = config.device
+        self.pooling_type = config.pooling
         self.model_name = f"apple/aimv2-{config.model_size}-patch14-{config.resolution}"
         self.model = self._load_model(model_name=self.model_name, device=self.device)
 
@@ -257,25 +267,6 @@ class Aimv2(BaseVisionModel):
         model.eval()
         return model
 
-    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        r"""
-        Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
-        from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
-
-        In AIMv2, there is no CLS token nor register tokens, so the pooling is done over all tokens.
-
-        Parameters
-        ----------
-        hidden_states: torch.Tensor of shape (N, L, E)
-            Sequence of tokens to pool.
-
-        Returns
-        -------
-        torch.Tensor of shape (N, E)
-            Pooled embedding stored on CPU.
-        """
-        return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
-
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
         r"""Return the block adapter class for the model's transformer blocks."""
@@ -286,6 +277,11 @@ class Aimv2(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(Aimv2Encoder, self.model.encoder)
         return cast(ModuleList, encoder.layers)
+
+    @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.rms_norm)
 
     @property
     def n_prefix_tokens(self) -> int:

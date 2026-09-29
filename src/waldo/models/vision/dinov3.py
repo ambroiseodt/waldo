@@ -33,13 +33,11 @@ import logging
 from dataclasses import dataclass
 from typing import cast
 
-import torch
 import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import DINOv3ViTModel, PreTrainedModel
 from transformers.models.dinov3_vit.modeling_dinov3_vit import DINOv3ViTEncoder, DINOv3ViTGatedMLP, DINOv3ViTMLP
 
-from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
 from .base import BaseVisionModel
 
@@ -58,11 +56,15 @@ class Dinov3Config:
     ----------
     model_size: str
         Type of model to use. Options are "vits16", "vitb16", "vitl16", "vit7b16", "vits16plus" and "vith16plus".
+    pooling: str
+        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
+        and "all" (concatenation of the CLS token and the mean over the patch tokens).
     device: str
         Device to use.
     """
 
     model_size: str = "vitb16"
+    pooling: str = "content"
     device: str = "cpu"
 
     def __init__(self, **kwargs):
@@ -76,6 +78,10 @@ class Dinov3Config:
                 f"Invalid model size {self.model_size}."
                 " Options are 'vits16', 'vitb16', 'vitl16', 'vitl16', 'vit7b16', 'vits16plus'and 'vith16plus'."
             )
+
+        # Valid pooling
+        if self.pooling not in ["content", "all"]:
+            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content' and 'all'.")
 
 
 # -------------------------------------------------------------------
@@ -198,6 +204,9 @@ class Dinov3(BaseVisionModel):
     config: configuration class with
         model_size: str
             Type of model to use. Options are "vits16", "vitb16", "vitl16", "vit7b16", "vits16plus" and "vith16plus".
+        pooling: str
+            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
+            and "all" (concatenation of the CLS token and the mean over the patch tokens).
         device: str
             Device to use.
 
@@ -215,6 +224,7 @@ class Dinov3(BaseVisionModel):
     def __init__(self, config: Dinov3Config):
         super().__init__()
         self.device = config.device
+        self.pooling_type = config.pooling
         self.model_name = f"facebook/dinov3-{config.model_size}-pretrain-lvd1689m"
         self.model = self._load_model(model_name=self.model_name, device=self.device)
 
@@ -255,25 +265,6 @@ class Dinov3(BaseVisionModel):
         model.eval()
         return model
 
-    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        r"""
-        Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
-        from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
-
-        In DINOv3, the CLS token is followed by register tokens, so we exclude both before the global pooling.
-
-        Parameters
-        ----------
-        hidden_states: torch.Tensor of shape (N, L, E)
-            Sequence of tokens to pool.
-
-        Returns
-        -------
-        torch.Tensor of shape (N, E)
-            Pooled embedding stored on CPU.
-        """
-        return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
-
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
         r"""Return the block adapter class for the model's transformer blocks."""
@@ -284,6 +275,11 @@ class Dinov3(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(DINOv3ViTEncoder, self.model.model)
         return cast(ModuleList, encoder.layer)
+
+    @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.norm)
 
     @property
     def n_prefix_tokens(self) -> int:
