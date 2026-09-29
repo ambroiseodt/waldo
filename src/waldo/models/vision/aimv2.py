@@ -262,7 +262,7 @@ class Aimv2(BaseVisionModel):
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
 
-        In AIMv2, there is no CLS token, so we do not need to exclude it before the global pooling.
+        In AIMv2, there is no CLS token nor register tokens, so the pooling is done over all tokens.
 
         Parameters
         ----------
@@ -274,7 +274,7 @@ class Aimv2(BaseVisionModel):
         torch.Tensor of shape (N, E)
             Pooled embedding stored on CPU.
         """
-        return mean_pooling(hidden_states, exclude_cls=False).cpu()
+        return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
 
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
@@ -286,3 +286,8 @@ class Aimv2(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(Aimv2Encoder, self.model.encoder)
         return cast(ModuleList, encoder.layers)
+
+    @property
+    def n_prefix_tokens(self) -> int:
+        r"""Return the number of auxiliary tokens. AIMv2 has no CLS token nor register tokens."""
+        return 0

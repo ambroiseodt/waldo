@@ -226,7 +226,7 @@ class ViT(BaseVisionModel):
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
 
-        In ViT, there is a CLS token, so we need to exclude it before the global pooling.
+        In ViT, there is a CLS token, so we exclude it before the global pooling.
 
         Parameters
         ----------
@@ -238,7 +238,7 @@ class ViT(BaseVisionModel):
         torch.Tensor of shape (N, E)
             Pooled embedding stored on CPU.
         """
-        return mean_pooling(hidden_states=hidden_states, exclude_cls=True).cpu()
+        return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
 
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
@@ -250,3 +250,8 @@ class ViT(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(ViTEncoder, self.model.encoder)
         return cast(ModuleList, encoder.layer)
+
+    @property
+    def n_prefix_tokens(self) -> int:
+        r"""Return the number of auxiliary tokens, i.e., the CLS token."""
+        return 1

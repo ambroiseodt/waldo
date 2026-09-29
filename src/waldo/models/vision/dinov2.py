@@ -1,5 +1,5 @@
 r"""
-DINOv2 model following [1]_. It allows to study specific layers and modules.
+DINOv2 model following [1]_, with or without register tokens [2]_. It allows to study specific layers and modules.
 
 Comments abbreviations
 ----------------------
@@ -15,6 +15,8 @@ See https://huggingface.co/collections/facebook/dinov2 for other model variants.
 References
 ----------
 .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+
+.. [2] T. Darcet et al. Vision Transformers Need Registers. In ICLR 2024
 
 See also
 --------
@@ -36,14 +38,22 @@ from typing import cast
 import torch
 import torch.nn as nn
 from torch.nn import ModuleList
-from transformers import Dinov2Model, PreTrainedModel
+from transformers import Dinov2Model, Dinov2WithRegistersModel, PreTrainedModel
 from transformers.models.dinov2.modeling_dinov2 import Dinov2Encoder, Dinov2MLP, Dinov2SwiGLUFFN
+from transformers.models.dinov2_with_registers.modeling_dinov2_with_registers import (
+    Dinov2WithRegistersMLP,
+    Dinov2WithRegistersSwiGLUFFN,
+)
 
 from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
 from .base import BaseVisionModel
 
 logger = logging.getLogger(__name__)
+
+# FFN types of DINOv2 with and without registers
+SWIGLU_FFN = (Dinov2SwiGLUFFN, Dinov2WithRegistersSwiGLUFFN)
+MLP_FFN = (Dinov2MLP, Dinov2WithRegistersMLP)
 
 
 # -------------------------------------------------------------------
@@ -57,9 +67,14 @@ class Dinov2Config:
     Parameters
     ----------
     model_size: str
-        Type of model to use. Options are "small", "base", "large", and "giant".
+        Type of model to use. Options are "small", "base", "large", and "giant", and their variants trained
+        with register tokens [1]_ "small-registers", "base-registers", "large-registers", and "giant-registers".
     device: str
         Device to use.
+
+    References
+    ----------
+    .. [1] T. Darcet et al. Vision Transformers Need Registers. In ICLR 2024
     """
 
     model_size: str = "base"
@@ -71,8 +86,10 @@ class Dinov2Config:
 
     def __post_init__(self):
         # Valid model size
-        if self.model_size not in ["small", "base", "large", "giant"]:
-            raise ValueError(f"Invalid model size {self.model_size}. Options are 'small', 'base', 'large' and 'giant'.")
+        sizes = ["small", "base", "large", "giant"]
+        valid_sizes = sizes + [f"{size}-registers" for size in sizes]
+        if self.model_size not in valid_sizes:
+            raise ValueError(f"Invalid model size {self.model_size}. Options are {valid_sizes}.")
 
 
 # -------------------------------------------------------------------
@@ -130,7 +147,7 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
     """
 
     def __init__(self, layer: nn.Module):
-        self.is_swiglu = isinstance(layer.mlp, Dinov2SwiGLUFFN)
+        self.is_swiglu = isinstance(layer.mlp, SWIGLU_FFN)
         super().__init__(layer)
 
     def _get_ln1(self, layer: nn.Module) -> nn.Module:
@@ -158,31 +175,31 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
         --------
         https://github.com/huggingface/transformers/blob/main/src/transformers/models/dinov2/modeling_dinov2.py
         """
-        if isinstance(layer.mlp, Dinov2SwiGLUFFN):
+        if isinstance(layer.mlp, SWIGLU_FFN):
             # weights_in outputs [gate, up]; process_output extracts the gate as FC1.
             return cast(nn.Module, layer.mlp.weights_in)
-        elif isinstance(layer.mlp, Dinov2MLP):
+        elif isinstance(layer.mlp, MLP_FFN):
             return cast(nn.Module, layer.mlp.fc1)
         else:
-            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected a SwiGLU FFN or an MLP.")
 
     def _get_act(self, layer: nn.Module) -> nn.Module:
         # Use pre_hook to capture act
-        if isinstance(layer.mlp, Dinov2SwiGLUFFN):
+        if isinstance(layer.mlp, SWIGLU_FFN):
             return cast(nn.Module, layer.mlp.weights_out)
         # Use hook to capture act
-        elif isinstance(layer.mlp, Dinov2MLP):
+        elif isinstance(layer.mlp, MLP_FFN):
             return cast(nn.Module, layer.mlp.activation)
         else:
-            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected a SwiGLU FFN or an MLP.")
 
     def _get_fc2(self, layer: nn.Module) -> nn.Module:
-        if isinstance(layer.mlp, Dinov2SwiGLUFFN):
+        if isinstance(layer.mlp, SWIGLU_FFN):
             return cast(nn.Module, layer.mlp.weights_out)
-        elif isinstance(layer.mlp, Dinov2MLP):
+        elif isinstance(layer.mlp, MLP_FFN):
             return cast(nn.Module, layer.mlp.fc2)
         else:
-            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected a SwiGLU FFN or an MLP.")
 
     def _get_rc2(self, layer: nn.Module) -> nn.Module:
         return layer
@@ -192,12 +209,12 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
         Returns the names of the module for which register_forward_pre_hook should be used
         in place of register_forward_hook to access their inputs instead of the outputs.
         """
-        if isinstance(layer.mlp, Dinov2SwiGLUFFN):
+        if isinstance(layer.mlp, SWIGLU_FFN):
             return {"rc1", "act"}
-        elif isinstance(layer.mlp, Dinov2MLP):
+        elif isinstance(layer.mlp, MLP_FFN):
             return {"rc1"}
         else:
-            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected Dinov2SwiGLUFFN or Dinov2MLP.")
+            raise ValueError(f"Unsupported FFN type: {type(layer.mlp)}. Expected a SwiGLU FFN or an MLP.")
 
     def process_output(self, module_name: str, output: torch.Tensor) -> torch.Tensor:
         r"""
@@ -213,14 +230,15 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 # -------------------------------------------------------------------
 class Dinov2(BaseVisionModel):
     r"""
-    DINOv2 implementation following [1]_.
-
+    DINOv2 implementation following [1]_, with or without register tokens [2]_.
 
     Parameters
     ----------
     config: configuration class with
         model_size: str
-            Type of model to use. Options are "small", "base", "large", and "giant".
+            Type of model to use. Options are "small", "base", "large", and "giant", and their variants
+            trained with register tokens "small-registers", "base-registers", "large-registers", and
+            "giant-registers".
         device: str
             Device to use.
 
@@ -233,12 +251,17 @@ class Dinov2(BaseVisionModel):
     References
     ----------
     .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+
+    .. [2] T. Darcet et al. Vision Transformers Need Registers. In ICLR 2024
     """
 
     def __init__(self, config: Dinov2Config):
         super().__init__()
         self.device = config.device
-        self.model_name = f"facebook/dinov2-{config.model_size}"
+        # Models with registers are named facebook/dinov2-with-registers-{size} on HuggingFace
+        size, registers = config.model_size.removesuffix("-registers"), config.model_size.endswith("-registers")
+        prefix = "dinov2-with-registers" if registers else "dinov2"
+        self.model_name = f"facebook/{prefix}-{size}"
         self.model = self._load_model(model_name=self.model_name, device=self.device)
 
     def _load_model(self, model_name: str, device: str) -> PreTrainedModel:
@@ -252,7 +275,11 @@ class Dinov2(BaseVisionModel):
                 "facebook/dinov2-small",
                 "facebook/dinov2-base",
                 "facebook/dinov2-large",
-                "facebook/dinov2-giant".
+                "facebook/dinov2-giant",
+                "facebook/dinov2-with-registers-small",
+                "facebook/dinov2-with-registers-base",
+                "facebook/dinov2-with-registers-large",
+                "facebook/dinov2-with-registers-giant".
         device: str
             Device to use.
 
@@ -267,10 +294,15 @@ class Dinov2(BaseVisionModel):
             "facebook/dinov2-base",
             "facebook/dinov2-large",
             "facebook/dinov2-giant",
+            "facebook/dinov2-with-registers-small",
+            "facebook/dinov2-with-registers-base",
+            "facebook/dinov2-with-registers-large",
+            "facebook/dinov2-with-registers-giant",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
-        model = Dinov2Model.from_pretrained(f"{model_name}", device_map=device)
+        model_type = Dinov2WithRegistersModel if "with-registers" in model_name else Dinov2Model
+        model = model_type.from_pretrained(f"{model_name}", device_map=device)
         model.eval()
         return model
 
@@ -279,7 +311,8 @@ class Dinov2(BaseVisionModel):
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
 
-        In DINOv2, there is a CLS token, so we need to exclude it before the global pooling.
+        In DINOv2, there is a CLS token, possibly followed by register tokens, so we exclude them before the
+        global pooling.
 
         Parameters
         ----------
@@ -291,7 +324,7 @@ class Dinov2(BaseVisionModel):
         torch.Tensor of shape (N, E)
             Pooled embedding stored on CPU.
         """
-        return mean_pooling(hidden_states=hidden_states, exclude_cls=True).cpu()
+        return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
 
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
@@ -303,3 +336,8 @@ class Dinov2(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(Dinov2Encoder, self.model.encoder)
         return cast(ModuleList, encoder.layer)
+
+    @property
+    def n_prefix_tokens(self) -> int:
+        r"""Return the number of auxiliary tokens, i.e., the CLS token followed by the register tokens if any."""
+        return 1 + getattr(self.model.config, "num_register_tokens", 0)

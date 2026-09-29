@@ -42,11 +42,12 @@ class BaseVisionModel(nn.Module, ABC):
     Abstract base class for transformer-based vision foundation models.
 
     It handles the full encoding pipeline in a single forward pass using hooks and pre-hooks.
-    Subclasses only need to implement three things:
+    Subclasses only need to implement:
         - _load_model: load and return the HuggingFace model
         - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
+        - n_prefix_tokens: returns the number of auxiliary tokens (CLS and registers) excluded from the pooling
 
     Notes
     -----
@@ -75,7 +76,8 @@ class BaseVisionModel(nn.Module, ABC):
     ...         model.eval()
     ...         return model
     ...
-    ...     def pooling(self, x: torch.Tensor): return mean_pooling(x=x, exclude_cls=True).cpu()
+    ...     def pooling(self, hidden_states: torch.Tensor):
+    ...         return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
     ...
     ...     @property
     ...     def block_adapter(self): return ViTBlockAdapter
@@ -84,6 +86,9 @@ class BaseVisionModel(nn.Module, ABC):
     ...     def blocks(self):
     ...         encoder = cast(ViTEncoder, self.model.encoder)
     ...         return cast(ModuleList, encoder.layer)
+    ...
+    ...     @property
+    ...     def n_prefix_tokens(self): return 1
     """
 
     def __init__(self):
@@ -123,6 +128,15 @@ class BaseVisionModel(nn.Module, ABC):
     @abstractmethod
     def blocks(self) -> ModuleList:
         r"""Return the list of transformer blocks."""
+        ...
+
+    @property
+    @abstractmethod
+    def n_prefix_tokens(self) -> int:
+        r"""
+        Return the number of auxiliary tokens at the start of the sequence, i.e., the CLS token and the
+        register tokens if any. They are excluded from the pooling, which is done over patch tokens only.
+        """
         ...
 
     def _make_pre_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:

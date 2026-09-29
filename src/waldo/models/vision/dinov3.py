@@ -260,7 +260,7 @@ class Dinov3(BaseVisionModel):
         Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
         from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
 
-        In DINOv3, there is a CLS token, so we need to exclude it before the global pooling.
+        In DINOv3, the CLS token is followed by register tokens, so we exclude both before the global pooling.
 
         Parameters
         ----------
@@ -272,7 +272,7 @@ class Dinov3(BaseVisionModel):
         torch.Tensor of shape (N, E)
             Pooled embedding stored on CPU.
         """
-        return mean_pooling(hidden_states=hidden_states, exclude_cls=True).cpu()
+        return mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens).cpu()
 
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
@@ -284,3 +284,8 @@ class Dinov3(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(DINOv3ViTEncoder, self.model.model)
         return cast(ModuleList, encoder.layer)
+
+    @property
+    def n_prefix_tokens(self) -> int:
+        r"""Return the number of auxiliary tokens, i.e., the CLS token followed by the register tokens."""
+        return 1 + self.model.config.num_register_tokens
