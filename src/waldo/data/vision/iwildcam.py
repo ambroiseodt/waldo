@@ -29,11 +29,11 @@ class IWildCamDatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
+    save_dir: Path
         Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -59,14 +59,14 @@ class IWildCamDataset(Dataset):
     iWildCam dataset from [1]_, part of the WILDS benchmark [2]_.
 
     iWildCam consists of camera-trap photographs of wildlife, labeled with one of
-    $182$ animal species (including "no animal"), collected from hundreds of camera
+    182 animal species (including "no animal"), collected from hundreds of camera
     trap locations. The distribution shift occurs across locations, which differ in
     background, lighting, and camera angle.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
+        save_dir: Path
             Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train" and "test".
@@ -74,11 +74,10 @@ class IWildCamDataset(Dataset):
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     iWildCam was created by the iWildCam challenge organizers, adapted for domain
     generalization benchmarking by the WILDS team.
     Official website: https://wilds.stanford.edu/datasets/#iwildcam
-
 
     References
     ----------

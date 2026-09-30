@@ -33,13 +33,11 @@ import logging
 from dataclasses import dataclass
 from typing import cast
 
-import torch
 import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import Aimv2VisionModel, PreTrainedModel
 from transformers.models.aimv2.modeling_aimv2 import Aimv2Encoder, Aimv2MLP
 
-from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
 from .base import BaseVisionModel
 
@@ -60,12 +58,16 @@ class Aimv2Config:
         Type of model to use. Options are "large", "huge", "1B", and "3B".
     resolution: int
         Image resolution. Options are 224, 336, 448.
+    pooling: str
+        Pooling over the sequence of tokens. Only "content" (mean over all tokens) is available since
+        AIMv2 has no CLS token.
     device: str
         Device to use.
     """
 
     model_size: str = "large"
     resolution: int = 224
+    pooling: str = "content"
     device: str = "cpu"
 
     def __init__(self, **kwargs):
@@ -81,45 +83,27 @@ class Aimv2Config:
         if self.resolution not in [224, 336, 448]:
             raise ValueError(f"Invalid resolution {self.resolution}. Options are 224, 336 and 448.")
 
+        # Valid pooling
+        if self.pooling != "content":
+            raise ValueError(f"Invalid pooling {self.pooling}. AIMv2 has no CLS token, the only option is 'content'.")
+
 
 # -------------------------------------------------------------------
 #   Transformer block adapter
 # -------------------------------------------------------------------
 class Aimv2BlockAdapter(TransformerBlockAdapter):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules.
-    Subclasses need to implement the 8 methods that outputs the following modules:
-        ln1: first layer norm
-        mha: multi-head attention
-        rc1: first residual connection
-        ln2: second layer norm
-        fc1: first feedforward linear layer
-        act: feedforward activation function
-        fc2: second feedforward linear layer
-        rc2: second residual connection
+    Adapter mapping the standard module names to the submodules of a AIMv2 transformer block.
 
     Parameters
     ----------
     layer: nn.Module
-        A single transformer block.
+        A single AIMv2 transformer block.
 
     Notes
     -----
-    AIMv2 model relies on a SwiGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
-    with ViT, we decompose the FFN block as follows:
-
-        fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = swish(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
-        fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
-
-    This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
-    up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
-    the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
-    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that AIMv2
-    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [4]_) that do not
-    fundamentally change the transformer architecture and merely improve memory-efficiency and training
-    stability. For the consistency of our analysis, we do not probe them.
+    AIMv2 relies on RMSNorm and on a SwiGLU activation in the FFN [1, 2, 3]_: act is the input of the down projection,
+    following the decomposition of TransformerBlockAdapter.
 
     References
     ----------
@@ -128,8 +112,6 @@ class Aimv2BlockAdapter(TransformerBlockAdapter):
     .. [2] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
 
     .. [3] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
-
-    .. [4] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
 
     See also
     --------
@@ -167,8 +149,8 @@ class Aimv2BlockAdapter(TransformerBlockAdapter):
 
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
-        Returns the names of the module for which register_forward_pre_hook should be used
-        in place of register_forward_hook to access their inputs instead of the outputs.
+        Returns the names of the modules for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of their outputs.
         """
         return {"rc1", "act"}
 
@@ -180,7 +162,6 @@ class Aimv2(BaseVisionModel):
     r"""
     AIMv2 implementation following [1]_.
 
-
     Parameters
     ----------
     config: configuration class with
@@ -188,13 +169,15 @@ class Aimv2(BaseVisionModel):
             Type of model to use. Options are "large", "huge", "1B", and "3B".
         resolution: int
             Image resolution. Options are 224, 336, 448.
+        pooling: str
+            Pooling over the sequence of tokens. Only "content" (mean over all tokens) is available since
+            AIMv2 has no CLS token.
         device: str
             Device to use.
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled,
-    BatchNorm uses running statistics). Call `model.train()` explicitly
+    The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()` explicitly
     if you intend to fine-tune.
 
     References
@@ -205,6 +188,7 @@ class Aimv2(BaseVisionModel):
     def __init__(self, config: Aimv2Config):
         super().__init__()
         self.device = config.device
+        self.pooling_type = config.pooling
         self.model_name = f"apple/aimv2-{config.model_size}-patch14-{config.resolution}"
         self.model = self._load_model(model_name=self.model_name, device=self.device)
 
@@ -233,8 +217,7 @@ class Aimv2(BaseVisionModel):
 
         Notes
         -----
-        The model is loaded in evaluation mode by default (dropout disabled,
-        BatchNorm uses running statistics). Call `model.train()` explicitly
+        The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()` explicitly
         if you intend to fine-tune.
         """
         available_models = [
@@ -257,25 +240,6 @@ class Aimv2(BaseVisionModel):
         model.eval()
         return model
 
-    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        r"""
-        Mean pooling over patch tokens stored on cpu. Since the embeddings are obtained
-        from get_embeddings that uses @torch_inference, there is no need to detach the tensor.
-
-        In AIMv2, there is no CLS token, so we do not need to exclude it before the global pooling.
-
-        Parameters
-        ----------
-        hidden_states: torch.Tensor of shape (N, L, E)
-            Sequence of tokens to pool.
-
-        Returns
-        -------
-        torch.Tensor of shape (N, E)
-            Pooled embedding stored on CPU.
-        """
-        return mean_pooling(hidden_states, exclude_cls=False).cpu()
-
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
         r"""Return the block adapter class for the model's transformer blocks."""
@@ -286,3 +250,13 @@ class Aimv2(BaseVisionModel):
         r"""Return the list of transformer blocks."""
         encoder = cast(Aimv2Encoder, self.model.encoder)
         return cast(ModuleList, encoder.layers)
+
+    @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.rms_norm)
+
+    @property
+    def n_prefix_tokens(self) -> int:
+        r"""Return the number of auxiliary tokens. AIMv2 has no CLS token nor register tokens."""
+        return 0

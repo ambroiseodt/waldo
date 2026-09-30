@@ -8,8 +8,8 @@ Comments abbreviations
     E: embedding dimension
 
 
-Reference
----------
+References
+----------
 .. [1] A. Odonnat et al. Vision Transformer Finetuning Benefits from Smooth Components. arXiv 2026
 
 .. [2] A. Odonnat et al. Layer by layer, module by module: Choose both for optimal
@@ -31,7 +31,8 @@ import torch.nn as nn
 from torch.nn import ModuleList
 from transformers import PreTrainedModel
 
-from ..transformer_block import TRANSFORMER_MODULES, TransformerBlockAdapter
+from ..pooling import mean_pooling
+from ..transformer_block import RC2NORM, TRANSFORMER_MODULES, TransformerBlockAdapter
 
 
 # -------------------------------------------------------------------
@@ -42,11 +43,13 @@ class BaseVisionModel(nn.Module, ABC):
     Abstract base class for transformer-based vision foundation models.
 
     It handles the full encoding pipeline in a single forward pass using hooks and pre-hooks.
-    Subclasses only need to implement three things:
+    Subclasses only need to implement:
         - _load_model: load and return the HuggingFace model
-        - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
+        - final_norm: returns the norm applied to the output of the last transformer block
+        - n_prefix_tokens: returns the number of auxiliary tokens (CLS and registers) excluded from the pooling
+    and set pooling_type from their configuration ("content" by default, see pooling).
 
     Notes
     -----
@@ -75,8 +78,6 @@ class BaseVisionModel(nn.Module, ABC):
     ...         model.eval()
     ...         return model
     ...
-    ...     def pooling(self, x: torch.Tensor): return mean_pooling(x=x, exclude_cls=True).cpu()
-    ...
     ...     @property
     ...     def block_adapter(self): return ViTBlockAdapter
     ...
@@ -84,33 +85,23 @@ class BaseVisionModel(nn.Module, ABC):
     ...     def blocks(self):
     ...         encoder = cast(ViTEncoder, self.model.encoder)
     ...         return cast(ModuleList, encoder.layer)
+    ...
+    ...     @property
+    ...     def final_norm(self): return self.model.layernorm
+    ...
+    ...     @property
+    ...     def n_prefix_tokens(self): return 1
     """
 
     def __init__(self):
         super().__init__()
         self.device: str
         self.model: PreTrainedModel
+        self.pooling_type: str = "content"
 
     @abstractmethod
     def _load_model(self, model_name: str, device: str) -> PreTrainedModel:
         r"""Load a pretrained HuggingFace model in evaluation mode on the specified device."""
-        ...
-
-    @abstractmethod
-    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        r"""
-        Pooling method over the sequence of tokens to obtain a global embedding.
-
-        Parameters
-        ----------
-        hidden_states: torch.Tensor of shape (N, L, E)
-            Sequence of tokens to pool.
-
-        Returns
-        -------
-        torch.Tensor of shape (N, E)
-            Global sequence representation after pooling stored on CPU.
-        """
         ...
 
     @property
@@ -123,6 +114,24 @@ class BaseVisionModel(nn.Module, ABC):
     @abstractmethod
     def blocks(self) -> ModuleList:
         r"""Return the list of transformer blocks."""
+        ...
+
+    @property
+    @abstractmethod
+    def final_norm(self) -> nn.Module:
+        r"""
+        Return the norm applied to the output of the last transformer block, whose output is the standard output
+        of the model (last_hidden_state in HuggingFace). It is used to probe the rc2norm module.
+        """
+        ...
+
+    @property
+    @abstractmethod
+    def n_prefix_tokens(self) -> int:
+        r"""
+        Return the number of auxiliary tokens at the start of the sequence, i.e., the CLS token and the
+        register tokens if any. They are excluded from the pooling, which is done over patch tokens only.
+        """
         ...
 
     def _make_pre_hook(self, embeddings: dict[str, torch.Tensor], key: str) -> Callable:
@@ -195,6 +204,39 @@ class BaseVisionModel(nn.Module, ABC):
 
         return hook_fn
 
+    def pooling(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        r"""
+        Pooling over the sequence of tokens to obtain a global embedding stored on CPU. Since the embeddings are
+        obtained from get_embeddings that uses @torch.inference_mode(), there is no need to detach the tensor.
+
+        Two pooling types are available, set by pooling_type:
+            - "content": mean pooling over the patch tokens, i.e., excluding the n_prefix_tokens auxiliary tokens
+              (CLS and registers). This is the default.
+            - "all": concatenation of the CLS token and the mean pooling over the patch tokens, following the linear
+              probing protocol of DINOv2 and DINOv3 [1, 2]_. Register tokens are excluded. The embedding dimension
+              is doubled. It requires a CLS token.
+
+        Parameters
+        ----------
+        hidden_states: torch.Tensor of shape (N, L, E)
+            Sequence of tokens to pool.
+
+        Returns
+        -------
+        torch.Tensor of shape (N, E) or (N, 2E)
+            Global sequence representation after pooling stored on CPU.
+
+        References
+        ----------
+        .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
+
+        .. [2] O. Simeoni et al. DINOv3. arXiv 2025
+        """
+        embedding = mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens)
+        if self.pooling_type == "all":
+            embedding = torch.cat([hidden_states[:, 0], embedding], dim=-1)
+        return embedding.cpu()
+
     @torch.inference_mode()
     def get_embeddings(
         self,
@@ -211,18 +253,41 @@ class BaseVisionModel(nn.Module, ABC):
         pixel_values: torch.Tensor of shape (N, C, H, W)
             Preprocessed input image on the same device as the model.
         layers: list[int] | None, default=None
-            Layer indices to recover. If None, all layers are recovered.
+            Layer indices to recover. Negative indices follow the Python convention, e.g., -1 is the last layer.
+            If None, all layers are recovered.
         modules: list[str] | None, default=None
-            Module names from TRANSFORMER_MODULES. If None, all modules are recovered.
+            Module names from TRANSFORMER_MODULES, and RC2NORM for the output of the final norm (only defined for
+            the last layer, which must then be among the layers). If None, all modules from TRANSFORMER_MODULES
+            are recovered.
 
         Returns
         -------
         embeddings: dict[str, torch.Tensor]
-            Maps "block_{layer_idx}_{module_name}" to the pooled patch embeddings of shape (N, E) stored on CPU.
+            Maps "block_{layer_idx}_{module_name}" to the pooled patch embeddings of shape (N, E) stored on CPU,
+            with nonnegative layer indices.
+
+        Raises
+        ------
+        ValueError
+            If a layer index is out of range, a module name is invalid, or RC2NORM is requested without the last layer.
         """
         # Recover layers and modules
         layers = layers if layers is not None else list(range(self.n_layers))
         modules = modules if modules is not None else TRANSFORMER_MODULES
+
+        # Valid layers and modules
+        invalid_layers = [layer for layer in layers if not -self.n_layers <= layer < self.n_layers]
+        if invalid_layers:
+            raise ValueError(
+                f"Layer indices {invalid_layers} are out of range for a model with {self.n_layers} layers."
+            )
+        valid_modules = TRANSFORMER_MODULES + [RC2NORM]
+        invalid_modules = [module for module in modules if module not in valid_modules]
+        if invalid_modules:
+            raise ValueError(f"Invalid modules {invalid_modules}. Options are {valid_modules}.")
+        layers = [layer % self.n_layers for layer in layers]
+        if RC2NORM in modules and self.n_layers - 1 not in layers:
+            raise ValueError(f"Module '{RC2NORM}' is only defined for the last layer, which must be requested.")
 
         # Initialize embeddings and handles
         embeddings: dict[str, torch.Tensor] = {}
@@ -257,6 +322,11 @@ class BaseVisionModel(nn.Module, ABC):
                             )
                         )
                     )
+
+        # Output of the final norm, only defined for the last layer
+        if RC2NORM in modules:
+            key = f"block_{self.n_layers - 1}_{RC2NORM}"
+            handles.append(self.final_norm.register_forward_hook(self._make_hook(embeddings, key)))
 
         # Forward pass
         try:

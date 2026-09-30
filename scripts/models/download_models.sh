@@ -4,7 +4,7 @@
 # the default cache.  To do so, run the following command in the terminal
 # from the root directory of the project.
 # ```bash
-# $ bash <path_to_file_folder>/download_models.sh
+# $ bash scripts/models/download_models.sh
 # ```
 # Note that some models are gated and require asking access and authentifying
 # to HuggingFace beforehand. Check the models documentations for more details.

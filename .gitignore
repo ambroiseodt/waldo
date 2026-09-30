@@ -25,3 +25,9 @@ htmlcov/
 *.gz
 *.json
 *tar
+
+# Personal Claude Code instructions
+CLAUDE.local.md
+
+# Personal notes
+TODO.md

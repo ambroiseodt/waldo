@@ -31,7 +31,7 @@ class Cifar10CDatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
+    save_dir: Path
         Path from where to load the data.
     corruption_type: str, default="brightness"
         Type of corruption applied on the data. Options are:
@@ -59,7 +59,7 @@ class Cifar10CDatasetConfig:
         Allowed values are 1, 2, 3, 4 and 5.
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -104,7 +104,7 @@ class Cifar10CDatasetConfig:
 
         # Valid mode
         if self.mode not in ["train", "test"]:
-            raise ValueError(f"Invalid mode {self.mode}. Options are 'train' and 'test.")
+            raise ValueError(f"Invalid mode {self.mode}. Options are 'train' and 'test'.")
 
 
 # ------------------------------------------------------------------------------
@@ -114,13 +114,13 @@ class Cifar10CDataset(Dataset):
     r"""
     Cifar10-C dataset from [1]_.
 
-    It consits of 15 corruptions with 5 level of severity of the CIFAR-10 test set.
+    It consists of 19 corruptions (15 main and 4 extra ones) with 5 levels of severity of the CIFAR-10 test set.
     Since there is no official train or test sets, we create a deterministic 80/20 split.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
+        save_dir: Path
             Path from where to load the data.
         corruption_type: str, default="brightness"
             Type of corruption applied on the data.
@@ -132,7 +132,7 @@ class Cifar10CDataset(Dataset):
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     CIFAR10-C was created by Dan Hendrycks and Thomas Dietterich.
     Official website: https://github.com/hendrycks/robustness.
 
@@ -149,8 +149,8 @@ class Cifar10CDataset(Dataset):
 
     References
     ----------
-    .. [1] D. Hendrycks and t. Dietterich. Benchmarking Neural Network Robustness to Common
-           Corruptions and Surface Variations. In ICLR 2019
+    .. [1] D. Hendrycks and T. Dietterich. Benchmarking Neural Network Robustness to Common
+           Corruptions and Perturbations. In ICLR 2019
     """
 
     def __init__(self, config: Cifar10CDatasetConfig):

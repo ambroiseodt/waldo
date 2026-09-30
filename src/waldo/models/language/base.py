@@ -23,8 +23,8 @@ wrapping, and supports the following MTEB task types out of the box:
 EncoderProtocol requires three concrete methods which are implemented here at the base class level
 so that all subclasses inherit them for free:
     - encode: produces mean-pooled sentence embeddings from a specified layer and module.
-    - similarity: pairwise cosine similarity between two sets of paired embeddings.
-    - similarity_pairwise: full cosine similarity matrix between two sets of embeddings.
+    - similarity: full cosine similarity matrix between two sets of embeddings.
+    - similarity_pairwise: cosine similarity between two sets of paired embeddings.
 
 Note that CrossEncoderProtocol is a separate MTEB contract for cross-encoder reranking models,
 where query and document are encoded jointly rather than independently. This is a fundamentally
@@ -32,8 +32,8 @@ different architecture and is not supported here. If cross-encoder reranking wit
 needed in the future, a separate BaseLanguageCrossEncoder class should be created inheriting
 from CrossEncoderProtocol.
 
-Reference
----------
+References
+----------
 .. [1] A. Odonnat et al. Vision Transformer Finetuning Benefits from Smooth Components. arXiv 2026
 
 .. [2] A. Odonnat et al. Layer by layer, module by module: Choose both for optimal
@@ -41,7 +41,7 @@ Reference
 
 .. [3] N. Muennighoff et al. MTEB: Massive Text Embedding Benchmark. In EACL 2023
 
-.. [4] K. Enevoldsen et al. MMTEB: : Massive Multilingual Text Embedding Benchmark. In ICLR 2025
+.. [4] K. Enevoldsen et al. MMTEB: Massive Multilingual Text Embedding Benchmark. In ICLR 2025
 
 License
 -------
@@ -73,7 +73,7 @@ from torch.nn import ModuleList
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
-from ..transformer_block import TRANSFORMER_MODULES, TransformerBlockAdapter
+from ..transformer_block import RC2NORM, TRANSFORMER_MODULES, TransformerBlockAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
+        - final_norm: returns the norm applied to the output of the last transformer block
         - special_token_ids: returns the list of special token ids to exclude from pooling
         - mteb_model_meta: returns the model metadata needed for compatibility with the MTEB benchmark
 
@@ -235,6 +236,15 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
     @property
     @abstractmethod
+    def final_norm(self) -> nn.Module:
+        r"""
+        Return the norm applied to the output of the last transformer block, whose output is the standard output
+        of the model (last_hidden_state in HuggingFace). It is used to probe the rc2norm module.
+        """
+        ...
+
+    @property
+    @abstractmethod
     def special_token_ids(self) -> list[Any]:
         r"""Return the list of special tokens to exclude from the pooling."""
         ...
@@ -304,6 +314,34 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
         return hook_fn
 
+    def _check_probing(self, layer: int | None, module: str | None) -> None:
+        r"""
+        Check that the layer index and module name are valid. Negative layer indices are allowed
+        and follow the Python convention, e.g., -1 corresponds to the last transformer block.
+
+        Parameters
+        ----------
+        layer: int | None
+            Index of the layer to probe. If None, the current layer is used.
+        module: str | None
+            Module name from TRANSFORMER_MODULES, or RC2NORM for the output of the final norm, which is only
+            defined for the last layer. If None, the current module is used.
+
+        Raises
+        ------
+        ValueError
+            If the layer index is out of range, the module name is invalid, or RC2NORM is not probed at the last layer.
+        """
+        layer = self.layer if layer is None else layer
+        module = self.module if module is None else module
+        if not -self.n_layers <= layer < self.n_layers:
+            raise ValueError(f"Layer index {layer} is out of range for a model with {self.n_layers} layers.")
+        valid_modules = TRANSFORMER_MODULES + [RC2NORM]
+        if module not in valid_modules:
+            raise ValueError(f"Invalid module '{module}'. Options are {valid_modules}.")
+        if module == RC2NORM and layer % self.n_layers != self.n_layers - 1:
+            raise ValueError(f"Module '{RC2NORM}' is only defined for the last layer (-1 or {self.n_layers - 1}).")
+
     @torch.inference_mode()
     def _get_hidden_states(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         r"""
@@ -325,21 +363,22 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         handles: list[torch.utils.hooks.RemovableHandle] = []
 
         # Valid layer and module
-        if self.layer > self.n_layers:
-            raise ValueError(f"Layer index {self.layer} is out of range for a model with {self.n_layers} layers.")
-        if self.module is not None:
-            if self.module not in TRANSFORMER_MODULES:
-                raise ValueError(f"Invalid module '{self.module}'. Options are {TRANSFORMER_MODULES}.")
+        self._check_probing(layer=self.layer, module=self.module)
 
         # Recover embedding from the specified layer and module
         key = f"block_{self.layer}_{self.module}"
-        adapter = self.block_adapter(self.blocks[self.layer])
-        module_obj = adapter.module_map()[self.module]
-
-        if self.module in adapter.pre_hooks:
-            handles.append(module_obj.register_forward_pre_hook(self._make_pre_hook(embeddings=embeddings, key=key)))
+        if self.module == RC2NORM:
+            # Output of the final norm, only defined for the last layer
+            handles.append(self.final_norm.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
         else:
-            handles.append(module_obj.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
+            adapter = self.block_adapter(self.blocks[self.layer])
+            module_obj = adapter.module_map()[self.module]
+            if self.module in adapter.pre_hooks:
+                handles.append(
+                    module_obj.register_forward_pre_hook(self._make_pre_hook(embeddings=embeddings, key=key))
+                )
+            else:
+                handles.append(module_obj.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
 
         try:
             self.model(input_ids=input_ids, attention_mask=attention_mask)
@@ -445,7 +484,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
     def similarity(self, embeddings1: Array, embeddings2: Array) -> Array:
         r"""
-        Cosine similarity between paired embeddings.
+        Cosine similarity matrix between two sets of embeddings.
 
         Required by EncoderProtocol. Implemented here at the base class level so
         all subclasses (e.g. Gemma3) inherit it for free without boilerplate.
@@ -453,9 +492,9 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
         Parameters
         ----------
-        embeddings1: Array of shape (N, E) or (E,)
+        embeddings1: Array of shape (N, E)
             First set of embeddings.
-        embeddings2: Array of shape (N, E) or (E,)
+        embeddings2: Array of shape (M, E)
             Second set of embeddings.
 
         Returns
@@ -506,19 +545,17 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
         Parameters
         ----------
-        layer: int
-            Index of the layer index to probe.
-        module: str
-            Module name from TRANSFORMER_MODULES to probe.
+        layer: int | None
+            Index of the layer to probe.
+        module: str | None
+            Module name from TRANSFORMER_MODULES to probe, or RC2NORM for the output of the final norm
+            (only with the last layer).
         """
         # Valid layer and module
+        self._check_probing(layer=layer, module=module)
         if layer is not None:
-            if layer >= self.n_layers:
-                raise ValueError(f"Layer index {layer} is out of range for a model with {self.n_layers} layers.")
             self.layer = layer
         if module is not None:
-            if module not in TRANSFORMER_MODULES:
-                raise ValueError(f"Invalid module '{module}'. Options are {TRANSFORMER_MODULES}.")
             self.module = module
 
     def __repr__(self) -> str:

@@ -29,11 +29,11 @@ class AircraftDatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
-        Path from where to load the data or save them if it does not exit.
+    save_dir: Path
+        Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -57,22 +57,22 @@ class AircraftDataset(Dataset):
     r"""
     FGVCAircraft dataset from [1]_.
 
-    It consits of 10_000 aircrafts images in 100 classes, with 100 images per class.
+    It consists of 10_000 aircraft images in 100 classes, with 100 images per class.
     We make use of the default annotation_level set as 'variant', which means the number of classes is 100.
     Other values are possible, see the official documentation for details.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
-            Path from where to load the data or save them if it does not exit.
+        save_dir: Path
+            Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train" and "test".
         transform: Compose
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     Aircraft was created by Subhransu Maji, Esa Rahtu, Juho Kannala, Matthew Blaschko, Andrea Vedaldi.
     Official website: https://www.robots.ox.ac.uk/~vgg/data/fgvc-aircraft/.
 

@@ -61,9 +61,9 @@ class Llama3Config:
         Size of the model. Options are "1B", "3B", "8B", "70B".
     dtype: torch.dtype
         Dtype to load the model weights in. Defaults to bfloat16 since Llama3 was
-        pretrained in bfloat16, which halves memory footprint vs float32 with no
-        accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-        or float32 for CPU inference or when full precision is required.
+        pretrained in bfloat16, which halves the memory footprint compared with float32.
+        Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+        is required.
     device: str
         Device to use.
     """
@@ -86,36 +86,17 @@ class Llama3Config:
 # -------------------------------------------------------------------
 class Llama3BlockAdapter(TransformerBlockAdapter):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules.
-    Subclasses need to implement the 8 methods that outputs the following modules:
-        ln1: first layer norm
-        mha: multi-head attention
-        rc1: first residual connection
-        ln2: second layer norm
-        fc1: first feedforward linear layer
-        act: feedforward activation function
-        fc2: second feedforward linear layer
-        rc2: second residual connection
+    Adapter mapping the standard module names to the submodules of a Llama3 transformer block.
 
     Parameters
     ----------
     layer: nn.Module
-        A single transformer block.
+        A single Llama3 transformer block.
 
     Notes
     -----
-    Llama3 relies on a SwiGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
-    with ViT, we decompose the FFN block as follows:
-
-        fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = swish(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
-        fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
-
-    This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
-    up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
-    the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
-    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj.
+    Llama3 relies on RMSNorm and on a SwiGLU activation in the FFN [1, 2, 3]_: act is the input of the down
+    projection, following the decomposition of TransformerBlockAdapter.
 
     References
     ----------
@@ -161,8 +142,8 @@ class Llama3BlockAdapter(TransformerBlockAdapter):
 
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
-        Returns the names of the module for which register_forward_pre_hook should be used
-        in place of register_forward_hook to access their inputs instead of the outputs.
+        Returns the names of the modules for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of their outputs.
         """
         return {"rc1", "act"}
 
@@ -184,19 +165,18 @@ class Llama3(BaseLanguageModel):
         model_size: str
             Size of the model. Options are "1B", "3B", "8B", "70B".
         dtype: torch.dtype
-            Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
-            pretrained in bfloat16, which halves memory footprint vs float32 with no
-            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-            or float32 for CPU inference or when full precision is required.
+            Dtype to load the model weights in. Defaults to bfloat16 since Llama3 was
+            pretrained in bfloat16, which halves the memory footprint compared with float32.
+            Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+            is required.
         device: str
             Device to use.
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
-    running statistics). Call `model.train()` explicitly if you intend to fine-tune.
-    The model is loaded in bfloat16 to reduce memory footprint. Note that he model loading
-    is done with LlamaModel because Llama, Llama2 and Llama3 share the same architecture.
+    The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()`
+    explicitly if you intend to fine-tune.
+    The model is loaded with LlamaModel since Llama3 relies on the Llama architecture.
 
     References
     ----------
@@ -229,19 +209,18 @@ class Llama3(BaseLanguageModel):
                 "meta-llama/Llama-3.1-8B",
                 "meta-llama/Llama-3.1-70B".
         dtype: torch.dtype
-            Dtype to load the model weights in. Defaults to bfloat16 since llama3 was
-            pretrained in bfloat16, which halves memory footprint vs float32 with no
-            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-            or float32 for CPU inference or when full precision is required.
+            Dtype to load the model weights in. Defaults to bfloat16 since Llama3 was
+            pretrained in bfloat16, which halves the memory footprint compared with float32.
+            Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+            is required.
         device: str
             Device to use.
 
         Notes
         -----
-        The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
-        running statistics). Call `model.train()` explicitly if you intend to fine-tune.
-        The model is loaded in bfloat16 to reduce memory footprint. Note that he model loading
-        is done with LlamaModel because Llama, Llama2 and Llama3 share the same architecture.
+        The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()`
+        explicitly if you intend to fine-tune.
+        The model is loaded with LlamaModel since Llama3 relies on the Llama architecture.
         """
         available_models = [
             "meta-llama/Llama-3.2-1B",
@@ -253,7 +232,7 @@ class Llama3(BaseLanguageModel):
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
         model = LlamaModel.from_pretrained(
             model_name,
-            torch_dtype=dtype,
+            dtype=dtype,
             device_map=device,
         )
         model.eval()
@@ -320,6 +299,11 @@ class Llama3(BaseLanguageModel):
         return cast(ModuleList, self.model.layers)
 
     @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.norm)
+
+    @property
     def special_token_ids(self) -> list[Any]:
         r"""
         Return BOS, EOS and padding token ids to exclude from pooling.
@@ -328,7 +312,7 @@ class Llama3(BaseLanguageModel):
         -----
         Since we consider pretrained models and not instruction-tuned variants,
         we do not expect special tokens related to multi-turn or thinking. As such,
-        we only excluse separation and padding tokens.
+        we only exclude separation and padding tokens.
         """
         return [
             self.tokenizer.bos_token_id,
@@ -352,7 +336,7 @@ class Llama3(BaseLanguageModel):
         return ModelMeta(
             name=f"{self.model_name}_layer_{layer}_module_{self.module}",
             revision="main",
-            release_date="2024-04-18" if "3.1" in self.model_name else "2024-09-25",
+            release_date="2024-07-23" if "3.1" in self.model_name else "2024-09-25",
             open_weights=True,
             framework=["PyTorch"],
             license="https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/LICENSE"

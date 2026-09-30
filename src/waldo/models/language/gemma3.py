@@ -10,7 +10,7 @@ Comments abbreviations
 Notes
 -----
 We focus on the pretrained dense models available on HuggingFace for text generation.
-See https://huggingface.co/collections/google/gemma-3 for other other variants.
+See https://huggingface.co/collections/google/gemma-3 for other variants.
 
 References
 ----------
@@ -61,9 +61,9 @@ class Gemma3Config:
         Size of the model. Options are "1b", "4b", "12b", "27b".
     dtype: torch.dtype
         Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
-        pretrained in bfloat16, which halves memory footprint vs float32 with no
-        accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-        or float32 for CPU inference or when full precision is required.
+        pretrained in bfloat16, which halves the memory footprint compared with float32.
+        Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+        is required.
     device: str
         Device to use.
     """
@@ -86,40 +86,22 @@ class Gemma3Config:
 # -------------------------------------------------------------------
 class Gemma3BlockAdapter(TransformerBlockAdapter):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules.
-    Subclasses need to implement the 8 methods that outputs the following modules:
-        ln1: first layer norm
-        mha: multi-head attention
-        rc1: first residual connection
-        ln2: second layer norm
-        fc1: first feedforward linear layer
-        act: feedforward activation function
-        fc2: second feedforward linear layer
-        rc2: second residual connection
+    Adapter mapping the standard module names to the submodules of a Gemma3 transformer block.
 
     Parameters
     ----------
     layer: nn.Module
-        A single transformer block.
+        A single Gemma3 transformer block.
 
     Notes
     -----
-    Gemma3 relies on a GeGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
-    with ViT, we decompose the FFN block as follows:
-
-        fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = gelu(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
-        fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
-
-    This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
-    up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
-    the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
-    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that Gemma3
-    models also normalize the outputs of the attention and FFN blocks for training stability. For consistency with
-    other models, we do not probe them.
+    Gemma3 relies on RMSNorm and on a GeGLU activation in the FFN [1, 2, 3]_: act is the input of the down
+    projection, following the decomposition of TransformerBlockAdapter. Gemma3 also normalizes the outputs of the
+    attention and FFN blocks before the residual connections. For consistency with other models, we do not probe
+    them: mha and fc2 are recovered before these norms.
 
     References
+    ----------
     .. [1] D. Hendrycks and K. Gimpel. Bridging nonlinearities and stochastic regularizers with
            gaussian error linear units. arXiv 2016
 
@@ -163,8 +145,8 @@ class Gemma3BlockAdapter(TransformerBlockAdapter):
 
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
-        Returns the names of the module for which register_forward_pre_hook should be used
-        in place of register_forward_hook to access their inputs instead of the outputs.
+        Returns the names of the modules for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of their outputs.
         """
         return {"rc1", "act"}
 
@@ -187,21 +169,20 @@ class Gemma3(BaseLanguageModel):
             Size of the model. Options are "1b", "4b", "12b", "27b".
         dtype: torch.dtype
             Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
-            pretrained in bfloat16, which halves memory footprint vs float32 with no
-            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-            or float32 for CPU inference or when full precision is required.
+            pretrained in bfloat16, which halves the memory footprint compared with float32.
+            Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+            is required.
         device: str
             Device to use.
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
-    running statistics). Call `model.train()` explicitly if you intend to fine-tune.
-    The model is loaded in bfloat16 to reduce memory footprint.
+    The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()`
+    explicitly if you intend to fine-tune.
 
     References
     ----------
-    .. [1] Gemma Team. Gemma 3 Technical Report. 2025
+    .. [1] Gemma Team. Gemma 3 Technical Report. arXiv 2025
     """
 
     def __init__(self, config: Gemma3Config):
@@ -226,20 +207,20 @@ class Gemma3(BaseLanguageModel):
                 "google/gemma-3-27b-pt".
         dtype: torch.dtype
             Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
-            pretrained in bfloat16, which halves memory footprint vs float32 with no
-            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-            or float32 for CPU inference or when full precision is required.
+            pretrained in bfloat16, which halves the memory footprint compared with float32.
+            Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+            is required.
         device: str
             Device to use.
 
         Notes
         -----
-        The 1b model is purely a language model while the other sizes are multimodal. As such, the
-        1b model must be loaded with Gemma3TextModel, while Gemma3Model can be used for the others
-        In that case, we recover the purely language model using the language_model attribute.
-        The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
-        running statistics). Call `model.train()` explicitly if you intend to fine-tune.
-        The model is loaded in bfloat16 to reduce memory footprint.
+        The 1b model is purely a language model while the other sizes are vision-language models. As such,
+        the 1b model is loaded with Gemma3TextModel, while the others are loaded with Gemma3Model, from which
+        we recover the language model using the language_model attribute. We focus on the language part only:
+        the vision tower is discarded and all the probing is done on the transformer blocks of the language model.
+        The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()`
+        explicitly if you intend to fine-tune.
         """
         available_models = [
             "google/gemma-3-1b-pt",
@@ -249,7 +230,7 @@ class Gemma3(BaseLanguageModel):
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
-        if model_name == "gemma-3-1b-pt":
+        if model_name == "google/gemma-3-1b-pt":
             model = Gemma3TextModel.from_pretrained(
                 model_name,
                 dtype=dtype,
@@ -326,6 +307,11 @@ class Gemma3(BaseLanguageModel):
         return cast(ModuleList, self.model.layers)
 
     @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.norm)
+
+    @property
     def special_token_ids(self) -> list[Any]:
         r"""
         Return BOS, EOS and padding token ids to exclude from pooling.
@@ -334,7 +320,7 @@ class Gemma3(BaseLanguageModel):
         -----
         Since we consider pretrained models and not instruction-tuned variants,
         we do not expect special tokens related to multi-turn or thinking. As such,
-        we only excluse separation and padding tokens.
+        we only exclude separation and padding tokens.
         """
         return [
             self.tokenizer.bos_token_id,

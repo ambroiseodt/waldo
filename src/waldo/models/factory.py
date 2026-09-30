@@ -32,7 +32,7 @@ def build_model(config: dict[str, Any], return_config: bool = False) -> nn.Modul
     -------
     model: nn.Module | tuple[nn.Module, dict]
         An instance of the specified model implementation.
-        If return_config is True, the config file is also returned as a dictionnary.
+        If return_config is True, the config file is also returned as a dictionary.
     """
 
     # Argument parsing

@@ -29,11 +29,11 @@ class DTDDatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
-        Path from where to load the data or save them if it does not exit.
+    save_dir: Path
+        Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train", "val", and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -57,25 +57,24 @@ class DTDDataset(Dataset):
     r"""
     DTD dataset from [1]_.
 
-    It consits of 5640 images of texture of 47 categories inspired from human perception.
+    It consists of 5640 images of texture of 47 categories inspired from human perception.
     There are 120 images for each category. We make use of the default partition set at 1 following [2]_.
     Other values are possible, see the official documentation for details.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
-            Path from where to load the data or save them if it does not exit.
+        save_dir: Path
+            Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train", "val" and "test".
         transform: Compose
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     FGVCAircraft was created by Mircea Cimpoi, Subhransu Maji, Iasonas Kokkinos, Sammy Mohamed, and Andrea Vedaldi.
     Official website: https://www.robots.ox.ac.uk/~vgg/data/dtd/.
-
 
     References
     ----------

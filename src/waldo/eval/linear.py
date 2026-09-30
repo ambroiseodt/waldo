@@ -3,7 +3,7 @@ Linear probing to evaluate VFMs on image classification tasks.
 
 References
 ----------
-.. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+.. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
 
 .. [2] O. Simeoni et al. DINOv3. arXiv 2025
 
@@ -28,8 +28,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from cuml.linear_model import LogisticRegression as cuMLLogisticRegression
-from cuml.preprocessing import StandardScaler as cuMLStandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -37,7 +35,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from ..infra import DEVICE
-from ..models import BaseVisionLanguageModel, BaseVisionModel
+from ..models import BaseVisionModel
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +61,7 @@ class LinearProbingConfig:
 
     References
     ----------
-    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
 
     .. [2] O. Simeoni et al. DINOv3. arXiv 2025
 
@@ -88,8 +86,11 @@ class LinearProbingConfig:
         self.__post_init__()
 
     def __post_init__(self):
-        # Valid tolerance
-        assert self.tol >= 0, f"Invalid tolerance {self.tol}. This should be a nonnegative number."
+        # Valid tolerance and number of iterations
+        if self.tol < 0:
+            raise ValueError(f"Invalid tolerance {self.tol}. It should be nonnegative.")
+        if self.max_iter <= 0:
+            raise ValueError(f"Invalid maximum number of iterations {self.max_iter}. It should be positive.")
 
 
 # ------------------------------------------------------------------------------
@@ -97,13 +98,13 @@ class LinearProbingConfig:
 # ------------------------------------------------------------------------------
 class LinearProbing:
     r"""
-    Linear probing with a logistic regression with GPU-friendly implementation.
+    Linear probing with a logistic regression on standardized features, using cuML on GPU and sklearn otherwise.
 
     Parameters
     ----------
     config: configuration class with
         tol: float, default=1e-4
-        Tolerance for stopping criteria.
+            Tolerance for stopping criteria.
         max_iter: int, default=1000
             Maximum number of iterations to converge.
         device: str, default=DEVICE
@@ -113,11 +114,10 @@ class LinearProbing:
 
     References
     ----------
-    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
     """
 
     def __init__(self, config: LinearProbingConfig):
-        super().__init__()
         self.tol = config.tol
         self.max_iter = config.max_iter
         self.device = config.device
@@ -130,26 +130,38 @@ class LinearProbing:
 
     @torch.inference_mode()
     def _extract_embeddings(
-        self, model: BaseVisionModel | BaseVisionLanguageModel, loader: DataLoader, split: str, temp_path: Path
+        self,
+        model: BaseVisionModel,
+        loader: DataLoader,
+        split: str,
+        temp_path: Path,
+        layers: list[int] | None = None,
+        modules: list[str] | None = None,
     ) -> None:
         r"""
-        Extract embeddings of a model accross its layers and modules.
+        Extract embeddings of a model across its layers and modules.
         The model is expected to be on the device defined in the config.
 
         Parameters
         ----------
-        model: BaseVisionModel | BaseVisionLanguageModel
+        model: BaseVisionModel
             Model to evaluate.
         loader: DataLoader
             DataLoader to use for evaluation.
         split: str
             Split to evaluate on. Options are "train" and "test".
             This is used to save the embeddings temporarily on the disk.
+        temp_path: Path
+            Directory where the embeddings are temporarily saved.
+        layers: list[int] | None, default=None
+            Layer indices to probe. If None, all layers are probed.
+        modules: list[str] | None, default=None
+            Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
+            TRANSFORMER_MODULES are probed.
 
         See also
         --------
         BaseVisionModel
-        BaseVisionLanguageModel
         """
         model.eval()
         label_buffer = []
@@ -161,7 +173,7 @@ class LinearProbing:
             x_batch, y_batch = map(lambda x: x.to(self.device), (x_batch, y_batch))
 
             # Recover features
-            embeddings = model.get_embeddings(x_batch)
+            embeddings = model.get_embeddings(x_batch, layers=layers, modules=modules)
 
             for key, embedding in embeddings.items():
                 # Recover layer index and module
@@ -203,10 +215,18 @@ class LinearProbing:
     def _pipeline(self) -> Pipeline:
         r"""
         Return a sklearn Pipeline with StandardScaler and LogisticRegression.
-        If GPU is available, use cuML implementation for faster training.
+        If the device is a GPU, use cuML implementation for faster training.
+
+        Notes
+        -----
+        cuML is imported lazily since it requires an NVIDIA GPU and CUDA. This allows to
+        use the sklearn implementation on CPU-only machines where cuML is not installed.
         """
         # GPU-friendly logistic regression
-        if torch.cuda.is_available():
+        if "cuda" in self.device and torch.cuda.is_available():
+            from cuml.linear_model import LogisticRegression as cuMLLogisticRegression
+            from cuml.preprocessing import StandardScaler as cuMLStandardScaler
+
             scaler = cuMLStandardScaler()
             solver = cuMLLogisticRegression(
                 penalty="l2",
@@ -286,6 +306,8 @@ class LinearProbing:
         test_loader: DataLoader,
         cache_path: Path,
         overwrite: bool,
+        layers: list[int] | None = None,
+        modules: list[str] | None = None,
     ) -> None:
         r"""
         Evaluate the model with linear probing on a pair of train and test dataloaders.
@@ -304,26 +326,32 @@ class LinearProbing:
             Path where the results are saved.
         overwrite: bool
             Whether to overwrite existing results.
+        layers: list[int] | None, default=None
+            Layer indices to probe. If None, all layers are probed.
+        modules: list[str] | None, default=None
+            Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
+            TRANSFORMER_MODULES are probed.
         """
-        # Check whether results already exists
+        # Check whether results already exist. The info file is only written once the evaluation
+        # is complete, so results without it come from an interrupted run and are recomputed.
         results_path = cache_path / "results"
+        info_path = cache_path / "info.json"
+        if info_path.exists() and not overwrite:
+            logger.info(
+                f"Skipping evaluation: results already exist at '{results_path}'. "
+                f"If this behavior is not expected, set overwrite=True to force a clean rerun."
+            )
+            return
         if results_path.exists():
-            # Overwrite result folder
             if overwrite:
                 logger.info(
                     f"Deleting cached results found at '{results_path}'. "
                     f"If this behavior is not expected, set overwrite=False to keep results and skip evaluation."
                 )
-                shutil.rmtree(results_path, ignore_errors=True)
-
-            # Skip evaluation
             else:
-                logger.info(
-                    f"Skipping evaluation: results already exists at '{results_path}'. "
-                    f"Please make sure these files are complete and viable. "
-                    f"If this behavior is not expected, set overwrite=True to force a clean rerun."
-                )
-                return
+                logger.info(f"Deleting incomplete results found at '{results_path}' from an interrupted run.")
+            shutil.rmtree(results_path, ignore_errors=True)
+        info_path.unlink(missing_ok=True)
 
         # Create temporary path
         temp_path = results_path / "temp_embeddings"
@@ -332,14 +360,18 @@ class LinearProbing:
             # Extract train embeddings and recover label
             info = {}
             start = time.time()
-            self._extract_embeddings(model=model, loader=train_loader, split="train", temp_path=temp_path)
+            self._extract_embeddings(
+                model=model, loader=train_loader, split="train", temp_path=temp_path, layers=layers, modules=modules
+            )
             train_path = temp_path / "train"
             train_labels = np.load(train_path / "labels.npy").ravel()
             info["train_extraction_time"] = time.time() - start
 
             # Extract test embeddings and recover label
             start = time.time()
-            self._extract_embeddings(model=model, loader=test_loader, split="test", temp_path=temp_path)
+            self._extract_embeddings(
+                model=model, loader=test_loader, split="test", temp_path=temp_path, layers=layers, modules=modules
+            )
             test_path = temp_path / "test"
             test_labels = np.load(test_path / "labels.npy").ravel()
             info["test_extraction_time"] = time.time() - start
@@ -380,7 +412,6 @@ class LinearProbing:
 
                         # Save result
                         metric_path = results_path / f"layer_{layer}_module_{module}.json"
-                        # metric_path.parent.mkdir(exist_ok=True, parents=True)
                         with open(metric_path, "w") as f:
                             json.dump({"acc_test": acc_test}, f, indent=4)
 
@@ -397,9 +428,9 @@ class LinearProbing:
                         # Update progress bar
                         pbar.update(1)
 
-            # Save evaluation time
+            # Save evaluation time, which also marks the evaluation as complete
             info["eval_time"] = time.time() - start
-            with open(cache_path / "info.json", "w") as f:
+            with open(info_path, "w") as f:
                 json.dump(info, f, indent=4)
             logger.info("Evaluation done.")
 
@@ -416,6 +447,8 @@ class LinearProbing:
         test_loader: dict[str, DataLoader],
         cache_path: Path,
         overwrite: bool,
+        layers: list[int] | None = None,
+        modules: list[str] | None = None,
     ) -> None:
         r"""
         Evaluate the model with linear probing on a train dataloader and several test dataloaders.
@@ -435,34 +468,49 @@ class LinearProbing:
             Path where the results are saved.
         overwrite: bool
             Whether to overwrite existing results.
+        layers: list[int] | None, default=None
+            Layer indices to probe. If None, all layers are probed.
+        modules: list[str] | None, default=None
+            Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
+            TRANSFORMER_MODULES are probed.
         """
-        # Check whether results already exists
+        # Recover the test sets already evaluated. The info file is only written once the evaluation is complete
+        # and lists the evaluated test sets, so results of test sets missing from it come from an interrupted run.
         results_path = cache_path / "results"
-        all_keys = set(test_loader.keys())
+        info_path = cache_path / "info.json"
+        completed_keys = set()
+        if info_path.exists():
+            with open(info_path) as f:
+                previous_info = json.load(f)
+            # Runs saved before test sets were tracked in the info file are complete for all existing results
+            legacy_keys = {key for key in test_loader if (results_path / key).exists()}
+            completed_keys = set(previous_info.get("test_sets", legacy_keys))
+
+        # Select the test sets to evaluate
+        keys = []
         for key in test_loader:
             path = results_path / key
+            if key in completed_keys and not overwrite:
+                logger.info(
+                    f"Skipping evaluation for {key}: results already exist at '{path}'. "
+                    f"If this behavior is not expected, set overwrite=True to force a clean rerun."
+                )
+                continue
             if path.exists():
-                # Overwrite result folder
                 if overwrite:
                     logger.info(
                         f"Deleting cached results found at '{path}'. "
                         f"If this behavior is not expected, set overwrite=False to keep results and skip evaluation."
                     )
-                    shutil.rmtree(path, ignore_errors=True)
-                # Skip evaluation
                 else:
-                    logger.info(
-                        f"Skipping evaluation for {key}: results already exists at '{path}'. "
-                        f"Please make sure these files are complete and viable. "
-                        f"If this behavior is not expected, set overwrite=True to force a clean rerun."
-                    )
-                    all_keys.discard(key)
+                    logger.info(f"Deleting incomplete results found at '{path}' from an interrupted run.")
+                shutil.rmtree(path, ignore_errors=True)
+            completed_keys.discard(key)
+            keys.append(key)
 
-        # If overwrite is False andall results already exists, skip the evaluation
-        if not all_keys:
-            logger.info(
-                "Skipping the entire evaluation loop: all results already exists and overwrite is set to False."
-            )
+        # If overwrite is False and all results already exist, skip the evaluation
+        if not keys:
+            logger.info("Skipping the entire evaluation loop: all results already exist and overwrite is set to False.")
             return
 
         # Create temporary path
@@ -472,7 +520,9 @@ class LinearProbing:
             # Extract train embeddings and recover label
             info = {}
             start = time.time()
-            self._extract_embeddings(model=model, loader=train_loader, split="train", temp_path=temp_path)
+            self._extract_embeddings(
+                model=model, loader=train_loader, split="train", temp_path=temp_path, layers=layers, modules=modules
+            )
             train_path = temp_path / "train"
             train_labels = np.load(train_path / "labels.npy").ravel()
             info["train_extraction_time"] = time.time() - start
@@ -481,9 +531,16 @@ class LinearProbing:
             test_path = {}
             test_labels = {}
             start = time.time()
-            for key in test_loader:
+            for key in keys:
                 split = f"test/{key}"
-                self._extract_embeddings(model=model, loader=test_loader[key], split=split, temp_path=temp_path)
+                self._extract_embeddings(
+                    model=model,
+                    loader=test_loader[key],
+                    split=split,
+                    temp_path=temp_path,
+                    layers=layers,
+                    modules=modules,
+                )
                 test_path[key] = temp_path / split
                 test_labels[key] = np.load(test_path[key] / "labels.npy").ravel()
             info["test_extraction_time"] = time.time() - start
@@ -491,7 +548,7 @@ class LinearProbing:
             # Loop over layers
             logger.info("Start evaluation.")
             start = time.time()
-            total_runs = sum(1 for root, dirs, files in os.walk(train_path) if not dirs)
+            total_runs = len(keys) * sum(1 for root, dirs, files in os.walk(train_path) if not dirs)
             with tqdm(total=total_runs, desc="Evaluation", unit="run") as pbar:
                 layer_folders = [f.name for f in train_path.iterdir() if f.is_dir()]
                 for layer_folder in layer_folders:
@@ -513,7 +570,7 @@ class LinearProbing:
                         )
 
                         # Evaluate classifier on test embeddings
-                        for key in test_loader:
+                        for key in keys:
                             test_emb_path = test_path[key] / layer_folder / module_folder
                             test_files = sorted(test_emb_path.glob("batch_*.npy"), key=self._get_index)
                             test_embeddings = np.concatenate([np.load(f) for f in test_files], axis=0)
@@ -545,9 +602,10 @@ class LinearProbing:
                         if "cuda" in self.device and torch.cuda.is_available():
                             torch.cuda.empty_cache()
 
-            # Save evaluation time
+            # Save evaluation time and evaluated test sets, which also marks the evaluation as complete
             info["eval_time"] = time.time() - start
-            with open(cache_path / "info.json", "w") as f:
+            info["test_sets"] = sorted(completed_keys | set(keys))
+            with open(info_path, "w") as f:
                 json.dump(info, f, indent=4)
             logger.info("Evaluation done.")
 
@@ -564,6 +622,8 @@ class LinearProbing:
         test_loader: DataLoader | dict[str, DataLoader],
         cache_path: Path,
         overwrite: bool,
+        layers: list[int] | None = None,
+        modules: list[str] | None = None,
     ) -> None:
         r"""
         Evaluate the model with linear probing on a pair of train and test dataloaders.
@@ -578,11 +638,23 @@ class LinearProbing:
             Train dataloader.
         test_loader: DataLoader | dict[str, DataLoader]
             Test dataloader(s). If test_loader is a dict, the evaluation is done on each
-            dataloader independently and results are saved in
+            dataloader independently and results are saved in a subfolder named after its key.
         cache_path: Path
             Path where the results are saved.
         overwrite: bool
             Whether to overwrite existing results.
+        layers: list[int] | None, default=None
+            Layer indices to probe. If None, all layers are probed.
+        modules: list[str] | None, default=None
+            Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
+            TRANSFORMER_MODULES are probed.
+
+        Notes
+        -----
+        The info.json file of the cache path is only written once the evaluation is complete. Without overwrite,
+        complete evaluations are skipped and results without info.json, which come from interrupted runs, are
+        recomputed. With several test loaders, info.json lists the evaluated test sets and only the missing ones
+        are evaluated.
         """
         # Evaluation on multiple test loaders (independently)
         if isinstance(test_loader, dict):
@@ -592,6 +664,8 @@ class LinearProbing:
                 test_loader=test_loader,
                 cache_path=cache_path,
                 overwrite=overwrite,
+                layers=layers,
+                modules=modules,
             )
         # Evaluation on a single test loader
         else:
@@ -601,4 +675,6 @@ class LinearProbing:
                 test_loader=test_loader,
                 cache_path=cache_path,
                 overwrite=overwrite,
+                layers=layers,
+                modules=modules,
             )

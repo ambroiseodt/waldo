@@ -30,11 +30,11 @@ class Cifar10DatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
-        Path from where to load the data or save them if it does not exit.
+    save_dir: Path
+        Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -58,21 +58,21 @@ class Cifar10Dataset(Dataset):
     r"""
     Cifar10 dataset from [1]_.
 
-    It consits of 60_000 32x32 color images in 10 classes, with 6_000 images per class.
+    It consists of 60_000 32x32 color images in 10 classes, with 6_000 images per class.
     There are 50_000 training images and 10_000 test images.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
-            Path from where to load the data or save them if it does not exit.
+        save_dir: Path
+            Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train" and "test".
         transform: Compose
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     CIFAR-10 was created by Alex Krizhevsky, Vinod Nair, and Geoffrey Hinton.
     Official website: https://www.cs.toronto.edu/~kriz/cifar.html.
 

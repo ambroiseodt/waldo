@@ -29,11 +29,11 @@ class Food101DatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
-        Path from where to load the data or save them if it does not exit.
+    save_dir: Path
+        Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -57,21 +57,21 @@ class Food101Dataset(Dataset):
     r"""
     Food101 dataset from [1]_.
 
-    It consits of 101_000 images of food with 101 classes, with 100 images per class,
+    It consists of 101_000 images of food with 101 classes, with 1_000 images per class,
     with 75_750 training images and 25_250 test images.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
-            Path from where to load the data or save them if it does not exit.
+        save_dir: Path
+            Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train" and "test".
         transform: Compose
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     FGVCAircraft was created by Lukas Bossard, Matthieu Guillaumin, Luc Van Gool.
     Official website: https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/.
 

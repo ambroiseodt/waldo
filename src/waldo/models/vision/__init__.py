@@ -1,5 +1,5 @@
 r"""
-Codebase to load pretrained from HuggingFace.
+Codebase to load pretrained VFMs from HuggingFace.
 
 License
 -------

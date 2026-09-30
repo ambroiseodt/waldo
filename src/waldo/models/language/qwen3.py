@@ -1,5 +1,5 @@
 r"""
-Qwen3 pretrained model following [1]_. It allows to study specific layers and modules.
+Qwen3 pretrained and post-trained models following [1]_. It allows to study specific layers and modules.
 
 Comments abbreviations
 ----------------------
@@ -9,12 +9,13 @@ Comments abbreviations
 
 Notes
 -----
-We focus on the pretrained dense models available on HuggingFace for text generation.
+We focus on the dense models available on HuggingFace for text generation, both pretrained (e.g., Qwen3-0.6B-Base)
+and post-trained (e.g., Qwen3-0.6B). Note that no pretrained version of Qwen3-32B is publicly available.
 See https://huggingface.co/collections/Qwen/qwen3 for other variants.
 
 References
 ----------
-.. [1] Qwen Team. Qwen 3 Technical Report. arXiv 2025
+.. [1] Qwen Team. Qwen3 Technical Report. arXiv 2025
 
 See also
 --------
@@ -58,12 +59,13 @@ class Qwen3Config:
     Parameters
     ----------
     model_size: str
-        Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B".
+        Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B" for the post-trained models,
+        and "0.6B-Base", "1.7B-Base", "4B-Base", "8B-Base", "14B-Base" for the pretrained models.
     dtype: torch.dtype
         Dtype to load the model weights in. Defaults to bfloat16 since Qwen3 was
-        pretrained in bfloat16, which halves memory footprint vs float32 with no
-        accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-        or float32 for CPU inference or when full precision is required.
+        pretrained in bfloat16, which halves the memory footprint compared with float32.
+        Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+        is required.
     device: str
         Device to use.
     """
@@ -77,10 +79,10 @@ class Qwen3Config:
         self.__post_init__()
 
     def __post_init__(self):
-        if self.model_size not in ["0.6B", "1.7B", "4B", "8B", "14B", "32B"]:
-            raise ValueError(
-                f"Invalid model size '{self.model_size}'. Options are '0.6B', '1.7B', '4B', '8B', '14B', '32B'."
-            )
+        post_trained = ["0.6B", "1.7B", "4B", "8B", "14B", "32B"]
+        pretrained = ["0.6B-Base", "1.7B-Base", "4B-Base", "8B-Base", "14B-Base"]
+        if self.model_size not in post_trained + pretrained:
+            raise ValueError(f"Invalid model size '{self.model_size}'. Options are {post_trained + pretrained}.")
 
 
 # -------------------------------------------------------------------
@@ -88,38 +90,18 @@ class Qwen3Config:
 # -------------------------------------------------------------------
 class Qwen3BlockAdapter(TransformerBlockAdapter):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules.
-    Subclasses need to implement the 8 methods that outputs the following modules:
-        ln1: first layer norm
-        mha: multi-head attention
-        rc1: first residual connection
-        ln2: second layer norm
-        fc1: first feedforward linear layer
-        act: feedforward activation function
-        fc2: second feedforward linear layer
-        rc2: second residual connection
+    Adapter mapping the standard module names to the submodules of a Qwen3 transformer block.
 
     Parameters
     ----------
     layer: nn.Module
-        A single transformer block.
+        A single Qwen3 transformer block.
 
     Notes
     -----
-    Qwen3 relies on a SwiGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
-    with ViT, we decompose the FFN block as follows:
-
-        fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = swish(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
-        fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
-
-    This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
-    up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
-    the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
-    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that Qwen3
-    models also normalize the outputs of the attention and FFN blocks for training stability. For consistency with
-    other models, we do not probe them .
+    Qwen3 relies on RMSNorm and on a SwiGLU activation in the FFN [1, 2, 3]_: act is the input of the down
+    projection, following the decomposition of TransformerBlockAdapter. Qwen3 also normalizes the queries and keys
+    inside the attention, which is part of the mha module.
 
     References
     ----------
@@ -165,8 +147,8 @@ class Qwen3BlockAdapter(TransformerBlockAdapter):
 
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
-        Returns the names of the module for which register_forward_pre_hook should be used
-        in place of register_forward_hook to access their inputs instead of the outputs.
+        Returns the names of the modules for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of their outputs.
         """
         return {"rc1", "act"}
 
@@ -186,24 +168,24 @@ class Qwen3(BaseLanguageModel):
     ----------
     config: configuration class with
         model_size: str
-            Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B".
+            Size of the model. Options are "0.6B", "1.7B", "4B", "8B", "14B", "32B" for the post-trained
+            models, and "0.6B-Base", "1.7B-Base", "4B-Base", "8B-Base", "14B-Base" for the pretrained models.
         dtype: torch.dtype
-            Dtype to load the model weights in. Defaults to bfloat16 since Gemma3 was
-            pretrained in bfloat16, which halves memory footprint vs float32 with no
-            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-            or float32 for CPU inference or when full precision is required.
+            Dtype to load the model weights in. Defaults to bfloat16 since Qwen3 was
+            pretrained in bfloat16, which halves the memory footprint compared with float32.
+            Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+            is required.
         device: str
             Device to use.
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
-    running statistics). Call `model.train()` explicitly if you intend to fine-tune.
-    The model is loaded in bfloat16 to reduce memory footprint.
+    The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()`
+    explicitly if you intend to fine-tune.
 
     References
     ----------
-    .. [1] Qwen Team. Qwen 3 Technical Report. arxiv 2025
+    .. [1] Qwen Team. Qwen3 Technical Report. arXiv 2025
     """
 
     def __init__(self, config: Qwen3Config):
@@ -227,20 +209,24 @@ class Qwen3(BaseLanguageModel):
                 "Qwen/Qwen3-4B",
                 "Qwen/Qwen3-8B",
                 "Qwen/Qwen3-14B",
-                "Qwen/Qwen3-32B".
+                "Qwen/Qwen3-32B",
+                "Qwen/Qwen3-0.6B-Base",
+                "Qwen/Qwen3-1.7B-Base",
+                "Qwen/Qwen3-4B-Base",
+                "Qwen/Qwen3-8B-Base",
+                "Qwen/Qwen3-14B-Base".
         dtype: torch.dtype
             Dtype to load the model weights in. Defaults to bfloat16 since Qwen3 was
-            pretrained in bfloat16, which halves memory footprint vs float32 with no
-            accuracy loss. Use float16 for older GPUs that do not support bfloat16,
-            or float32 for CPU inference or when full precision is required.
+            pretrained in bfloat16, which halves the memory footprint compared with float32.
+            Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
+            is required.
         device: str
             Device to use.
 
         Notes
         -----
-        The model is loaded in evaluation mode by default (dropout disabled, BatchNorm uses
-        running statistics). Call `model.train()` explicitly if you intend to fine-tune.
-        The model is loaded in bfloat16 to reduce memory footprint.
+        The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()`
+        explicitly if you intend to fine-tune.
         """
         available_models = [
             "Qwen/Qwen3-0.6B",
@@ -249,14 +235,18 @@ class Qwen3(BaseLanguageModel):
             "Qwen/Qwen3-8B",
             "Qwen/Qwen3-14B",
             "Qwen/Qwen3-32B",
+            "Qwen/Qwen3-0.6B-Base",
+            "Qwen/Qwen3-1.7B-Base",
+            "Qwen/Qwen3-4B-Base",
+            "Qwen/Qwen3-8B-Base",
+            "Qwen/Qwen3-14B-Base",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
 
-        # Qwen3 uses the Qwen2 model class for text-only dense variants
         model = Qwen3Model.from_pretrained(
             model_name,
-            torch_dtype=dtype,
+            dtype=dtype,
             device_map=device,
         )
         model.eval()
@@ -323,15 +313,20 @@ class Qwen3(BaseLanguageModel):
         return cast(ModuleList, self.model.layers)
 
     @property
+    def final_norm(self) -> nn.Module:
+        r"""Return the norm applied to the output of the last transformer block."""
+        return cast(nn.Module, self.model.norm)
+
+    @property
     def special_token_ids(self) -> list[Any]:
         r"""
         Return BOS, EOS and padding token ids to exclude from pooling.
 
         Notes
         -----
-        Since we consider pretrained models and not instruction-tuned variants,
-        we do not expect special tokens related to multi-turn or thinking. As such,
-        we only excluse separation and padding tokens.
+        Since we encode raw text without chat template, for both the pretrained and post-trained
+        models, we do not expect special tokens related to multi-turn or thinking. As such,
+        we only exclude separation and padding tokens.
         """
         return [
             self.tokenizer.bos_token_id,

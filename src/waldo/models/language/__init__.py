@@ -15,6 +15,7 @@ from .llama3 import Llama3, Llama3BlockAdapter, Llama3Config
 from .qwen3 import Qwen3, Qwen3BlockAdapter, Qwen3Config
 
 __all__ = [
+    "BaseLanguageModel",
     "Gemma3",
     "Gemma3BlockAdapter",
     "Gemma3Config",

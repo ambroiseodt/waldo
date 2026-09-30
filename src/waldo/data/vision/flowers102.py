@@ -35,11 +35,11 @@ class Flowers102DatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
-        Path from where to load the data or save them if it does not exit.
+    save_dir: Path
+        Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train", "val", and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -63,21 +63,21 @@ class Flowers102Dataset(Dataset):
     r"""
     Oxford Flowers-102 dataset from [1]_.
 
-    It consits of images of 102 flower categories with each class containing of between 40 and 258 images.
+    It consists of images of 102 flower categories with each class containing between 40 and 258 images.
     The flowers were chosen to be flowers commonly occurring in the United Kingdom.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
-            Path from where to load the data or save them if it does not exit.
+        save_dir: Path
+            Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train", "val", and "test".
         transform: Compose
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     Oxford 102 Flower was created by Maria-Elena Nilsback and Andrew Zisserman.
     Official website: https://www.robots.ox.ac.uk/~vgg/data/flowers/102/.
 

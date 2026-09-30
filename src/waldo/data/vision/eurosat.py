@@ -32,11 +32,11 @@ class EuroSATDatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
-        Path from where to load the data or save them if it does not exit.
+    save_dir: Path
+        Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -60,21 +60,21 @@ class EuroSATDataset(Dataset):
     r"""
     EuroSAT dataset from [1]_.
 
-    It consists of 21_600 RGB Sentinel-2 satellite images with 10 classes.
+    It consists of 27_000 RGB Sentinel-2 satellite images with 10 classes.
     Since there is no official train or test sets, we create a deterministic 80/20 split.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
-            Path from where to load the data or save them if it does not exit.
+        save_dir: Path
+            Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train" and "test".
         transform: Compose
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     EuroSAT was created by Patrick Helber, Benjamin Bischke, Andreas Dengel, and Damian Borth.
     Official website: https://github.com/phelber/EuroSAT.
 

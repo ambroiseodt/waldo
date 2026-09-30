@@ -32,10 +32,10 @@ class DomainNetDatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
+    save_dir: Path
         Path from where to load the data.
     domain: str, default="clipart"
-        Type of corruption applied on the data. Options are:
+        Domain of the images. Options are:
             "clipart",
             "infograph",
             "painting",
@@ -44,7 +44,7 @@ class DomainNetDatasetConfig:
             "sketch".
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -60,7 +60,7 @@ class DomainNetDatasetConfig:
     def __post_init__(self):
         # Valid domain
         if self.domain not in ["clipart", "infograph", "painting", "quickdraw", "real", "sketch"]:
-            raise ValueError(f"Invalid corruption type {self.domain}. See documentation for options.")
+            raise ValueError(f"Invalid domain {self.domain}. See documentation for options.")
 
         # Valid mode
         if self.mode not in ["train", "test"]:
@@ -74,22 +74,23 @@ class DomainNetDataset(Dataset):
     r"""
     DomainNet dataset from [1]_.
 
-    It consits of images of 345 categories of objects from 6 different domains.
+    It consists of images of 345 categories of objects from 6 different domains.
+    Since there is no official train or test sets for each domain, we create a deterministic 80/20 split.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
+        save_dir: Path
             Path from where to load the data.
         domain: str
-            Type of images.
+            Domain of the images.
         mode: str
             Mode. Options are "train" and "test".
         transform: Compose
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     Official website: http://csr.bu.edu/ftp/visda/2019/multi-source
 
     Download
@@ -98,7 +99,7 @@ class DomainNetDataset(Dataset):
     ```bash
     $ wget http://csr.bu.edu/ftp/visda/2019/multi-source/domain.zip
     ```
-    For clipart and painting domains, run the following command;
+    For clipart and painting domains, run the following command:
     ```bash
     $ wget http://csr.bu.edu/ftp/visda/2019/multi-source/groundtruth/domain.zip
     ```

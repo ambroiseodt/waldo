@@ -1,10 +1,6 @@
 r"""
 Codebase to evaluate vision foundation models via linear probing on image classification tasks.
 
-Notes
------
-This file can be used straightforwadly to evaluate vision language models seen as purely vision models.
-
 License
 -------
 This source code is licensed under the MIT license found in the LICENSE file
@@ -15,7 +11,7 @@ in the root directory of this source tree.
 
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import cast
 
 from omegaconf import OmegaConf
@@ -51,6 +47,11 @@ class EvaluationConfig:
     dataset_name: str = "cifar10"
     batch_size: int = 512
 
+    # Probing: pooling over tokens, and layers / modules to probe (["all"] to probe all of them)
+    pooling: str = "content"
+    layers: list[int | str] = field(default_factory=lambda: ["all"])
+    modules: list[str] = field(default_factory=lambda: ["all"])
+
     # Linear probing
     tol: float = 1e-4
     max_iter: int = 1000
@@ -83,11 +84,6 @@ def eval(config: EvaluationConfig) -> None:
     ----------
     config: EvaluationConfig
         Configuration file to setup the model and the benchmark.
-
-    Returns
-    -------
-    cache_path: Path
-        Path where the results are saved.
     """
     # ---------------------------------------------------------------------
     # Set seed for reproducibility
@@ -103,6 +99,7 @@ def eval(config: EvaluationConfig) -> None:
         "model_size": config.model_size,
         "patch_size": config.patch_size,
         "resolution": config.resolution,
+        "pooling": config.pooling,
         "device": config.device,
     }
     model = build_model(config=model_config, return_config=False)
@@ -149,6 +146,8 @@ def eval(config: EvaluationConfig) -> None:
         test_loader=test_loader,
         cache_path=cache_path,
         overwrite=config.overwrite,
+        layers=None if config.layers == ["all"] else config.layers,
+        modules=None if config.modules == ["all"] else config.modules,
     )
 
 
@@ -165,12 +164,13 @@ def main() -> None:
     2. We override those default values with the ones in the provided config file,
     3. We override the result with the additional arguments provided through command line.
 
-    Usage:
-    To launch a training according to your_config.yaml file, run:
+    Usage
+    -----
+    To launch an evaluation according to your_config.yaml file, run:
 
     ```bash
     python -m apps.vision.eval config=apps/vision/configs/your_config.yaml
-    ``
+    ```
 
     To overwrite some arguments via the cli, e.g., to set the device to cuda:0, run:
 
