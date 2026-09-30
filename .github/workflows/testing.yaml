@@ -14,10 +14,11 @@ jobs:
       fail-fast: false
       matrix:
         folder:
-          - tests/data/vision
-          - tests/data/language
-          - tests/models/vision
-          - tests/models/language
+          - tests/src/waldo/data
+          - tests/src/waldo/eval
+          - tests/src/waldo/infra
+          - tests/src/waldo/models
+          - tests/apps
 
     steps:
       - name: Checkout code

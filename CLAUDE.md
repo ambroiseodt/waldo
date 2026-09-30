@@ -22,7 +22,7 @@ pip install -e ".[dev,test]"
 pip install -e ".[exps,figs,dev]" --extra-index-url https://pypi.nvidia.com
 
 pytest                                                       # addopts already enable -v and coverage
-pytest tests/models/vision/test_dinov2.py::TestDinov2Config  # one class or test
+pytest tests/src/waldo/models/vision/test_dinov2.py::TestDinov2Config  # one class or test
 ruff check . && ruff format .                                # line length 120, annotations required
 
 # Experiments: OmegaConf CLI, dataclass defaults < YAML file < key=value overrides
@@ -30,8 +30,10 @@ python -m apps.vision.eval config=apps/vision/configs/dinov2.yaml dataset_name=c
 python -m apps.language.eval config=apps/language/configs/qwen3.yaml layers=[-1] modules=[rc2norm]
 ```
 
-Gated models (Llama, Gemma) need `hf auth login`. Tests must run without GPU, `cuml` or network access: model tests
-mock `from_pretrained` with the blocks of each folder's `conftest.py`.
+Gated models (Llama, Gemma) need `hf auth login`. Tests mirror `src/waldo/` and `apps/` (`tests/src/waldo/...`,
+`tests/apps/...`) and must run without GPU, `cuml` or network access: model tests patch `from_pretrained` with tiny
+randomly initialized HuggingFace models (see each folder's `conftest.py`), and `tests/conftest.py` makes any unpatched
+`from_pretrained` fail and sets `HF_HUB_OFFLINE=1`.
 
 ## Workflow
 
