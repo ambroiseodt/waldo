@@ -1,110 +1,205 @@
-# Finding Waldo in Foundation Models
+# Probing Transformer Representations Layer by Layer, Module by Module
 
 [![Tests](https://github.com/ambroiseodt/waldo/actions/workflows/testing.yaml/badge.svg)](https://github.com/ambroiseodt/waldo/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+
+Official implementation of the paper **Probing Transformer Representations Layer by Layer, Module by Module**. <br>
+**Goal**: Study the hidden representations of pretrained transformers jointly across layers and modules, instead of
+probing the final-layer residual stream only. <br>
+**Findings**: Probing inside transformer blocks recovers substantial performance, especially under distribution shift.
+Fixed rules without search work across models: the FFN activation of the last layer (Act@100) for vision models, and
+the second normalization at 60% of the depth (LN2@60) for LLMs.
+
+## Overview
+Our codebase probes every layer and every module of pretrained vision foundation models (ViT, DINOv2, DINOv3, AIMv2)
+and LLMs (Gemma3, Llama3, Qwen3) in a single forward pass. Each transformer block is decomposed into 8 modules, and the
+standard output of the model can be probed as well:
+
+| Module | Representation |
+|---|---|
+| `ln1` | output of the first normalization |
+| `mha` | output of the multi-head attention |
+| `rc1` | residual stream after the attention block |
+| `ln2` | output of the second normalization |
+| `fc1` | output of the first linear layer of the FFN (gate projection for gated FFNs) |
+| `act` | output of the FFN activation (gated activation for SwiGLU and GeGLU) |
+| `fc2` | output of the FFN |
+| `rc2` | residual stream at the output of the block |
+| `rc2norm` | output of the final norm, only for the last layer (standard output of the model) |
+
+Representations are mean-pooled over content tokens (CLS and register tokens, or BOS, EOS and padding tokens are
+excluded), then evaluated with linear probing for vision models and on MTEB for LLMs. The codebase is designed to be
+reused: feel free to use it as a template, fork it and modify it to suit your experiments. It is structured as follows:
+
+```
+🛠️ waldo
+┣ 📂analysis # Aggregation of the runs, paper figures and tables
+┃ ┣ 📂results # Results of the paper (csv)
+┃ ┣ 📄aggregate.py
+┃ ┗ 📄analysis.py
+┣ 📂apps # Experiments
+┃ ┣ 📂language # MTEB evaluation of LLMs
+┃ ┃ ┣ 📂configs
+┃ ┃ ┗ 📄eval.py
+┃ ┣ 📂vision # Linear probing of vision models
+┃ ┃ ┣ 📂configs
+┃ ┃ ┣ 📄eval.py
+┃ ┃ ┗ 📄eval_cifar10_c.py
+┃ ┗ 📄setup.py
+┣ 📂scripts # Launch scripts of the experiments of the paper
+┣ 📂src
+┃ ┗ 📂waldo # Core library
+┃   ┣ 📂data # Vision datasets and MTEB benchmarks
+┃   ┣ 📂eval # Linear probing
+┃   ┣ 📂infra # Paths and configuration parsing
+┃   ┗ 📂models # Models, block adapters, pooling
+┗ 📂tests # Unit tests, mirroring src/waldo and apps
+```
+The `waldo` library contains the generic components (models and hooks, datasets, linear probing), which are put
+together in `apps` to run the experiments of the paper.
 
 ## Getting started
-The code runs Python 3.12+. Here are some installation instructions:
-Install [miniforge](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html). Follow the instruction online, most likely you will execute the following commands:
+The code runs Python 3.12+. We recommend installing it in a new environment, e.g. with
+[miniforge](https://github.com/conda-forge/miniforge):
 ```bash
-curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh"
-bash ~/Miniforge3-latest-Linux-x86_64.sh
-source ~/.bashrc
+conda create -n waldo python=3.12
+conda activate waldo
 ```
-Install Python in a new conda environment (be mindful to install a Python version compatible with Pytorch):
+Install the repository with the dependencies of the experiments (cuML requires an NVIDIA GPU and the NVIDIA index):
 ```bash
-conda create -n myenv python==3.12
-conda activate myenv
-```
-Install the repository (the ``pretrained" dependencies are optional but allow for a faster download of weights):
-```bash
-git clone <repo url>
-cd <repo path>
-pip install -e ".[exps]"
-```
-To install the development and visualization dependencies, you can swap the previous command for the following one:
-```bash
-pip install -e ".[exps,dev,figs]"
-```
-
-#### Accelerate specific instructions
-The accelerate package can be used to download and distribute models from the HuggingFace Transformers library. After installing it, one needs to configure it. Follow the instruction online [configure-accelerate](https://huggingface.co/docs/accelerate/en/basic_tutorials/install), most likely you will execute the following command and answer the questions prompted to you:
-```bash
-accelerate config
-```
-
-> [!NOTE]
-> Libraries such as [transformers](https://github.com/huggingface/transformers), [OpenClip](https://github.com/mlfoundations/open_clip) or [MTEB](https://github.com/embeddings-benchmark/mteb) are subject to frequent changes which might impact the behavior of the codebase. We invite users to refer to the official documentation of those libraries if they encounter installation or dependency issues.
-
-### Using HuggingFace pretrained models
-Some models are gated, e.g., the Llama and Gemma ones. Users should request the access and login to the huggingface hub to use them in the scripts. See https://huggingface.co/docs/hub/en/models-gated for more information.
-
-## Installation
-
-### Why `pip install -e`?
-
-The `-e` flag installs the package in **editable mode** — changes to the source code in
-`src/` are immediately reflected without reinstalling. This is the recommended way to
-install the package for both running experiments and contributing to the codebase.
-
-### Dependency groups
-
-| Group | Description |
-|-------|-------------|
-| _(none)_ | Core dependencies (`torch`, `numpy`, etc.) |
-| `experiments` | Everything needed to run experiments. Requires an NVIDIA GPU and CUDA. |
-| `figures` | Visualization tools for plotting results. |
-| `dev` | Development tools (`pytest`, `ruff`) for contributors. |
-
-### Common setups
-
-```bash
-# Run all experiments (requires NVIDIA GPU + CUDA)
-pip install -e ".[exps]" --extra-index-url https://pypi.nvidia.com
-
-# Run experiments and plot results
+git clone https://github.com/ambroiseodt/waldo.git
+cd waldo
 pip install -e ".[exps,figs]" --extra-index-url https://pypi.nvidia.com
-
-# Contribute to the codebase (no GPU needed)
-pip install -e ".[dev]"
-
-# Full setup
-pip install -e ".[exps,figs,dev]" --extra-index-url https://pypi.nvidia.com
 ```
+The dependency groups are `exps` (experiments), `figs` (aggregation and figures), `test` (tests, no GPU needed) and
+`dev` (linting). To run the tests on a machine without GPU, install the CPU build of PyTorch first to avoid
+downloading ~4 GB of CUDA libraries:
+```bash
+pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cpu
+pip install -e ".[test,dev]"
+```
+
+#### HuggingFace models
+Llama and Gemma models are gated: request access on their HuggingFace pages and log in with `hf auth login` (see
+[gated models](https://huggingface.co/docs/hub/en/models-gated)). The weights of all the models of the paper can be
+downloaded in advance with `bash scripts/models/download_models.sh`.
 
 > [!NOTE]
-> The `experiments` group includes `cuml-cu12` for GPU-accelerated linear probing,
-> which requires an NVIDIA GPU, CUDA, and the NVIDIA PyPI index. Always append
-> `--extra-index-url https://pypi.nvidia.com` when installing `experiments`. See [cuml](https://github.com/rapidsai/cuml) for details.
+> Dependencies are pinned in `pyproject.toml`. Libraries such as [transformers](https://github.com/huggingface/transformers)
+> and [MTEB](https://github.com/embeddings-benchmark/mteb) change frequently, and other versions may change the behavior
+> of the code.
 
-## Testing
+## Using the library
+Models are built from a configuration dictionary and return all the requested representations in a single forward
+pass:
+```python
+import torch
+from waldo.models import build_model
 
-Install the development dependencies:
+# Vision: pooled representations of given layers and modules, stored on CPU
+model = build_model({"model_name": "dinov2", "model_size": "base", "device": "cuda:0"})
+images = torch.randn(4, 3, 224, 224, device="cuda:0")  # preprocessed with waldo.data.build_transform
+embeddings = model.get_embeddings(images, layers=[-1], modules=["act", "rc2norm"])
+# {"block_11_act": tensor of shape (4, 3072), "block_11_rc2norm": tensor of shape (4, 768)}
+
+# Language: sentence embeddings at the second normalization of 60% of the depth (LN2@60)
+model = build_model({"model_name": "qwen3", "model_size": "0.6B", "device": "cuda:0"})
+model.set_probing(layer=int(0.6 * (model.n_layers - 1)), module="ln2")
+embeddings = model.encode(["A first sentence.", "A second one."], task_metadata=None, hf_split="", hf_subset="")
+```
+Language models implement the MTEB encoder interface and can be passed directly to `mteb.evaluate`.
+
+#### Adding a model
+A model is defined by a configuration dataclass, a block adapter mapping the standard module names to the submodules of
+its transformer blocks, and a class loading the HuggingFace model (see `src/waldo/models/vision/vit.py`). It is then
+registered in `build_model` (`src/waldo/models/factory.py`) and exported in the `__init__.py` of its package. Datasets
+follow the same pattern with `build_dataset` (`src/waldo/data/vision/factory.py`).
+
+## Launching jobs
+We provide below the commands to run the experiments. They must be run from the root of the repository.
+
+### Configuration
+Each experiment is configured by a dataclass, e.g. for linear probing:
+```python
+@dataclass
+class EvaluationConfig:
+    model_name: str = "vit"
+    model_size: str = "base"
+    dataset_name: str = "cifar10"
+    pooling: str = "content"
+    layers: list[int | str] = field(default_factory=lambda: ["all"])
+    modules: list[str] = field(default_factory=lambda: ["all"])
+    device: str = DEVICE
+    ...
+```
+We use [OmegaConf](https://omegaconf.readthedocs.io/en/2.3_branch/usage.html#from-command-line-arguments):
+1. The dataclass is instantiated with its default values,
+2. Those default values are overridden with the ones in the YAML configuration file,
+3. The result is overridden with the additional arguments provided through command line.
+
+The main options are:
+- `layers` and `modules` select the representations to probe, e.g. `layers=[-1] modules=[rc2norm]` for the standard
+  output of the model. Both default to `["all"]`.
+- `pooling=all` concatenates the CLS token with the mean over patch tokens, as in the linear probing of DINOv2 and
+  DINOv3, instead of the mean over patch tokens (`pooling=content`, default).
+- `model_size` selects the variant, e.g. `model_size=large-registers` for DINOv2-L with registers or
+  `model_size=1.7B-Base` for the pretrained Qwen3-1.7B.
+
+### Vision models
+To probe every layer and module of DINOv2-B on Cifar10, run:
 ```bash
-pip install -e ".[dev]"
+python -m apps.vision.eval config=apps/vision/configs/dinov2.yaml dataset_name=cifar10 device=cuda:0
+```
+To train the probes on Cifar10 and evaluate them on each corruption and severity of Cifar10-C, run:
+```bash
+python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml device=cuda:0
+```
+Most datasets are downloaded automatically in `datasets/` (torchvision and [WILDS](https://wilds.stanford.edu/)
+datasets). Cifar10-C and DomainNet must be downloaded manually, following the docstrings of
+`src/waldo/data/vision/cifar10_c.py` and `src/waldo/data/vision/domainnet.py`.
+
+### Language models
+To evaluate every layer and module of Qwen3-0.6B on the classification tasks of MTEB(Multilingual), run:
+```bash
+python -m apps.language.eval config=apps/language/configs/qwen3.yaml layers=[all] modules=[all] device=cuda:0
 ```
 
-Run the test suite:
+Runs are saved in `savings/runs/<dataset>/<model>/`. Complete evaluations are skipped when launched again, and
+interrupted ones are recomputed. Setting `overwrite=true` deletes the existing results of a run and recomputes them.
+
+## Reproducibility
+The experiments of the paper can be reproduced using the scripts in `scripts/`, which create dedicated `tmux`
+sessions for each group of experiments, e.g.:
 ```bash
-pytest
+bash scripts/vision/eval.sh
+```
+The runs are then aggregated in `analysis/results/` by running the following commands from the root of the
+repository (`cifar10_c` and `mteb` work the same way):
+```bash
+python analysis/aggregate.py cls
+python analysis/aggregate.py analysis_cls
+```
+The results of the paper are provided in `analysis/results/` (csv files tracked with Git LFS, run `git lfs pull` after
+cloning). The figures and tables of the paper can be reproduced from them:
+```bash
+python analysis/analysis.py plot   # figures, saved in figures/
+python analysis/analysis.py table  # LaTeX tables
 ```
 
-Run with coverage:
+## Tests
+The tests run on CPU without network access, using tiny randomly initialized models with the architecture of the
+pretrained ones:
 ```bash
-pytest --cov=src --cov-report=term-missing
+pytest                                  # all tests, with coverage
+pytest tests/src/waldo/models/vision    # one folder
+ruff check . && ruff format --check .   # linting and formatting
 ```
-
-To run the tests of a specific folder (or a file) located in tests/my_path, run
-```bash
-pytest tests/my_path
-```
-
-## Problem with proxy
-If issue with huggingface model download, pre-download them with scripts/download_models.py and set load_offline=True in build_model
-Update: the previous issue seems to be resolved (alone, I don't know why it didn't work or why it works now). In all cases, you can download all models before-hand using download_models.sh
 
 ## Acknowledgements
+Our codebase draws inspiration from libraries like [vit-plasticity](https://github.com/ambroiseodt/vit-plasticity),
+[vit-probing](https://github.com/ambroiseodt/vit-probing) and [lingua](https://github.com/facebookresearch/lingua).
 
 ## Contact
-If you have any questions, feel free to reach out at [```ambroiseodonnattechnologie@gmail.com```](mailto:ambroiseodonnattechnologie@gmail.com).
-
-## Citation
+If you have any questions, feel free to reach out at
+[```ambroiseodonnattechnologie@gmail.com```](mailto:ambroiseodonnattechnologie@gmail.com).
