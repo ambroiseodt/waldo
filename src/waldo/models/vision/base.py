@@ -8,8 +8,8 @@ Comments abbreviations
     E: embedding dimension
 
 
-Reference
----------
+References
+----------
 .. [1] A. Odonnat et al. Vision Transformer Finetuning Benefits from Smooth Components. arXiv 2026
 
 .. [2] A. Odonnat et al. Layer by layer, module by module: Choose both for optimal

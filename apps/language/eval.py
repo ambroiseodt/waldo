@@ -149,12 +149,13 @@ def main() -> None:
     2. We override those default values with the ones in the provided config file,
     3. We override the result with the additional arguments provided through command line.
 
-    Usage:
-    To launch a training according to your_config.yaml file, run:
+    Usage
+    -----
+    To launch an evaluation according to your_config.yaml file, run:
 
     ```bash
     python -m apps.language.eval config=apps/language/configs/your_config.yaml
-    ``
+    ```
 
     To overwrite some arguments via the cli, e.g., to set the device to cuda:0, run:
 

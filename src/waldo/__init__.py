@@ -1,5 +1,5 @@
 r"""
-Codebase to study transformers hidden representations in foundation models (VFMs and LLMs).
+Codebase to study the hidden representations of transformers in foundation models (VFMs and LLMs).
 
 License
 -------

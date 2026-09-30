@@ -23,8 +23,8 @@ wrapping, and supports the following MTEB task types out of the box:
 EncoderProtocol requires three concrete methods which are implemented here at the base class level
 so that all subclasses inherit them for free:
     - encode: produces mean-pooled sentence embeddings from a specified layer and module.
-    - similarity: pairwise cosine similarity between two sets of paired embeddings.
-    - similarity_pairwise: full cosine similarity matrix between two sets of embeddings.
+    - similarity: full cosine similarity matrix between two sets of embeddings.
+    - similarity_pairwise: cosine similarity between two sets of paired embeddings.
 
 Note that CrossEncoderProtocol is a separate MTEB contract for cross-encoder reranking models,
 where query and document are encoded jointly rather than independently. This is a fundamentally
@@ -32,8 +32,8 @@ different architecture and is not supported here. If cross-encoder reranking wit
 needed in the future, a separate BaseLanguageCrossEncoder class should be created inheriting
 from CrossEncoderProtocol.
 
-Reference
----------
+References
+----------
 .. [1] A. Odonnat et al. Vision Transformer Finetuning Benefits from Smooth Components. arXiv 2026
 
 .. [2] A. Odonnat et al. Layer by layer, module by module: Choose both for optimal
@@ -41,7 +41,7 @@ Reference
 
 .. [3] N. Muennighoff et al. MTEB: Massive Text Embedding Benchmark. In EACL 2023
 
-.. [4] K. Enevoldsen et al. MMTEB: : Massive Multilingual Text Embedding Benchmark. In ICLR 2025
+.. [4] K. Enevoldsen et al. MMTEB: Massive Multilingual Text Embedding Benchmark. In ICLR 2025
 
 License
 -------
@@ -484,7 +484,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
     def similarity(self, embeddings1: Array, embeddings2: Array) -> Array:
         r"""
-        Cosine similarity between paired embeddings.
+        Cosine similarity matrix between two sets of embeddings.
 
         Required by EncoderProtocol. Implemented here at the base class level so
         all subclasses (e.g. Gemma3) inherit it for free without boilerplate.
@@ -492,9 +492,9 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
 
         Parameters
         ----------
-        embeddings1: Array of shape (N, E) or (E,)
+        embeddings1: Array of shape (N, E)
             First set of embeddings.
-        embeddings2: Array of shape (N, E) or (E,)
+        embeddings2: Array of shape (M, E)
             Second set of embeddings.
 
         Returns

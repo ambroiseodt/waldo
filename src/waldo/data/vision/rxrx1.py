@@ -29,11 +29,11 @@ class RxRx1DatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
+    save_dir: Path
         Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -66,7 +66,7 @@ class RxRx1Dataset(Dataset):
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
+        save_dir: Path
             Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train" and "test".
@@ -74,11 +74,10 @@ class RxRx1Dataset(Dataset):
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     RxRx1 was created by Recursion Pharmaceuticals, adapted for domain generalization
     benchmarking by the WILDS team.
     Official website: https://wilds.stanford.edu/datasets/#rxrx1
-
 
     References
     ----------

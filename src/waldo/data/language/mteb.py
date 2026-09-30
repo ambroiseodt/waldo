@@ -1,9 +1,5 @@
 r"""
-Multilingual Text Embedding Benchmark.
-
-Notes
------
-The sentence_transformer package is already a dependency of mteb and need not be installed separately.
+Massive Text Embedding Benchmark (MTEB).
 
 License
 -------
@@ -18,8 +14,8 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import mteb
+from mteb.models.models_protocols import EncoderProtocol
 from mteb.results import ModelResult
-from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +33,7 @@ class MTEBConfig:
     benchmark_name: str
         Name of the benchmark. Options are "Multilingual", "Europe", "Indic", "eng, v2".
         We focus on the 4 main benchmarks presented in [1]_, which are the "Multilingual", "Europe", "Indic"
-        and "eng, v2". Other choices are possible, see the official website for more details.
+        and "eng, v2".
     task_type: str
         Type of task. Options are
             "Retrieval",
@@ -49,14 +45,14 @@ class MTEBConfig:
             "Summarization",
             "InstructionRetrieval".
     max_n_docs: int | None
-        Maximul number of documents to use. This allows us to filter out large tasks that are too
+        Maximum number of documents to use. This allows us to filter out large tasks that are too
         costly to evaluate on. If None, all the tasks are used.
     batch_size: int, default=32
         Batch size for evaluation.
 
     References
-    ---------
-    .. [1] K. Enevoldsen et al. MMTEB: : Massive Multilingual Text Embedding Benchmark. In ICLR 2025
+    ----------
+    .. [1] K. Enevoldsen et al. MMTEB: Massive Multilingual Text Embedding Benchmark. In ICLR 2025
     """
 
     benchmark_name: str = "Multilingual"
@@ -70,12 +66,12 @@ class MTEBConfig:
 
     def __post_init__(self):
         # Valid benchmark name
-        assert self.benchmark_name in ["Multilingual", "Europe", "Indic", "eng, v2"], (
-            f"Invalid benchmark name {self.benchmark_name}. See documentation for options."
-        )
+        benchmark_names = ["Multilingual", "Europe", "Indic", "eng, v2"]
+        if self.benchmark_name not in benchmark_names:
+            raise ValueError(f"Invalid benchmark name {self.benchmark_name}. Options are {benchmark_names}.")
 
         # Valid task type
-        assert self.task_type in [
+        task_types = [
             "Retrieval",
             "Classification",
             "Clustering",
@@ -84,7 +80,9 @@ class MTEBConfig:
             "Reranking",
             "Summarization",
             "InstructionRetrieval",
-        ], f"Invalid task type {self.task_type}. See documentation for options."
+        ]
+        if self.task_type not in task_types:
+            raise ValueError(f"Invalid task type {self.task_type}. Options are {task_types}.")
 
 
 # ------------------------------------------------------------------------------
@@ -94,9 +92,9 @@ class MTEB:
     r"""
     MTEB benchmark from [1, 2]_.
 
-    It consits of over 500 quality-controlled evaluation tasks across more than 250 languages.
+    It consists of over 500 quality-controlled evaluation tasks across more than 250 languages.
     We focus on the 4 main benchmarks presented in [1]_, which are the "Multilingual", "Europe", "Indic"
-    and "eng, v2". Other choices are possible, see the official website for more details. For efficiency reasons,
+    and "eng, v2". For efficiency reasons,
     we also filter out large tasks that are too costly to evaluate on, by setting the max_n_docs parameter. It allows
     to select the task where the amount of training or test documents is below max_n_docs.
 
@@ -120,19 +118,25 @@ class MTEB:
     ----------
     .. [1] N. Muennighoff et al. MTEB: Massive Text Embedding Benchmark. In EACL 2023
 
-    .. [2] K. Enevoldsen et al. MMTEB: : Massive Multilingual Text Embedding Benchmark. In ICLR 2025
+    .. [2] K. Enevoldsen et al. MMTEB: Massive Multilingual Text Embedding Benchmark. In ICLR 2025
     """
 
     def __init__(self, config: MTEBConfig):
-        super().__init__()
         self.benchmark_name = config.benchmark_name
         self.task_type = config.task_type
         self.max_n_docs = config.max_n_docs
         self.batch_size = config.batch_size
 
-    def evaluate(self, model: SentenceTransformer, cache_path: str) -> ModelResult:
+    def evaluate(self, model: EncoderProtocol, cache_path: str) -> ModelResult:
         r"""
-        Evaluate the model on MTEB benchmark. Results are saved to the cache path.
+        Evaluate the model on the tasks of the benchmark. Results are saved to the cache path.
+
+        Parameters
+        ----------
+        model: EncoderProtocol
+            Model to evaluate, e.g., a BaseLanguageModel probed at a given layer and module.
+        cache_path: str
+            Path where the results are saved. Tasks already evaluated are loaded from the cache.
 
         Returns
         -------

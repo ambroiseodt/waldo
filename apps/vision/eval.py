@@ -1,10 +1,6 @@
 r"""
 Codebase to evaluate vision foundation models via linear probing on image classification tasks.
 
-Notes
------
-This file can be used straightforwadly to evaluate vision language models seen as purely vision models.
-
 License
 -------
 This source code is licensed under the MIT license found in the LICENSE file
@@ -88,11 +84,6 @@ def eval(config: EvaluationConfig) -> None:
     ----------
     config: EvaluationConfig
         Configuration file to setup the model and the benchmark.
-
-    Returns
-    -------
-    cache_path: Path
-        Path where the results are saved.
     """
     # ---------------------------------------------------------------------
     # Set seed for reproducibility
@@ -173,12 +164,13 @@ def main() -> None:
     2. We override those default values with the ones in the provided config file,
     3. We override the result with the additional arguments provided through command line.
 
-    Usage:
-    To launch a training according to your_config.yaml file, run:
+    Usage
+    -----
+    To launch an evaluation according to your_config.yaml file, run:
 
     ```bash
     python -m apps.vision.eval config=apps/vision/configs/your_config.yaml
-    ``
+    ```
 
     To overwrite some arguments via the cli, e.g., to set the device to cuda:0, run:
 

@@ -14,7 +14,7 @@ See https://huggingface.co/collections/facebook/dinov2 for other model variants.
 
 References
 ----------
-.. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+.. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
 
 .. [2] T. Darcet et al. Vision Transformers Need Registers. In ICLR 2024
 
@@ -61,7 +61,7 @@ MLP_FFN = (Dinov2MLP, Dinov2WithRegistersMLP)
 @dataclass
 class Dinov2Config:
     r"""
-    Dinov2 configuration file.
+    DINOv2 configuration file.
 
     Parameters
     ----------
@@ -104,39 +104,21 @@ class Dinov2Config:
 # -------------------------------------------------------------------
 class Dinov2BlockAdapter(TransformerBlockAdapter):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules.
-    Subclasses need to implement the 8 methods that outputs the following modules:
-        ln1: first layer norm
-        mha: multi-head attention
-        rc1: first residual connection
-        ln2: second layer norm
-        fc1: first feedforward linear layer
-        act: feedforward activation function
-        fc2: second feedforward linear layer
-        rc2: second residual connection
+    Adapter mapping the standard module names to the submodules of a DINOv2 transformer block.
 
     Parameters
     ----------
     layer: nn.Module
-        A single transformer block.
+        A single DINOv2 transformer block.
 
     Notes
     -----
-    DINOv2-g model relies on a SwiGLU activation in the FFN (see [1, 2, 3]_ for details). For consistency
-    with ViT, we decompose the FFN block as follows:
-
-        fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = swish(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
-        fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
-
-    This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
-    up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
-    the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
-    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. Note that AIMv2
-    makes use of slight modifications of the transformer architecture (see, e.g., LayerScale [4]_) that do not
-    fundamentally change the transformer architecture and merely improve memory-efficiency and training
-    stability. For the consistency of our analysis, we do not probe them.
+    The FFN of DINOv2 is an MLP with a GELU activation, except for DINOv2-g which relies on a SwiGLU activation
+    [1, 2, 3]_, with or without registers. In HuggingFace, the gate and up projections of the SwiGLU FFN are fused in
+    a single linear layer (weights_in): fc1 is the gate projection recovered from its output with process_output, and
+    act is the input of the down projection (weights_out), following the decomposition of TransformerBlockAdapter.
+    DINOv2 also scales the outputs of the attention and FFN blocks with LayerScale [4]_ before the residual
+    connections. For consistency with other models, we do not probe them.
 
     References
     ----------
@@ -146,7 +128,7 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
     .. [3] N. Shazeer. GLU Variants Improve Transformer. arXiv 2020
 
-    .. [4] H. Touvron et al. Going Deeper With Image Transformers. ICCV 2021
+    .. [4] H. Touvron et al. Going Deeper With Image Transformers. In ICCV 2021
 
     See also
     --------
@@ -213,8 +195,8 @@ class Dinov2BlockAdapter(TransformerBlockAdapter):
 
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
-        Returns the names of the module for which register_forward_pre_hook should be used
-        in place of register_forward_hook to access their inputs instead of the outputs.
+        Returns the names of the modules for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of their outputs.
         """
         if isinstance(layer.mlp, SWIGLU_FFN):
             return {"rc1", "act"}
@@ -254,13 +236,12 @@ class Dinov2(BaseVisionModel):
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled,
-    BatchNorm uses running statistics). Call `model.train()` explicitly
+    The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()` explicitly
     if you intend to fine-tune.
 
     References
     ----------
-    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
 
     .. [2] T. Darcet et al. Vision Transformers Need Registers. In ICLR 2024
     """
@@ -296,8 +277,7 @@ class Dinov2(BaseVisionModel):
 
         Notes
         -----
-        The model is loaded in evaluation mode by default (dropout disabled,
-        BatchNorm uses running statistics). Call `model.train()` explicitly
+        The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()` explicitly
         if you intend to fine-tune.
         """
         available_models = [

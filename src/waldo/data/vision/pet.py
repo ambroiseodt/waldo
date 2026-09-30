@@ -30,11 +30,11 @@ class PetDatasetConfig:
 
     Parameters
     ----------
-    save_dir: str
-        Path from where to load the data or save them if it does not exit.
+    save_dir: Path
+        Path from where to load the data or save them if it does not exist.
     mode: str
         Mode. Options are "train" and "test".
-    transform: Any
+    transform: Compose | None
         Transformation to apply to the images.
     """
 
@@ -58,21 +58,21 @@ class PetDataset(Dataset):
     r"""
     Oxford-IIIT Pet dataset from [1]_.
 
-    It consists of 37 category of pets with around 200 images for each class.
-    The images have a large variations in scale, pose and lighting.
+    It consists of 37 categories of pets with around 200 images for each class.
+    The images have large variations in scale, pose and lighting.
 
     Parameters
     ----------
     config: configuration class with
-        save_dir: str
-            Path from where to load the data or save them if it does not exit.
+        save_dir: Path
+            Path from where to load the data or save them if it does not exist.
         mode: str
             Mode. Options are "train" and "test".
         transform: Compose
             Transformation to apply to the images.
 
     Notes
-    ----------
+    -----
     Oxford-IIIT Pet was created by Omkar M Parkhi, Andrea Vedaldi, Andrew Zisserman, C. V. Jawahar
     Official website: https://www.robots.ox.ac.uk/~vgg/data/pets/.
 

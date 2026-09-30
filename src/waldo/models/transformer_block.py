@@ -27,9 +27,9 @@ RC2NORM = "rc2norm"
 # -------------------------------------------------------------------
 class TransformerBlockAdapter(ABC):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules.
+    Adapter mapping the standard module names to the submodules of a transformer block.
 
-    Subclasses need to implement the 8 methods that outputs the following modules:
+    Subclasses implement the 8 methods returning the modules whose output (or input for pre-hooks) gives:
         ln1: first layer norm
         mha: multi-head attention
         rc1: first residual connection
@@ -47,24 +47,24 @@ class TransformerBlockAdapter(ABC):
     Notes
     -----
     Our implementation assumes that pre-norm is used, as is the case in modern transformer models like ViT, DINO,
-    or Llama, i.e., normalization layers are applied before the attention and feedforward blocks (see [1, 2]). It
-    allows us to recover all modules using a single forward pass by using register_forward_hook, except for rc1,
-    which can be seen as the input to ln2 and is recovered using register_forward_pre_hook.  We advise users that
-    would like to use a post-norm standard to make sure their implementation matches our design. For generality, the
-    modules that require a pre_hook can be specified in the _pre_hook_modules method. This is notably needed for
-    modern models that rely on a gated activation like SwiGLU in the FFN (see [3, 4]_ for details). For consistency,
-    we decompose the FFN block as follows:
+    or Llama, i.e., normalization layers are applied before the attention and feedforward blocks (see [1, 2]_). It
+    allows us to recover all modules in a single forward pass with register_forward_hook, except for rc1, which is
+    the input of ln2 and is recovered with register_forward_pre_hook. Users who would like to use a post-norm model
+    should make sure that their implementation matches this design. The modules recovered with a pre-hook are
+    returned by _get_pre_hooks_modules. This is notably needed for models that rely on a gated activation such as
+    SwiGLU in the FFN (see [3, 4]_ for details), for which we decompose the FFN block as follows:
 
         fc1  = gate_proj(x)                      -> linear layer which feeds the activation
-        act  = swish(gate_proj(x)) * up_proj(x)   -> non-linearity (which is a function of the input too)
+        act  = sigma(gate_proj(x)) * up_proj(x)  -> non-linearity (which is a function of the input too)
         fc2  = down_proj(act)                    -> linear layer which gives the output of the FFN
 
     This ensures that fc1 and fc2 remain pure linear operations, and the gating mechanism is absorbed into act. The
     up_proj can be interpreted as part of the activation definition rather than a separate linear layer, making act
     the complete sequence-to-sequence non-linearity between fc1 and fc2. Subclasses must reflect this convention in
-    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in _pre_hook_modules
-    when SwiGLU is used, since the gated activation output is recovered as the input to down_proj. The process_output
-    method allows to process output, for instance to recover FC1 output for DINOv2-giant.
+    their _get_fc1, _get_act, and _get_fc2 implementations, and declare act as a pre-hook module in
+    _get_pre_hooks_modules, since the gated activation output is recovered as the input to down_proj. The
+    process_output method allows to post-process a module output, for instance to recover fc1 from the fused gate
+    and up projections of DINOv2-g.
 
     References
     ----------
@@ -81,12 +81,13 @@ class TransformerBlockAdapter(ABC):
     >>> class ViTBlockAdapter(TransformerBlockAdapter):
     ...     def _get_ln1(self, layer):  return layer.layernorm_before
     ...     def _get_mha(self, layer):  return layer.attention
-    ...     def _get_rc1(self, layer):  return layer.layer_norm_after  # pre_hook captures rc1
+    ...     def _get_rc1(self, layer):  return layer.layernorm_after  # pre-hook captures rc1
     ...     def _get_ln2(self, layer):  return layer.layernorm_after
     ...     def _get_fc1(self, layer):  return layer.intermediate.dense
     ...     def _get_act(self, layer):  return layer.intermediate.intermediate_act_fn
     ...     def _get_fc2(self, layer):  return layer.output.dense
-    ...     def _get_rc2(self, layer):  return layer.output
+    ...     def _get_rc2(self, layer):  return layer
+    ...     def _get_pre_hooks_modules(self, layer):  return {"rc1"}
     """
 
     def __init__(self, layer: nn.Module):
@@ -127,13 +128,13 @@ class TransformerBlockAdapter(ABC):
     @abstractmethod
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
-        Returns the names of the module for which register_forward_pre_hook should be used
-        in place of register_forward_hook to access their inputs instead of the outputs.
-
+        Returns the names of the modules for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of their outputs.
         """
         ...
 
     def module_map(self) -> dict[str, nn.Module]:
+        r"""Return the modules of the block indexed by their standard names, in the order of TRANSFORMER_MODULES."""
         return {
             "ln1": self.ln1,
             "mha": self.mha,

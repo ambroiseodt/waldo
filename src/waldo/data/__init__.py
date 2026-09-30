@@ -1,5 +1,5 @@
 r"""
-Codebase to preprocess vision and languages benchmarks.
+Codebase to preprocess vision and language benchmarks.
 
 License
 -------

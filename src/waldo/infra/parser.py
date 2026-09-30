@@ -99,7 +99,28 @@ def _is_union(origin: Any) -> bool:
 
 
 def build_with_type_check(object_type: type, data: Any) -> Any:
-    """Recursively initializes a typed object from a nested dictionary."""
+    r"""
+    Recursively initialize a typed object from a nested dictionary.
+
+    Parameters
+    ----------
+    object_type: type
+        Type of the object to build: a dataclass, a list, dict, union or literal type, a torch dtype,
+        or a type that can be built from data, e.g., int or Path.
+    data: Any
+        Data to build the object from, e.g., a dictionary of fields for a dataclass. Keys that do not
+        correspond to a field of the dataclass are ignored with a warning.
+
+    Returns
+    -------
+    Any
+        Object of type object_type. If data is None or object_type is Any, data is returned unchanged.
+
+    Raises
+    ------
+    ValueError
+        If data cannot be converted to object_type.
+    """
     # Trivial cases
     if data is None or object_type is Any:
         return data
@@ -139,7 +160,7 @@ def get_jsonl_keys(path: str, readall: bool = True) -> list[str]:
     ----------
     path: str
         Path to the jsonl file.
-    readall: bool, defaul=True
+    readall: bool, default=True
         Whether to read all lines of the file or the first one only.
 
     Returns
@@ -161,7 +182,7 @@ def get_jsonl_keys(path: str, readall: bool = True) -> list[str]:
 
 def load_jsonl_to_numpy(path: str, keys: list[str] | None = None) -> dict[str, np.ndarray]:
     r"""
-    Convert a jsonl file to a dictionnary of numpy array.
+    Convert a jsonl file to a dictionary of numpy array.
 
     Parameters
     ----------
@@ -197,7 +218,7 @@ def load_jsonl_to_numpy(path: str, keys: list[str] | None = None) -> dict[str, n
 # Object type
 # ------------------------------------------------------------------------------
 def json_serializable(object_dict: dict) -> dict:
-    r"""Convert dictionnary values in JSON serializable objects."""
+    r"""Convert dictionary values in JSON serializable objects."""
     for key, value in object_dict.items():
         invalid_type = type(value) in [PosixPath, torch.device]
         object_dict[key] = str(value) if invalid_type else value

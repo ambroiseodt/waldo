@@ -1,7 +1,6 @@
 r"""
 Vision Transformer model pretrained on ImageNet-21k following [1]_. It allows to study specific layers and modules.
 
-
 Comments abbreviations
 ----------------------
     N: batch size
@@ -95,22 +94,12 @@ class ViTConfig:
 # -------------------------------------------------------------------
 class ViTBlockAdapter(TransformerBlockAdapter):
     r"""
-    Adapter that maps standard module names to a transformer block's submodules.
-    Subclasses need to implement the 8 methods that outputs the following modules:
-        ln1: first layer norm
-        mha: multi-head attention
-        rc1: first residual connection
-        ln2: second layer norm
-        fc1: first feedforward linear layer
-        act: feedforward activation function
-        fc2: second feedforward linear layer
-        rc2: second residual connection
+    Adapter mapping the standard module names to the submodules of a ViT transformer block.
 
     Parameters
     ----------
     layer: nn.Module
-        A single transformer block.
-
+        A single ViT transformer block.
 
     See also
     --------
@@ -147,8 +136,8 @@ class ViTBlockAdapter(TransformerBlockAdapter):
 
     def _get_pre_hooks_modules(self, layer: nn.Module) -> set[str]:
         r"""
-        Returns the names of the module for which register_forward_pre_hook should be used
-        in place of register_forward_hook to access their inputs instead of the outputs.
+        Returns the names of the modules for which register_forward_pre_hook should be used
+        in place of register_forward_hook to access their inputs instead of their outputs.
         """
         return {"rc1"}
 
@@ -160,16 +149,13 @@ class ViT(BaseVisionModel):
     r"""
     Vision Transformer implementation following [1]_.
 
-
     Parameters
     ----------
     config: configuration class with
         model_size: str
             Type of model to use. Options are "base", "large", and "huge".
         patch_size: int
-            Size of the patches to be extracted from the image.
-        resolution: int
-            Image resolution.
+            Size of the patches to be extracted from the image. Options are 14, 16 and 32.
         pooling: str
             Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
             and "all" (concatenation of the CLS token and the mean over the patch tokens).
@@ -178,14 +164,13 @@ class ViT(BaseVisionModel):
 
     Notes
     -----
-    The model is loaded in evaluation mode by default (dropout disabled,
-    BatchNorm uses running statistics). Call `model.train()` explicitly
+    The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()` explicitly
     if you intend to fine-tune.
 
     References
     ----------
     .. [1] A. Dosovitskiy, L. Beyer et al. An Image is Worth 16x16 Words: Transformers
-           for Image Recognition at Scale. ICLR 2021.
+           for Image Recognition at Scale. In ICLR 2021
     """
 
     def __init__(self, config: ViTConfig):
@@ -214,8 +199,7 @@ class ViT(BaseVisionModel):
 
         Notes
         -----
-        The model is loaded in evaluation mode by default (dropout disabled,
-        BatchNorm uses running statistics). Call `model.train()` explicitly
+        The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()` explicitly
         if you intend to fine-tune.
         """
         available_models = [

@@ -3,7 +3,7 @@ Linear probing to evaluate VFMs on image classification tasks.
 
 References
 ----------
-.. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+.. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
 
 .. [2] O. Simeoni et al. DINOv3. arXiv 2025
 
@@ -61,7 +61,7 @@ class LinearProbingConfig:
 
     References
     ----------
-    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
 
     .. [2] O. Simeoni et al. DINOv3. arXiv 2025
 
@@ -86,8 +86,11 @@ class LinearProbingConfig:
         self.__post_init__()
 
     def __post_init__(self):
-        # Valid tolerance
-        assert self.tol >= 0, f"Invalid tolerance {self.tol}. This should be a nonnegative number."
+        # Valid tolerance and number of iterations
+        if self.tol < 0:
+            raise ValueError(f"Invalid tolerance {self.tol}. It should be nonnegative.")
+        if self.max_iter <= 0:
+            raise ValueError(f"Invalid maximum number of iterations {self.max_iter}. It should be positive.")
 
 
 # ------------------------------------------------------------------------------
@@ -95,13 +98,13 @@ class LinearProbingConfig:
 # ------------------------------------------------------------------------------
 class LinearProbing:
     r"""
-    Linear probing with a logistic regression with GPU-friendly implementation.
+    Linear probing with a logistic regression on standardized features, using cuML on GPU and sklearn otherwise.
 
     Parameters
     ----------
     config: configuration class with
         tol: float, default=1e-4
-        Tolerance for stopping criteria.
+            Tolerance for stopping criteria.
         max_iter: int, default=1000
             Maximum number of iterations to converge.
         device: str, default=DEVICE
@@ -111,11 +114,10 @@ class LinearProbing:
 
     References
     ----------
-    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Feature without Supervision. In TMLR 2024
+    .. [1] M. Oquab et al. DINOv2: Learning Robust Visual Features without Supervision. In TMLR 2024
     """
 
     def __init__(self, config: LinearProbingConfig):
-        super().__init__()
         self.tol = config.tol
         self.max_iter = config.max_iter
         self.device = config.device
@@ -636,7 +638,7 @@ class LinearProbing:
             Train dataloader.
         test_loader: DataLoader | dict[str, DataLoader]
             Test dataloader(s). If test_loader is a dict, the evaluation is done on each
-            dataloader independently and results are saved in
+            dataloader independently and results are saved in a subfolder named after its key.
         cache_path: Path
             Path where the results are saved.
         overwrite: bool
@@ -646,6 +648,13 @@ class LinearProbing:
         modules: list[str] | None, default=None
             Module names to probe (see BaseVisionModel.get_embeddings). If None, all modules from
             TRANSFORMER_MODULES are probed.
+
+        Notes
+        -----
+        The info.json file of the cache path is only written once the evaluation is complete. Without overwrite,
+        complete evaluations are skipped and results without info.json, which come from interrupted runs, are
+        recomputed. With several test loaders, info.json lists the evaluated test sets and only the missing ones
+        are evaluated.
         """
         # Evaluation on multiple test loaders (independently)
         if isinstance(test_loader, dict):
