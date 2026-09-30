@@ -81,7 +81,7 @@ pip install -e ".[test,dev]"
 ```
 
 #### HuggingFace models
-Llama and Gemma models are gated: request access on their HuggingFace pages and log in with `hf auth login` (see
+DINOv3, Gemma3 and Llama3 models are gated: request access on their HuggingFace pages and log in with `hf auth login` (see
 [gated models](https://huggingface.co/docs/hub/en/models-gated)). The weights of all the models of the paper can be
 downloaded in advance with `bash scripts/models/download_models.sh`.
 
@@ -145,6 +145,8 @@ The main options are:
   DINOv3, instead of the mean over patch tokens (`pooling=content`, default).
 - `model_size` selects the variant, e.g. `model_size=large-registers` for DINOv2-L with registers or
   `model_size=1.7B-Base` for the pretrained Qwen3-1.7B.
+- `log_dir` saves the runs in another directory relative to `savings/`, e.g. `log_dir=ablations/rc2norm`, to keep
+  them separate from the main results.
 
 ### Vision models
 To probe every layer and module of DINOv2-B on Cifar10, run:
@@ -165,7 +167,7 @@ To evaluate every layer and module of Qwen3-0.6B on the classification tasks of 
 python -m apps.language.eval config=apps/language/configs/qwen3.yaml layers=[all] modules=[all] device=cuda:0
 ```
 
-Runs are saved in `savings/runs/<dataset>/<model>/`. Complete evaluations are skipped when launched again, and
+Runs are saved in `savings/runs/<dataset>/<model>/` by default. Complete evaluations are skipped when launched again, and
 interrupted ones are recomputed. Setting `overwrite=true` deletes the existing results of a run and recomputes them.
 
 ## Reproducibility

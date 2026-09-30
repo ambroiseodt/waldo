@@ -31,10 +31,10 @@ python -m apps.vision.eval config=apps/vision/configs/dinov2.yaml dataset_name=c
 python -m apps.language.eval config=apps/language/configs/qwen3.yaml layers=[-1] modules=[rc2norm]
 ```
 
-Gated models (Llama, Gemma) need `hf auth login`. Tests mirror `src/waldo/` and `apps/` (`tests/src/waldo/...`,
-`tests/apps/...`) and must run without GPU, `cuml` or network access: model tests patch `from_pretrained` with tiny
-randomly initialized HuggingFace models (see each folder's `conftest.py`), and `tests/conftest.py` makes any unpatched
-`from_pretrained` fail and sets `HF_HUB_OFFLINE=1`.
+Gated models (DINOv3, Gemma3, Llama3) need `hf auth login`. Tests mirror `src/waldo/` and `apps/`
+(`tests/src/waldo/...`, `tests/apps/...`) and must run without GPU, `cuml` or network access: model tests patch
+`from_pretrained` with tiny randomly initialized HuggingFace models (see each folder's `conftest.py`), and
+`tests/conftest.py` makes any unpatched `from_pretrained` fail and sets `HF_HUB_OFFLINE=1`.
 
 ## Workflow
 
@@ -46,8 +46,9 @@ randomly initialized HuggingFace models (see each folder's `conftest.py`), and `
   linear probing, compare the default outputs with `main` on tiny random models (patch `from_pretrained`): embeddings
   must be identical, byte for byte, unless the change is an intended fix.
 - Never delete or overwrite experiment outputs: `savings/` (runs), `analysis/results/` (aggregated CSVs, Git LFS). With
-  `overwrite=true`, linear probing deletes the existing results of a run. New or corrected runs go to another
-  `RUN_DIR` (top of each app) so `analysis/` keeps reproducing the paper.
+  `overwrite=true`, linear probing deletes the existing results of a run. New, corrected or ablation runs go to another
+  directory with the `log_dir` option of the apps (relative to `savings/`, e.g. `log_dir=ablations/rc2norm`), so that
+  `savings/runs/` and `analysis/` keep reproducing the paper.
 - `temp/` is gitignored scratch space (rebuttal notes, check scripts).
 
 ## Architecture
