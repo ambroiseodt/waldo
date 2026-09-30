@@ -336,7 +336,7 @@ class Llama3(BaseLanguageModel):
         return ModelMeta(
             name=f"{self.model_name}_layer_{layer}_module_{self.module}",
             revision="main",
-            release_date="2024-04-18" if "3.1" in self.model_name else "2024-09-25",
+            release_date="2024-07-23" if "3.1" in self.model_name else "2024-09-25",
             open_weights=True,
             framework=["PyTorch"],
             license="https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/LICENSE"

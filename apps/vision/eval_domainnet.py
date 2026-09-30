@@ -44,7 +44,7 @@ class EvaluationConfig:
     resolution: int = 224
 
     # Data
-    domains: list = field(default_factory=lambda: ["clipart", "infograph", "painting", "quickdraw", "sketch"])
+    domains: list[str] = field(default_factory=lambda: ["clipart", "infograph", "painting", "quickdraw", "sketch"])
     batch_size: int = 512
 
     # Probing: pooling over tokens, and layers / modules to probe (["all"] to probe all of them)

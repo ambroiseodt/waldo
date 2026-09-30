@@ -125,7 +125,7 @@ def eval(config: EvaluationConfig) -> None:
     # Loop over layers and modules to probe to embed sentences
     for layer in layers:
         for module in modules:
-            logging.info(f"Probing layer {layer} and module {module} for hidden state extraction.")
+            logger.info(f"Probing layer {layer} and module {module} for hidden state extraction.")
             model.set_probing(layer=layer, module=module)
             mteb_benchmark.evaluate(model=model, cache_path=cache_path)
 

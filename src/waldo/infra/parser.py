@@ -194,7 +194,7 @@ def load_jsonl_to_numpy(path: str, keys: list[str] | None = None) -> dict[str, n
     Returns
     -------
     result_dict: dict[str, np.ndarray]
-        Dictionnary of numpy arrays containing the data from the jsonl file.
+        Dictionary of numpy arrays containing the data from the jsonl file.
     """
     if keys is None:
         keys = get_jsonl_keys(path, readall=True)

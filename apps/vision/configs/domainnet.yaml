@@ -4,7 +4,7 @@ model_size: "base"
 patch_size: 16
 
 # Data
-domains: ["clipart", "infographic", "quickdraw" ,"painting", "sketch"]
+domains: ["clipart", "infograph", "painting", "quickdraw", "sketch"]
 batch_size: 512
 
 # Linear probing
