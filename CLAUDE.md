@@ -10,7 +10,8 @@ the structure, commands or conventions it describes. -->
 Research code for the paper "Probing Transformer Representations Layer by Layer, Module by Module": probe pretrained
 vision models (ViT, DINOv2, DINOv3, AIMv2) and LLMs (Gemma3, Llama3, Qwen3) at every layer and every module of the
 transformer block, then evaluate each representation with linear probing (vision) or MTEB (language).
-Library code in `src/waldo`, experiment entry points in `apps/`, sweeps in `scripts/`, figures in `plots/`.
+Library code in `src/waldo`, experiment entry points and configs in `apps/`, launch scripts in `scripts/`, aggregation
+of the runs into `analysis/results/` and paper figures and tables in `analysis/`.
 
 ## Commands
 
@@ -44,9 +45,9 @@ randomly initialized HuggingFace models (see each folder's `conftest.py`), and `
 - IMPORTANT: default options must reproduce the paper results exactly. After any change to models, pooling, hooks or
   linear probing, compare the default outputs with `main` on tiny random models (patch `from_pretrained`): embeddings
   must be identical, byte for byte, unless the change is an intended fix.
-- Never delete or overwrite experiment outputs: `savings/` (runs), `results/` (aggregated CSVs, Git LFS). With
+- Never delete or overwrite experiment outputs: `savings/` (runs), `analysis/results/` (aggregated CSVs, Git LFS). With
   `overwrite=true`, linear probing deletes the existing results of a run. New or corrected runs go to another
-  `RUN_DIR` (top of each app) so `plots/` keeps reproducing the paper.
+  `RUN_DIR` (top of each app) so `analysis/` keeps reproducing the paper.
 - `temp/` is gitignored scratch space (rebuttal notes, check scripts).
 
 ## Architecture

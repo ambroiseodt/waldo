@@ -4,7 +4,7 @@
 # a dedicated tmux session on the specified device. To do so, run the following
 # command in the terminal from the root directory of the project.
 # ```bash
-# $ bash <path_to_file_folder>/eval.sh
+# $ bash scripts/vision/eval.sh
 # ```
 
 # DATASETS

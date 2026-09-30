@@ -22,7 +22,7 @@ ROOT_DIR = Path(__file__).parents[3].resolve()
 DATASET_DIR = ROOT_DIR / Path("datasets/")
 FIGURE_DIR = ROOT_DIR / Path("figures/")
 MODEL_DIR = ROOT_DIR / Path("checkpoints/")
-RESULT_DIR = ROOT_DIR / Path("results/")
+RESULT_DIR = ROOT_DIR / Path("analysis/results/")
 SAVING_DIR = ROOT_DIR / Path("savings/")
 
 
