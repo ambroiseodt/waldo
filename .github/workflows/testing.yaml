@@ -2,13 +2,23 @@ name: Testing
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches: [main]
 
 jobs:
-  test-data-vision:
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      # Run every test folder even if another one fails
+      fail-fast: false
+      matrix:
+        folder:
+          - tests/data/vision
+          - tests/data/language
+          - tests/models/vision
+          - tests/models/language
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,60 +27,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install PyTorch (CPU)
+        run: pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cpu
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[test]"
 
       - name: Run tests
-        run: pytest tests/data/vision/ --cov=waldo --cov-report term --durations=10
-
-  test-data-language:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -e ".[dev]" "mteb[xet]==2.10.4"
-
-      - name: Run tests
-        run: pytest tests/data/language/ --cov=waldo --cov-report term --durations=10
-
-  test-models-vision:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -e ".[dev]" "transformers==5.5.0"
-
-      - name: Run tests
-        run: pytest tests/models/vision --cov=waldo --cov-report term --durations=10
-  
-  test-models-language:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -e ".[dev]" "transformers==5.5.0" "mteb[xet]==2.10.4"
-
-      - name: Run tests
-        run: pytest tests/models/language --cov=waldo --cov-report term --durations=10
+        run: pytest ${{ matrix.folder }} --cov=waldo --cov-report term --durations=10
