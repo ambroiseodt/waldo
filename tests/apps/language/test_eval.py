@@ -18,7 +18,7 @@ from apps.language import eval as app
 from waldo.data import MTEBConfig
 from waldo.models import TRANSFORMER_MODULES
 
-from ..conftest import CONFIG_DIR, check_model_config, load_config
+from ..conftest import CONFIG_DIR, check_model_config, load_config, saving_dirs
 
 CONFIGS = ["gemma3.yaml", "llama3.yaml", "qwen3.yaml"]
 
@@ -29,7 +29,7 @@ def _run(tmp_path: Path, **overrides: object) -> tuple[MagicMock, MagicMock]:
     benchmark = MagicMock(n_tasks=2, domains={"News"}, languages={"eng"})
     config = load_config(app.EvaluationConfig, CONFIG_DIR / "language/configs/qwen3.yaml", device="cpu", **overrides)
     with (
-        patch.object(app, "RUN_DIR", tmp_path),
+        saving_dirs(app, tmp_path),
         patch.object(app, "build_model", return_value=model),
         patch.object(app, "build_mteb", return_value=benchmark),
     ):
@@ -60,7 +60,6 @@ class TestEval:
         expected = [call(layer=layer, module=module) for layer in range(3) for module in TRANSFORMER_MODULES]
         assert model.set_probing.call_args_list == expected
         assert benchmark.evaluate.call_count == len(expected)
-        assert benchmark.evaluate.call_args.kwargs["cache_path"] == tmp_path / "mteb" / "Qwen/Qwen3-0.6B"
 
     def test_selected_layers_and_modules(self, tmp_path: Path) -> None:
         r"""Selected layers and modules, e.g. the final norm output, should be probed as given."""
@@ -71,7 +70,7 @@ class TestEval:
     def test_model_and_benchmark_configs(self, tmp_path: Path) -> None:
         r"""The model and the MTEB benchmark should be built from the evaluation config."""
         with (
-            patch.object(app, "RUN_DIR", tmp_path),
+            saving_dirs(app, tmp_path),
             patch.object(app, "build_model", return_value=MagicMock(n_layers=1)) as build_model,
             patch.object(app, "build_mteb", return_value=MagicMock()) as build_mteb,
         ):
@@ -81,13 +80,35 @@ class TestEval:
 
 
 # -------------------------------------------------------------------
+# Run directory
+# -------------------------------------------------------------------
+class TestLogDir:
+    r"""Tests for the directory where the MTEB results are saved."""
+
+    def test_default_log_dir(self, tmp_path: Path) -> None:
+        r"""By default, results should be saved in RUN_DIR, i.e. savings/runs, as for the results of the paper."""
+        assert app.EvaluationConfig().log_dir is None
+        assert app.RUN_DIR == app.SAVING_DIR / "runs"
+        _, benchmark = _run(tmp_path)
+        assert benchmark.evaluate.call_args.kwargs["cache_path"] == tmp_path / "savings/runs/mteb/Qwen/Qwen3-0.6B"
+
+    def test_custom_log_dir(self, tmp_path: Path) -> None:
+        r"""A given log_dir should be used relative to savings/."""
+        _, benchmark = _run(tmp_path, log_dir="ablations/rc2norm")
+        cache_path = benchmark.evaluate.call_args.kwargs["cache_path"]
+        assert cache_path == tmp_path / "savings/ablations/rc2norm/mteb/Qwen/Qwen3-0.6B"
+
+
+# -------------------------------------------------------------------
 # Command line interface
 # -------------------------------------------------------------------
 def test_main_merges_configuration_file_and_command_line(monkeypatch: pytest.MonkeyPatch) -> None:
     r"""Command line arguments should override the configuration file, which overrides the defaults."""
     config_path = CONFIG_DIR / "language/configs/qwen3.yaml"
-    monkeypatch.setattr("sys.argv", ["eval", f"config={config_path}", "model_size=1.7B-Base", "layers=[-1]"])
+    argv = ["eval", f"config={config_path}", "model_size=1.7B-Base", "layers=[-1]", "log_dir=ablations/qwen3_base"]
+    monkeypatch.setattr("sys.argv", argv)
     with patch.object(app, "setup_logging"), patch.object(app, "eval") as run:
         app.main()
     config = run.call_args.kwargs["config"]
     assert (config.model_name, config.model_size, config.layers) == ("qwen3", "1.7B-Base", [-1])
+    assert config.log_dir == "ablations/qwen3_base"

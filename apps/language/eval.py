@@ -36,6 +36,9 @@ RUN_DIR = SAVING_DIR / "runs"
 class EvaluationConfig:
     r"""Evaluation config."""
 
+    # Experiment
+    log_dir: str | None = None
+
     # Model
     model_name: str = "gemma3"
     model_size: str = "1b"
@@ -112,7 +115,8 @@ def eval(config: EvaluationConfig) -> None:
     # ---------------------------------------------------------------------
     # Run evaluation with the defined probes to obtain the sentence embedding
     # ---------------------------------------------------------------------
-    cache_path = RUN_DIR / "mteb" / model.model_name
+    log_dir = RUN_DIR if config.log_dir is None else SAVING_DIR / config.log_dir
+    cache_path = log_dir / "mteb" / model.model_name
 
     # Recover layers and modules with a condition to select all of them
     layers = config.layers

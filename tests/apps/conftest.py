@@ -9,8 +9,12 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from types import ModuleType
 from typing import Any
+from unittest.mock import patch
 
 from omegaconf import OmegaConf
 
@@ -39,3 +43,10 @@ def check_model_config(config: Any, keys: list[str]) -> None:
     r"""Build the model configuration of an app config, which raises a ValueError if a value is invalid."""
     model_config = MODEL_CONFIGS[config.model_name]
     build_with_type_check(model_config, {key: getattr(config, key) for key in keys})
+
+
+@contextmanager
+def saving_dirs(app: ModuleType, root: Path) -> Iterator[None]:
+    r"""Redirect the saving directories of an app, savings/ and savings/runs, to a temporary folder."""
+    with patch.object(app, "SAVING_DIR", root / "savings"), patch.object(app, "RUN_DIR", root / "savings" / "runs"):
+        yield
