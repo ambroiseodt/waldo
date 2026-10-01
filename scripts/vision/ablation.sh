@@ -14,67 +14,69 @@ datasets=(
     "domainnet-sketch"
     "domainnet-quickdraw"
 )
-device="cuda:0"
 
-# Registers: DINOv2-L with registers, all layers and modules (CLS and registers excluded from the pooling)
+# DINOv2-L with registers
 ablation="register"
-log_dir="ablations/${ablation}"
 model_name="dinov2"
 model_size="large-registers"
 batch_size=32
+device="cuda:0"
 
 # Runs
 session="${ablation}_${model_name}_${model_size}"
 tmux new-session -d -s ${session}
 for dataset_name in ${datasets[@]}
 do
-    run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false log_dir=${log_dir}"
+    run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
     command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m
 done
 
-# CLS concatenation: CLS token concatenated with the mean over patch tokens, all layers and modules
-# (AIMv2 has no CLS token)
+# CLS concatenation (AIMv2 has no CLS token)
 ablation="cls_concat"
 log_dir="ablations/${ablation}"
 pooling="all"
+batch_size=32
+device="cuda:0"
 
 # Runs
 for model in \
-    "vit large 512" \
-    "dinov2 large 32" \
-    "dinov3 vitl16 8"
+    "vit large" \
+    "dinov2 large" \
+    "dinov3 vitl16"
 do
-    read model_name model_size batch_size <<< ${model}
+    read model_name model_size <<< ${model}
     session="${ablation}_${model_name}_${model_size}"
     tmux new-session -d -s ${session}
     for dataset_name in ${datasets[@]}
     do
-        run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} pooling=${pooling} device=${device} overwrite=false log_dir=${log_dir}"
+        run="log_dir=${log_dir} model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} pooling=${pooling} device=${device}"
         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
         echo "Running command: ${command}"
         tmux send-keys -t ${session} "${command}" C-m
     done
 done
 
-# Final norm: output of the final norm of the last layer (standard output of the model)
+# Final norm
 ablation="final_norm"
 log_dir="ablations/${ablation}"
+batch_size=32
+device="cuda:0"
 
 # Runs
 for model in \
-    "vit large 512" \
-    "dinov2 large 32" \
-    "dinov3 vitl16 8" \
-    "aimv2 large 8"
+    "vit large" \
+    "dinov2 large" \
+    "dinov3 vitl16" \
+    "aimv2 large"
 do
-    read model_name model_size batch_size <<< ${model}
+    read model_name model_size <<< ${model}
     session="${ablation}_${model_name}_${model_size}"
     tmux new-session -d -s ${session}
     for dataset_name in ${datasets[@]}
     do
-        run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} layers=[-1] modules=[rc2norm] device=${device} overwrite=false log_dir=${log_dir}"
+        run="log_dir=${log_dir} model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} layers=[-1] modules=[rc2norm] device=${device}"
         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
         echo "Running command: ${command}"
         tmux send-keys -t ${session} "${command}" C-m
