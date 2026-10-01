@@ -16,7 +16,8 @@ datasets=(
 )
 
 # DINOv2-L with registers
-ablation="register"
+ablation="registers"
+log_dir="ablations/${ablation}"
 model_name="dinov2"
 model_size="large-registers"
 batch_size=32
@@ -27,7 +28,7 @@ session="${ablation}_${model_name}_${model_size}"
 tmux new-session -d -s ${session}
 for dataset_name in ${datasets[@]}
 do
-    run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
+    run="log_dir=${log_dir} model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
     command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m
