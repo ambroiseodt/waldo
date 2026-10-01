@@ -29,110 +29,111 @@ datasets=(
     "iwildcam"
 )
 
-# ViT
-model_name="vit"
-device="cuda:0"
-patch_size=16
+# # ViT
+# model_name="vit"
+# device="cuda:0"
+# patch_size=16
 
-# Runs
-for model_size in \
-    "base" \
-    "large" 
-do
-    session="eval_${model_name}_${model_size}"
-    tmux new-session -d -s ${session}
-    for dataset_name in ${datasets[@]}
-    do
-        run="model_size=${model_size} patch_size=${patch_size} dataset_name=${dataset_name} device=${device} overwrite=false"
-        command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
-        echo "Running command: ${command}"
-        tmux send-keys -t ${session} "${command}" C-m
-    done
-done
+# # Runs
+# for model_size in \
+#     "base" \
+#     "large" 
+# do
+#     session="eval_${model_name}_${model_size}"
+#     tmux new-session -d -s ${session}
+#     for dataset_name in ${datasets[@]}
+#     do
+#         run="model_size=${model_size} patch_size=${patch_size} dataset_name=${dataset_name} device=${device} overwrite=false"
+#         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+#         echo "Running command: ${command}"
+#         tmux send-keys -t ${session} "${command}" C-m
+#     done
+# done
 
-# ViT
-model_name="vit"
-device="cuda:0"
-patch_size=14
-model_size="huge"
-batch_size=128
+# # ViT
+# model_name="vit"
+# device="cuda:0"
+# patch_size=14
+# model_size="huge"
+# batch_size=128
 
-# Runs
-session="eval_${model_name}_${model_size}"
-tmux new-session -d -s ${session}
-for dataset_name in ${datasets[@]}
-do
-    run="model_size=${model_size} patch_size=${patch_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
-    command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
-    echo "Running command: ${command}"
-    tmux send-keys -t ${session} "${command}" C-m
-done
+# # Runs
+# session="eval_${model_name}_${model_size}"
+# tmux new-session -d -s ${session}
+# for dataset_name in ${datasets[@]}
+# do
+#     run="model_size=${model_size} patch_size=${patch_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
+#     command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+#     echo "Running command: ${command}"
+#     tmux send-keys -t ${session} "${command}" C-m
+# done
 
-# DINOv2
-model_name="dinov2"
-device="cuda:0"
-batch_size=32
+# # DINOv2
+# model_name="dinov2"
+# device="cuda:0"
+# batch_size=32
 
-# Runs
-for model_size in \
-    "small" \
-    "base" \
-    "large" \
-    "giant" 
-do
-    for dataset_name in ${datasets[@]}
-    do
-        session="eval_${model_name}_${model_size}"
-        tmux new-session -d -s ${session}
-        run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
-        command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
-        echo "Running command: ${command}"
-        tmux send-keys -t ${session} "${command}" C-m
-    done
-done
+# # Runs
+# for model_size in \
+#     "small" \
+#     "base" \
+#     "large" \
+#     "giant" 
+# do
+#     for dataset_name in ${datasets[@]}
+#     do
+#         session="eval_${model_name}_${model_size}"
+#         tmux new-session -d -s ${session}
+#         run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
+#         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+#         echo "Running command: ${command}"
+#         tmux send-keys -t ${session} "${command}" C-m
+#     done
+# done
 
-# DINOv3
-model_name="dinov3"
-device="cuda:0"
-batch_size=8
+# # DINOv3
+# model_name="dinov3"
+# device="cuda:0"
+# batch_size=8
+# log_dir="runs/debug"
 
-# Runs
-for model_size in \
-    "vit7b16" \
-    "vitl16" \
-    "vits16" \
-    "vitb16" 
-do
-    session="eval_${model_name}_${model_size}"
-    tmux new-session -d -s ${session}
-    for dataset_name in ${datasets[@]}
-    do
-        run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
-        command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
-        echo "Running command: ${command}"
-        tmux send-keys -t ${session} "${command}" C-m
-    done
-done
+# # Runs
+# for model_size in \
+#     "vits16" \
+#     "vitb16" \
+#     "vitl16" \
+#     "vit7b16" 
+# do
+#     session="eval_${model_name}_${model_size}"
+#     tmux new-session -d -s ${session}
+#     for dataset_name in ${datasets[@]}
+#     do
+#         run="log_dir=${log_dir} model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
+#         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+#         echo "Running command: ${command}"
+#         tmux send-keys -t ${session} "${command}" C-m
+#     done
+# done
 
-# AIMv2
-model_name="aimv2"
-device="cuda:0"
-batch_size=8
+# # AIMv2
+# model_name="aimv2"
+# device="cuda:0"
+# batch_size=8
 
-# Runs
-for model_size in \
-    "large" \
-    "huge" \
-    "1B" \
-    "3B" 
-do
-    session="eval_${model_name}_${model_size}"
-    tmux new-session -d -s ${session}
-    for dataset_name in ${datasets[@]}
-    do
-        run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
-        command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
-        echo "Running command: ${command}"
-        tmux send-keys -t ${session} "${command}" C-m
-    done
-done
+# # Runs
+# for model_size in \
+#     "large" \
+#     "huge" \
+#     "1B" \
+#     "3B" 
+# do
+#     session="eval_${model_name}_${model_size}"
+#     tmux new-session -d -s ${session}
+#     for dataset_name in ${datasets[@]}
+#     do
+#         run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
+#         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+#         echo "Running command: ${command}"
+#         tmux send-keys -t ${session} "${command}" C-m
+#     done
+# done
