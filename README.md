@@ -13,8 +13,7 @@ the second normalization at 60% of the depth (LN2@60) for LLMs.
 
 ## Overview
 Our codebase probes every layer and every module of pretrained vision foundation models (ViT, DINOv2, DINOv3, AIMv2)
-and LLMs (Gemma3, Llama3, Qwen3) in a single forward pass. Each transformer block is decomposed into 8 modules, and the
-standard output of the model can be probed as well:
+and LLMs (Gemma3, Llama3, Qwen3) in a single forward pass. Each transformer block is decomposed into 8 modules:
 
 | Module | Representation |
 |---|---|
@@ -26,7 +25,6 @@ standard output of the model can be probed as well:
 | `act` | output of the FFN activation (gated activation for SwiGLU and GeGLU) |
 | `fc2` | output of the FFN |
 | `rc2` | residual stream at the output of the block |
-| `rc2norm` | output of the final norm applied to the residual stream of the last block (standard output of the model) |
 
 Representations are mean-pooled over content tokens (CLS and register tokens, or BOS, EOS and padding tokens are
 excluded), then evaluated with linear probing for vision models and on MTEB for LLMs. The codebase is designed to be
@@ -100,8 +98,8 @@ from waldo.models import build_model
 # Vision: pooled representations of given layers and modules, stored on CPU
 model = build_model({"model_name": "dinov2", "model_size": "base", "device": "cuda:0"})
 images = torch.randn(4, 3, 224, 224, device="cuda:0")  # preprocessed with waldo.data.build_transform
-embeddings = model.get_embeddings(images, layers=[-1], modules=["act", "rc2norm"])
-# {"block_11_act": tensor of shape (4, 3072), "block_11_rc2norm": tensor of shape (4, 768)}
+embeddings = model.get_embeddings(images, layers=[-1], modules=["act", "rc2"])
+# {"block_11_act": tensor of shape (4, 3072), "block_11_rc2": tensor of shape (4, 768)}
 
 # Language: sentence embeddings at the second normalization of 60% of the depth (LN2@60)
 model = build_model({"model_name": "qwen3", "model_size": "0.6B", "device": "cuda:0"})
@@ -127,7 +125,6 @@ class EvaluationConfig:
     model_name: str = "vit"
     model_size: str = "base"
     dataset_name: str = "cifar10"
-    pooling: str = "content"
     layers: list[int | str] = field(default_factory=lambda: ["all"])
     modules: list[str] = field(default_factory=lambda: ["all"])
     device: str = DEVICE
@@ -139,14 +136,11 @@ We use [OmegaConf](https://omegaconf.readthedocs.io/en/2.3_branch/usage.html#fro
 3. The result is overridden with the additional arguments provided through command line.
 
 The main options are:
-- `layers` and `modules` select the representations to probe, e.g. `layers=[-1] modules=[rc2norm]` for the standard
-  output of the model. Both default to `["all"]`.
-- `pooling=all` concatenates the CLS token with the mean over patch tokens, as in the linear probing of DINOv2 and
-  DINOv3, instead of the mean over patch tokens (`pooling=content`, default).
-- `model_size` selects the variant, e.g. `model_size=large-registers` for DINOv2-L with registers or
-  `model_size=1.7B-Base` for the pretrained Qwen3-1.7B.
-- `log_dir` is the directory of the runs relative to `savings/` (default `runs`), e.g. `log_dir=ablations/final_norm`
-  to keep ablations separate from the main results.
+- `layers` and `modules` select the representations to probe, e.g. `layers=[-1] modules=[act]` for the FFN activation
+  of the last layer. Both default to `["all"]`.
+- `model_size` selects the variant, e.g. `model_size=large` for DINOv2-L.
+- `log_dir` is the directory of the runs relative to `savings/` (default `runs`), e.g. `log_dir=runs_v2` to keep new
+  runs separate from the results of the paper.
 
 ### Vision models
 To probe every layer and module of DINOv2-B on Cifar10, run:

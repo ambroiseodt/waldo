@@ -237,10 +237,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
     @property
     @abstractmethod
     def final_norm(self) -> nn.Module:
-        r"""
-        Return the final norm applied to the residual stream of the last transformer block. Its output is the standard
-        output of the model (e.g., last_hidden_state in HuggingFace), probed with RC2NORM.
-        """
+        r"""Return the final norm applied to the residual stream of the last transformer block."""
         ...
 
     @property
