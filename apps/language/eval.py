@@ -25,9 +25,6 @@ from ..setup import setup_logging
 # Logger setup
 logger = logging.getLogger("waldo.eval")
 
-# Paths
-RUN_DIR = SAVING_DIR / "runs"
-
 
 # ------------------------------------------------------------------------------
 # Configuration
@@ -37,7 +34,7 @@ class EvaluationConfig:
     r"""Evaluation config."""
 
     # Experiment
-    log_dir: str | None = None
+    log_dir: str = "runs"
 
     # Model
     model_name: str = "gemma3"
@@ -115,8 +112,7 @@ def eval(config: EvaluationConfig) -> None:
     # ---------------------------------------------------------------------
     # Run evaluation with the defined probes to obtain the sentence embedding
     # ---------------------------------------------------------------------
-    log_dir = RUN_DIR if config.log_dir is None else SAVING_DIR / config.log_dir
-    cache_path = log_dir / "mteb" / model.model_name
+    cache_path = SAVING_DIR / config.log_dir / "mteb" / model.model_name
 
     # Recover layers and modules with a condition to select all of them
     layers = config.layers

@@ -18,7 +18,7 @@ import pytest
 from apps.vision import eval as app
 from waldo.data import build_transform
 
-from ..conftest import CONFIG_DIR, check_model_config, load_config, saving_dirs
+from ..conftest import CONFIG_DIR, check_model_config, load_config
 
 CONFIGS = ["vit.yaml", "dinov2.yaml", "dinov3.yaml", "aimv2.yaml"]
 
@@ -34,7 +34,7 @@ def _run(tmp_path: Path, **overrides: object) -> dict[str, MagicMock]:
         "build_linear_probing": MagicMock(),
     }
     config = load_config(app.EvaluationConfig, CONFIG_DIR / "vision/configs/dinov2.yaml", device="cpu", **overrides)
-    with saving_dirs(app, tmp_path), patch.multiple(app, **mocks):
+    with patch.multiple(app, SAVING_DIR=tmp_path / "savings", **mocks):
         app.eval(config)
     return mocks
 
@@ -44,8 +44,9 @@ def _run(tmp_path: Path, **overrides: object) -> dict[str, MagicMock]:
 # -------------------------------------------------------------------
 @pytest.mark.parametrize("name", CONFIGS)
 def test_configuration_files(name: str) -> None:
-    r"""Each configuration file should only contain fields of the app, with valid model values."""
+    r"""Each configuration file should only contain fields of the app, with valid model values and no overwrite."""
     config = load_config(app.EvaluationConfig, CONFIG_DIR / "vision/configs" / name)
+    assert config.overwrite is False
     check_model_config(config, ["model_size", "patch_size", "resolution", "pooling"])
     build_transform(resolution=config.resolution, transform_type="static")
 
@@ -71,6 +72,11 @@ class TestEval:
         saved = json.loads((tmp_path / "savings/runs/cifar10/facebook/dinov2-base/config.json").read_text())
         assert (saved["model_name"], saved["dataset_name"], saved["pooling"]) == ("dinov2", "cifar10", "content")
 
+    def test_no_overwrite_by_default(self, tmp_path: Path) -> None:
+        r"""By default, existing results should never be overwritten."""
+        assert app.EvaluationConfig().overwrite is False
+        assert _run(tmp_path)["build_linear_probing"].return_value.evaluate.call_args.kwargs["overwrite"] is False
+
     def test_all_layers_and_modules_by_default(self, tmp_path: Path) -> None:
         r"""By default, all layers and modules should be probed."""
         evaluate = _run(tmp_path)["build_linear_probing"].return_value.evaluate
@@ -89,18 +95,17 @@ class TestLogDir:
     r"""Tests for the directory where the runs are saved."""
 
     def test_default_log_dir(self, tmp_path: Path) -> None:
-        r"""By default, runs should be saved in RUN_DIR, i.e. savings/runs, as for the results of the paper."""
-        assert app.EvaluationConfig().log_dir is None
-        assert app.RUN_DIR == app.SAVING_DIR / "runs"
+        r"""By default, runs should be saved in savings/runs, as for the results of the paper."""
+        assert app.EvaluationConfig().log_dir == "runs"
         evaluate = _run(tmp_path)["build_linear_probing"].return_value.evaluate
         assert evaluate.call_args.kwargs["cache_path"] == tmp_path / "savings/runs/cifar10/facebook/dinov2-base"
 
     def test_custom_log_dir(self, tmp_path: Path) -> None:
-        r"""A given log_dir should be used relative to savings/, and nothing should be written in RUN_DIR."""
-        evaluate = _run(tmp_path, log_dir="ablations/rc2norm")["build_linear_probing"].return_value.evaluate
-        cache_path = tmp_path / "savings/ablations/rc2norm/cifar10/facebook/dinov2-base"
+        r"""A given log_dir should be used relative to savings/, and nothing should be written in savings/runs."""
+        evaluate = _run(tmp_path, log_dir="ablations/final_norm")["build_linear_probing"].return_value.evaluate
+        cache_path = tmp_path / "savings/ablations/final_norm/cifar10/facebook/dinov2-base"
         assert evaluate.call_args.kwargs["cache_path"] == cache_path
-        assert json.loads((cache_path / "config.json").read_text())["log_dir"] == "ablations/rc2norm"
+        assert json.loads((cache_path / "config.json").read_text())["log_dir"] == "ablations/final_norm"
         assert not (tmp_path / "savings/runs").exists()
 
 
@@ -110,10 +115,10 @@ class TestLogDir:
 def test_main_merges_configuration_file_and_command_line(monkeypatch: pytest.MonkeyPatch) -> None:
     r"""Command line arguments should override the configuration file, which overrides the defaults."""
     config_path = CONFIG_DIR / "vision/configs/vit.yaml"
-    argv = ["eval", f"config={config_path}", "device=cpu", "modules=[rc2norm]", "log_dir=ablations/rc2norm"]
+    argv = ["eval", f"config={config_path}", "device=cpu", "modules=[rc2norm]", "log_dir=ablations/final_norm"]
     monkeypatch.setattr("sys.argv", argv)
     with patch.object(app, "setup_logging"), patch.object(app, "eval") as run:
         app.main()
     config = run.call_args.kwargs["config"]
     assert (config.model_name, config.device, config.modules, config.layers) == ("vit", "cpu", ["rc2norm"], ["all"])
-    assert config.log_dir == "ablations/rc2norm"
+    assert config.log_dir == "ablations/final_norm"

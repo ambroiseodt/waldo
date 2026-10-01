@@ -47,8 +47,8 @@ Gated models (DINOv3, Gemma3, Llama3) need `hf auth login`. Tests mirror `src/wa
   must be identical, byte for byte, unless the change is an intended fix.
 - Never delete or overwrite experiment outputs: `savings/` (runs), `analysis/results/` (aggregated CSVs, Git LFS). With
   `overwrite=true`, linear probing deletes the existing results of a run. New, corrected or ablation runs go to another
-  directory with the `log_dir` option of the apps (relative to `savings/`, e.g. `log_dir=ablations/rc2norm`), so that
-  `savings/runs/` and `analysis/` keep reproducing the paper.
+  directory with the `log_dir` option of the apps (relative to `savings/`, default `runs`, e.g.
+  `log_dir=ablations/final_norm`), so that `savings/runs/` and `analysis/` keep reproducing the paper.
 - `temp/` is gitignored scratch space (rebuttal notes, check scripts).
 
 ## Architecture

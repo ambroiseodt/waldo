@@ -26,9 +26,6 @@ from ..setup import setup_logging
 # Logger setup
 logger = logging.getLogger("waldo.eval_cifar10_c")
 
-# Paths
-RUN_DIR = SAVING_DIR / "runs"
-
 
 # ------------------------------------------------------------------------------
 # Configuration
@@ -38,7 +35,7 @@ class EvaluationConfig:
     r"""Evaluation config."""
 
     # Experiment
-    log_dir: str | None = None
+    log_dir: str = "runs"
     overwrite: bool = False
 
     # Model
@@ -132,8 +129,7 @@ def eval(config: EvaluationConfig) -> None:
     # ---------------------------------------------------------------------
     # Run evaluation
     # ---------------------------------------------------------------------
-    log_dir = RUN_DIR if config.log_dir is None else SAVING_DIR / config.log_dir
-    cache_path = log_dir / "cifar10_c" / model.model_name
+    cache_path = SAVING_DIR / config.log_dir / "cifar10_c" / model.model_name
     cache_path.mkdir(parents=True, exist_ok=True)
 
     # Save experiment config
