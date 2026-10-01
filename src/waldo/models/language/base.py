@@ -94,7 +94,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
-        - final_norm: returns the norm applied to the output of the last transformer block
+        - final_norm: returns the final norm applied to the residual stream of the last transformer block
         - special_token_ids: returns the list of special token ids to exclude from pooling
         - mteb_model_meta: returns the model metadata needed for compatibility with the MTEB benchmark
 
@@ -237,7 +237,10 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
     @property
     @abstractmethod
     def final_norm(self) -> nn.Module:
-        r"""Return the final norm, whose output is last_hidden_state in HuggingFace (rc2norm)."""
+        r"""
+        Return the final norm applied to the residual stream of the last transformer block. Its output is the standard
+        output of the model (e.g., last_hidden_state in HuggingFace), probed with RC2NORM.
+        """
         ...
 
     @property
@@ -321,7 +324,8 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         layer: int | None
             Index of the layer to probe. If None, the current layer is used.
         module: str | None
-            Module name from TRANSFORMER_MODULES, or RC2NORM (last layer only). If None, the current module is used.
+            Module name from TRANSFORMER_MODULES, or RC2NORM for the output of the final norm, which is only
+            defined for the last layer. If None, the current module is used.
 
         Raises
         ------
@@ -364,7 +368,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         # Recover embedding from the specified layer and module
         key = f"block_{self.layer}_{self.module}"
         if self.module == RC2NORM:
-            # Final norm
+            # Output of the final norm, only defined for the last layer
             handles.append(self.final_norm.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
         else:
             adapter = self.block_adapter(self.blocks[self.layer])
@@ -544,7 +548,8 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         layer: int | None
             Index of the layer to probe.
         module: str | None
-            Module name from TRANSFORMER_MODULES, or RC2NORM (last layer only).
+            Module name from TRANSFORMER_MODULES to probe, or RC2NORM for the output of the final norm, which is only
+            defined for the last layer.
         """
         # Valid layer and module
         self._check_probing(layer=layer, module=module)

@@ -47,7 +47,7 @@ class BaseVisionModel(nn.Module, ABC):
         - _load_model: load and return the HuggingFace model
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
-        - final_norm: returns the norm applied to the output of the last transformer block
+        - final_norm: returns the final norm applied to the residual stream of the last transformer block
         - n_prefix_tokens: returns the number of auxiliary tokens (CLS and registers) excluded from the pooling
     and set pooling_type from their configuration ("content" by default, see pooling).
 
@@ -119,7 +119,10 @@ class BaseVisionModel(nn.Module, ABC):
     @property
     @abstractmethod
     def final_norm(self) -> nn.Module:
-        r"""Return the final norm, whose output is last_hidden_state in HuggingFace (rc2norm)."""
+        r"""
+        Return the final norm applied to the residual stream of the last transformer block. Its output is the standard
+        output of the model (e.g., last_hidden_state in HuggingFace), probed with RC2NORM.
+        """
         ...
 
     @property
@@ -253,8 +256,9 @@ class BaseVisionModel(nn.Module, ABC):
             Layer indices to recover. Negative indices follow the Python convention, e.g., -1 is the last layer.
             If None, all layers are recovered.
         modules: list[str] | None, default=None
-            Module names from TRANSFORMER_MODULES, and RC2NORM (requires the last layer). If None, all modules from
-            TRANSFORMER_MODULES are recovered.
+            Module names from TRANSFORMER_MODULES, and RC2NORM for the output of the final norm (only defined for
+            the last layer, which must then be among the layers). If None, all modules from TRANSFORMER_MODULES
+            are recovered.
 
         Returns
         -------
@@ -319,7 +323,7 @@ class BaseVisionModel(nn.Module, ABC):
                         )
                     )
 
-        # Final norm
+        # Output of the final norm, only defined for the last layer
         if RC2NORM in modules:
             key = f"block_{self.n_layers - 1}_{RC2NORM}"
             handles.append(self.final_norm.register_forward_hook(self._make_hook(embeddings, key)))

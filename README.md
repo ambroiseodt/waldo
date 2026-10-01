@@ -26,7 +26,7 @@ standard output of the model can be probed as well:
 | `act` | output of the FFN activation (gated activation for SwiGLU and GeGLU) |
 | `fc2` | output of the FFN |
 | `rc2` | residual stream at the output of the block |
-| `rc2norm` | output of the final norm, only for the last layer (standard output of the model) |
+| `rc2norm` | output of the final norm applied to the residual stream of the last block (standard output of the model) |
 
 Representations are mean-pooled over content tokens (CLS and register tokens, or BOS, EOS and padding tokens are
 excluded), then evaluated with linear probing for vision models and on MTEB for LLMs. The codebase is designed to be
