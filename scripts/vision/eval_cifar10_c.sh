@@ -25,7 +25,7 @@ for model_size in \
 do
     session="eval_cifar10_c_${model_name}_${model_size}"
     tmux new-session -d -s ${session}
-    run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} device=${device}"
+    run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} device=${device} overwrite=false"
     command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m
@@ -41,7 +41,7 @@ batch_size=128
 # Runs
 session="eval_cifar10_c_${model_name}_${model_size}"
 tmux new-session -d -s ${session}
-run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
+run="model_name=${model_name} model_size=${model_size} patch_size=${patch_size} corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device} overwrite=false"
 command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
 echo "Running command: ${command}"
 tmux send-keys -t ${session} "${command}" C-m
@@ -60,7 +60,7 @@ for model_size in \
 do
     session="eval_cifar10_c_${model_name}_${model_size}"
     tmux new-session -d -s ${session}
-    run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
+    run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device} overwrite=false"
     command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m
@@ -80,7 +80,7 @@ for model_size in \
 do
     session="eval_cifar10_c_${model_name}_${model_size}"
     tmux new-session -d -s ${session}
-    run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
+    run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device} overwrite=false"
     command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m
@@ -100,7 +100,7 @@ for model_size in \
 do
     session="eval_cifar10_c_${model_name}_${model_size}"
     tmux new-session -d -s ${session}
-    run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device}"
+    run="model_name=${model_name} model_size=${model_size}  corruptions=${corruptions} severities=${severities} batch_size=${batch_size} device=${device} overwrite=false"
     command="python -m apps.vision.eval_cifar10_c config=apps/vision/configs/cifar10_c.yaml ${run}"
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m

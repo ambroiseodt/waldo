@@ -81,4 +81,4 @@ class TestViT:
         assert model.block_adapter is ViTBlockAdapter
         assert model.final_norm is hf_model.layernorm
         assert model.n_prefix_tokens == 1
-        assert model.blocks is hf_model.encoder.layer
+        assert model.blocks is hf_model.get_submodule("encoder.layer")

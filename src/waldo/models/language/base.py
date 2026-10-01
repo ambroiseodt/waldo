@@ -94,7 +94,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         - pooling: returns the pooling method over sequences of tokens
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
-        - final_norm: returns the norm applied to the output of the last transformer block
+        - final_norm: returns the final norm applied to the residual stream of the last transformer block
         - special_token_ids: returns the list of special token ids to exclude from pooling
         - mteb_model_meta: returns the model metadata needed for compatibility with the MTEB benchmark
 
@@ -237,10 +237,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
     @property
     @abstractmethod
     def final_norm(self) -> nn.Module:
-        r"""
-        Return the norm applied to the output of the last transformer block, whose output is the standard output
-        of the model (last_hidden_state in HuggingFace). It is used to probe the rc2norm module.
-        """
+        r"""Return the final norm applied to the residual stream of the last transformer block."""
         ...
 
     @property
@@ -548,8 +545,8 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         layer: int | None
             Index of the layer to probe.
         module: str | None
-            Module name from TRANSFORMER_MODULES to probe, or RC2NORM for the output of the final norm
-            (only with the last layer).
+            Module name from TRANSFORMER_MODULES to probe, or RC2NORM for the output of the final norm, which is only
+            defined for the last layer.
         """
         # Valid layer and module
         self._check_probing(layer=layer, module=module)

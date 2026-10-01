@@ -47,7 +47,7 @@ class BaseVisionModel(nn.Module, ABC):
         - _load_model: load and return the HuggingFace model
         - block_adapter: returns the adapter class for this model's blocks
         - blocks: returns the ModuleList of transformer blocks
-        - final_norm: returns the norm applied to the output of the last transformer block
+        - final_norm: returns the final norm applied to the residual stream of the last transformer block
         - n_prefix_tokens: returns the number of auxiliary tokens (CLS and registers) excluded from the pooling
     and set pooling_type from their configuration ("content" by default, see pooling).
 
@@ -119,10 +119,7 @@ class BaseVisionModel(nn.Module, ABC):
     @property
     @abstractmethod
     def final_norm(self) -> nn.Module:
-        r"""
-        Return the norm applied to the output of the last transformer block, whose output is the standard output
-        of the model (last_hidden_state in HuggingFace). It is used to probe the rc2norm module.
-        """
+        r"""Return the final norm applied to the residual stream of the last transformer block."""
         ...
 
     @property

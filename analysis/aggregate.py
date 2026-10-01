@@ -351,8 +351,7 @@ def analysis_cls_results() -> None:
         baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
 
         # Best probe
-        best_idx = group["accuracy"].idxmax()
-        best_row = group.loc[best_idx]
+        best_row = group.iloc[group["accuracy"].argmax()]
         best_layer = best_row["layer"]
         best_module = best_row["module"]
         best_accuracy = best_row["accuracy"]
@@ -360,14 +359,14 @@ def analysis_cls_results() -> None:
 
         # Best layer with rc2 fixed
         rc2_df = group[group["module"] == "rc2"]
-        best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
+        best_layer_rc2_row = rc2_df.iloc[rc2_df["accuracy"].argmax()]
         best_layer_rc2 = best_layer_rc2_row["layer"]
         layer_accuracy = best_layer_rc2_row["accuracy"]
         gain_layer = layer_accuracy - baseline_accuracy
 
         # Best module at last layer
         last_layer_df = group[group["layer"] == last_layer]
-        best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
+        best_module_last_row = last_layer_df.iloc[last_layer_df["accuracy"].argmax()]
         best_module_last_layer = best_module_last_row["module"]
         module_accuracy = best_module_last_row["accuracy"]
         gain_module = module_accuracy - baseline_accuracy
@@ -436,8 +435,7 @@ def analysis_cifar10_c_results() -> None:
         baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
 
         # Best probe
-        best_idx = group["accuracy"].idxmax()
-        best_row = group.loc[best_idx]
+        best_row = group.iloc[group["accuracy"].argmax()]
         best_layer = best_row["layer"]
         best_module = best_row["module"]
         best_accuracy = best_row["accuracy"]
@@ -445,14 +443,14 @@ def analysis_cifar10_c_results() -> None:
 
         # Best layer with rc2 fixed
         rc2_df = group[group["module"] == "rc2"]
-        best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
+        best_layer_rc2_row = rc2_df.iloc[rc2_df["accuracy"].argmax()]
         best_layer_rc2 = best_layer_rc2_row["layer"]
         layer_accuracy = best_layer_rc2_row["accuracy"]
         gain_layer = layer_accuracy - baseline_accuracy
 
         # Best module at last layer
         last_layer_df = group[group["layer"] == last_layer]
-        best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
+        best_module_last_row = last_layer_df.iloc[last_layer_df["accuracy"].argmax()]
         best_module_last_layer = best_module_last_row["module"]
         module_accuracy = best_module_last_row["accuracy"]
         gain_module = module_accuracy - baseline_accuracy
@@ -531,8 +529,7 @@ def analysis_mteb_results() -> None:
         baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
 
         # Best probe
-        best_idx = group["accuracy"].idxmax()
-        best_row = group.loc[best_idx]
+        best_row = group.iloc[group["accuracy"].argmax()]
         best_layer = best_row["layer"]
         best_module = best_row["module"]
         best_accuracy = best_row["accuracy"]
@@ -540,14 +537,14 @@ def analysis_mteb_results() -> None:
 
         # Best layer with rc2 fixed
         rc2_df = group[group["module"] == "rc2"]
-        best_layer_rc2_row = rc2_df.loc[rc2_df["accuracy"].idxmax()]
+        best_layer_rc2_row = rc2_df.iloc[rc2_df["accuracy"].argmax()]
         best_layer_rc2 = best_layer_rc2_row["layer"]
         layer_accuracy = best_layer_rc2_row["accuracy"]
         gain_layer = layer_accuracy - baseline_accuracy
 
         # Best module at last layer
         last_layer_df = group[group["layer"] == last_layer]
-        best_module_last_row = last_layer_df.loc[last_layer_df["accuracy"].idxmax()]
+        best_module_last_row = last_layer_df.iloc[last_layer_df["accuracy"].argmax()]
         best_module_last_layer = best_module_last_row["module"]
         module_accuracy = best_module_last_row["accuracy"]
         gain_module = module_accuracy - baseline_accuracy

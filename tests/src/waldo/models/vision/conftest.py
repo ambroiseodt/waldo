@@ -43,11 +43,18 @@ PATCH_SIZE = 8
 N_PATCHES = (IMAGE_SIZE // PATCH_SIZE) ** 2
 N_LAYERS = 2
 HIDDEN_SIZE = 32
-TINY = dict(hidden_size=HIDDEN_SIZE, num_hidden_layers=N_LAYERS, num_attention_heads=4, intermediate_size=64)
-TINY_IMAGE = dict(image_size=IMAGE_SIZE, patch_size=PATCH_SIZE)
+TINY: dict[str, Any] = dict(
+    hidden_size=HIDDEN_SIZE, num_hidden_layers=N_LAYERS, num_attention_heads=4, intermediate_size=64
+)
+TINY_IMAGE: dict[str, Any] = dict(image_size=IMAGE_SIZE, patch_size=PATCH_SIZE)
 
 # Type of the make_vision_model fixture
 MakeVisionModel = Callable[..., tuple[BaseVisionModel, PreTrainedModel]]
+
+
+def _tiny_config(config_class: type[PretrainedConfig], **kwargs: Any) -> PretrainedConfig:
+    r"""Tiny config of a HuggingFace vision model, with model-specific arguments."""
+    return config_class(**TINY, **TINY_IMAGE, **kwargs)
 
 
 @dataclass
@@ -62,39 +69,35 @@ class VisionSpec:
 
 
 VISION_SPECS = {
-    "vit": VisionSpec(ViTModel, ViTConfig(**TINY, **TINY_IMAGE), {"model_name": "vit"}, n_prefix_tokens=1),
-    "dinov2": VisionSpec(
-        Dinov2Model, Dinov2Config(**TINY, **TINY_IMAGE, layerscale_value=0.5), {"model_name": "dinov2"}, 1
-    ),
+    "vit": VisionSpec(ViTModel, _tiny_config(ViTConfig), {"model_name": "vit"}, n_prefix_tokens=1),
+    "dinov2": VisionSpec(Dinov2Model, _tiny_config(Dinov2Config, layerscale_value=0.5), {"model_name": "dinov2"}, 1),
     "dinov2-swiglu": VisionSpec(
         Dinov2Model,
-        Dinov2Config(**TINY, **TINY_IMAGE, layerscale_value=0.5, use_swiglu_ffn=True),
+        _tiny_config(Dinov2Config, layerscale_value=0.5, use_swiglu_ffn=True),
         {"model_name": "dinov2", "model_size": "giant"},
         n_prefix_tokens=1,
         gated=True,
     ),
     "dinov2-registers": VisionSpec(
         Dinov2WithRegistersModel,
-        Dinov2WithRegistersConfig(**TINY, **TINY_IMAGE, layerscale_value=0.5, num_register_tokens=4),
+        _tiny_config(Dinov2WithRegistersConfig, layerscale_value=0.5, num_register_tokens=4),
         {"model_name": "dinov2", "model_size": "base-registers"},
         n_prefix_tokens=5,
     ),
     "dinov3": VisionSpec(
         DINOv3ViTModel,
-        DINOv3ViTConfig(**TINY, **TINY_IMAGE, layerscale_value=0.5, num_register_tokens=4),
+        _tiny_config(DINOv3ViTConfig, layerscale_value=0.5, num_register_tokens=4),
         {"model_name": "dinov3"},
         n_prefix_tokens=5,
     ),
     "dinov3-gated": VisionSpec(
         DINOv3ViTModel,
-        DINOv3ViTConfig(**TINY, **TINY_IMAGE, layerscale_value=0.5, num_register_tokens=4, use_gated_mlp=True),
+        _tiny_config(DINOv3ViTConfig, layerscale_value=0.5, num_register_tokens=4, use_gated_mlp=True),
         {"model_name": "dinov3", "model_size": "vit7b16"},
         n_prefix_tokens=5,
         gated=True,
     ),
-    "aimv2": VisionSpec(
-        Aimv2VisionModel, Aimv2VisionConfig(**TINY, **TINY_IMAGE), {"model_name": "aimv2"}, 0, gated=True
-    ),
+    "aimv2": VisionSpec(Aimv2VisionModel, _tiny_config(Aimv2VisionConfig), {"model_name": "aimv2"}, 0, gated=True),
 }
 
 

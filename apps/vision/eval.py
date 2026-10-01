@@ -26,9 +26,6 @@ from ..setup import setup_logging
 # Logger setup
 logger = logging.getLogger("waldo.eval")
 
-# Paths
-RUN_DIR = SAVING_DIR / "runs"
-
 
 # ------------------------------------------------------------------------------
 # Configuration
@@ -36,6 +33,10 @@ RUN_DIR = SAVING_DIR / "runs"
 @dataclass
 class EvaluationConfig:
     r"""Evaluation config."""
+
+    # Experiment
+    log_dir: str = "runs"
+    overwrite: bool = False
 
     # Model
     model_name: str = "vit"
@@ -47,7 +48,7 @@ class EvaluationConfig:
     dataset_name: str = "cifar10"
     batch_size: int = 512
 
-    # Probing: pooling over tokens, and layers / modules to probe (["all"] to probe all of them)
+    # Probing
     pooling: str = "content"
     layers: list[int | str] = field(default_factory=lambda: ["all"])
     modules: list[str] = field(default_factory=lambda: ["all"])
@@ -55,9 +56,6 @@ class EvaluationConfig:
     # Linear probing
     tol: float = 1e-4
     max_iter: int = 1000
-
-    # Logger
-    overwrite: bool = False
 
     # Device
     device: str = DEVICE
@@ -124,7 +122,7 @@ def eval(config: EvaluationConfig) -> None:
     # ---------------------------------------------------------------------
     # Run evaluation
     # ---------------------------------------------------------------------
-    cache_path = RUN_DIR / config.dataset_name / model.model_name
+    cache_path = SAVING_DIR / config.log_dir / config.dataset_name / model.model_name
     cache_path.mkdir(parents=True, exist_ok=True)
 
     # Save experiment config
@@ -146,7 +144,7 @@ def eval(config: EvaluationConfig) -> None:
         test_loader=test_loader,
         cache_path=cache_path,
         overwrite=config.overwrite,
-        layers=None if config.layers == ["all"] else config.layers,
+        layers=None if config.layers == ["all"] else [int(layer) for layer in config.layers],
         modules=None if config.modules == ["all"] else config.modules,
     )
 

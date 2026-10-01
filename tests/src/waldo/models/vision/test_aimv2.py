@@ -88,5 +88,5 @@ class TestAimv2:
         assert model.block_adapter is Aimv2BlockAdapter
         assert model.final_norm is hf_model.rms_norm
         assert model.n_prefix_tokens == 0
-        assert model.blocks is hf_model.encoder.layers
+        assert model.blocks is hf_model.get_submodule("encoder.layers")
         assert (adapter.fc1, adapter.act, adapter.fc2) == (ffn.gate_proj, ffn.down_proj, ffn.down_proj)
