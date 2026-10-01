@@ -206,12 +206,13 @@ class BaseVisionModel(nn.Module, ABC):
         Pooling over the sequence of tokens to obtain a global embedding stored on CPU. Since the embeddings are
         obtained from get_embeddings that uses @torch.inference_mode(), there is no need to detach the tensor.
 
-        Two pooling types are available, set by pooling_type:
+        Three pooling types are available, set by pooling_type:
             - "content": mean pooling over the patch tokens, i.e., excluding the n_prefix_tokens auxiliary tokens
               (CLS and registers). This is the default.
             - "all": concatenation of the CLS token and the mean pooling over the patch tokens, following the linear
               probing protocol of DINOv2 and DINOv3 [1, 2]_. Register tokens are excluded. The embedding dimension
               is doubled. It requires a CLS token.
+            - "cls": CLS token only. It requires a CLS token.
 
         Parameters
         ----------
@@ -229,6 +230,9 @@ class BaseVisionModel(nn.Module, ABC):
 
         .. [2] O. Simeoni et al. DINOv3. arXiv 2025
         """
+        if self.pooling_type == "cls":
+            # Copy so that the stored embedding does not keep the full sequence alive
+            return hidden_states[:, 0].clone().cpu()
         embedding = mean_pooling(hidden_states=hidden_states, n_prefix_tokens=self.n_prefix_tokens)
         if self.pooling_type == "all":
             embedding = torch.cat([hidden_states[:, 0], embedding], dim=-1)

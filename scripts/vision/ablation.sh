@@ -59,6 +59,31 @@ do
     done
 done
 
+# CLS token only (AIMv2 has no CLS token)
+ablation="cls"
+log_dir="ablations/${ablation}"
+pooling="cls"
+batch_size=32
+device="cuda:0"
+
+# Runs
+for model in \
+    "vit large" \
+    "dinov2 large" \
+    "dinov3 vitl16"
+do
+    read model_name model_size <<< ${model}
+    session="${ablation}_${model_name}_${model_size}"
+    tmux new-session -d -s ${session}
+    for dataset_name in ${datasets[@]}
+    do
+        run="log_dir=${log_dir} model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} pooling=${pooling} device=${device}"
+        command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+        echo "Running command: ${command}"
+        tmux send-keys -t ${session} "${command}" C-m
+    done
+done
+
 # Final norm
 ablation="final_norm"
 log_dir="ablations/${ablation}"

@@ -60,8 +60,8 @@ class ViTConfig:
     patch_size: int
         Size of the patches to be extracted from the image. Options are 14, 16 and 32.
     pooling: str
-        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
-        and "all" (concatenation of the CLS token and the mean over the patch tokens).
+        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default),
+        "all" (concatenation of the CLS token and the mean over the patch tokens) and "cls" (CLS token only).
     device: str
         Device to use.
     """
@@ -85,8 +85,8 @@ class ViTConfig:
             raise ValueError(f"Invalid patch size {self.patch_size}. Options are 14, 16 and 32.")
 
         # Valid pooling
-        if self.pooling not in ["content", "all"]:
-            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content' and 'all'.")
+        if self.pooling not in ["content", "all", "cls"]:
+            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content', 'all' and 'cls'.")
 
 
 # -------------------------------------------------------------------
@@ -157,8 +157,8 @@ class ViT(BaseVisionModel):
         patch_size: int
             Size of the patches to be extracted from the image. Options are 14, 16 and 32.
         pooling: str
-            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
-            and "all" (concatenation of the CLS token and the mean over the patch tokens).
+            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default),
+            "all" (concatenation of the CLS token and the mean over the patch tokens) and "cls" (CLS token only).
         device: str
             Device to use.
 

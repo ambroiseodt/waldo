@@ -57,8 +57,8 @@ class Dinov3Config:
     model_size: str
         Type of model to use. Options are "vits16", "vitb16", "vitl16", "vit7b16", "vits16plus" and "vith16plus".
     pooling: str
-        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
-        and "all" (concatenation of the CLS token and the mean over the patch tokens).
+        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default),
+        "all" (concatenation of the CLS token and the mean over the patch tokens) and "cls" (CLS token only).
     device: str
         Device to use.
     """
@@ -80,8 +80,8 @@ class Dinov3Config:
             )
 
         # Valid pooling
-        if self.pooling not in ["content", "all"]:
-            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content' and 'all'.")
+        if self.pooling not in ["content", "all", "cls"]:
+            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content', 'all' and 'cls'.")
 
 
 # -------------------------------------------------------------------
@@ -185,8 +185,8 @@ class Dinov3(BaseVisionModel):
         model_size: str
             Type of model to use. Options are "vits16", "vitb16", "vitl16", "vit7b16", "vits16plus" and "vith16plus".
         pooling: str
-            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
-            and "all" (concatenation of the CLS token and the mean over the patch tokens).
+            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default),
+            "all" (concatenation of the CLS token and the mean over the patch tokens) and "cls" (CLS token only).
         device: str
             Device to use.
 

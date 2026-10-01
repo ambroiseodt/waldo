@@ -46,10 +46,11 @@ class TestAimv2Config:
         with pytest.raises(ValueError, match="Invalid resolution"):
             Aimv2Config(resolution=512)
 
-    def test_all_pooling_raises(self) -> None:
-        r"""All pooling needs a CLS token, which AIMv2 does not have."""
+    @pytest.mark.parametrize("pooling", ["all", "cls"])
+    def test_cls_pooling_raises(self, pooling: str) -> None:
+        r"""Poolings using the CLS token should raise a ValueError, since AIMv2 does not have one."""
         with pytest.raises(ValueError, match="no CLS token"):
-            Aimv2Config(pooling="all")
+            Aimv2Config(pooling=pooling)
 
     def test_unknown_kwargs_are_ignored(self) -> None:
         r"""Unknown kwargs should be silently ignored and not set as attributes."""
