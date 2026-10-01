@@ -151,7 +151,7 @@ def eval(config: EvaluationConfig) -> None:
         test_loader=test_loader,
         cache_path=cache_path,
         overwrite=config.overwrite,
-        layers=None if config.layers == ["all"] else config.layers,
+        layers=None if config.layers == ["all"] else [int(layer) for layer in config.layers],
         modules=None if config.modules == ["all"] else config.modules,
     )
 

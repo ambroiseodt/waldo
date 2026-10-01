@@ -18,9 +18,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.colors import PowerNorm
-from matplotlib.container import ErrorbarContainer
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
+from matplotlib.markers import MarkerStyle
 from scipy.stats import friedmanchisquare, spearmanr
 
 from waldo.infra import FIGURE_DIR, RESULT_DIR
@@ -386,7 +386,7 @@ def plot_intro(vision_filename: str = "cls", language_filename: str = "mteb", sa
             [strategy_x],
             [module_centers[module_to_idx[strategy_modules[panel_idx]]]],
             s=500,
-            marker="*",
+            marker=MarkerStyle("*"),
             color=star_color,
             edgecolor=circle_color,
             linewidth=0.5,
@@ -448,7 +448,7 @@ def plot_intro(vision_filename: str = "cls", language_filename: str = "mteb", sa
         cbar.ax.set_yticklabels([str(tick) for tick in cbar_ticks])
         cbar.set_label("Optimality frequency (%)", fontsize=FONTSIZE, rotation=270, labelpad=25)
         cbar.ax.tick_params(labelsize=FONTSIZE - 5)
-        fig.set_layout_engine("none")
+        fig.set_layout_engine("none")  # pyright: ignore[reportArgumentType]
         fig.subplots_adjust(left=0.07, right=0.97, bottom=0.14, top=0.92)
 
     if save:
@@ -516,9 +516,9 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
     yticks = [0, 25, 50, 75, 100]
     ax.set_yticks(yticks)
     ax.set_xlabel("Gain over probing baseline (pp)", fontsize=FONTSIZE)
-    label = ax.set_ylabel(r"Probing runs with gain $> x$", fontsize=FONTSIZE)
-    x, y = label.get_position()
-    label.set_position((x, 0.4))
+    ax.set_ylabel(r"Probing runs with gain $> x$", fontsize=FONTSIZE)
+    x, y = ax.yaxis.label.get_position()
+    ax.yaxis.label.set_position((x, 0.4))
     sns.despine(fig, ax, trim=True, right=True, offset=10)
 
     # Common legend
@@ -608,7 +608,7 @@ def plot_transfer_difficulty_vision(filename: str, save: bool = False) -> None:
         linewidths=0.5,
         zorder=3,
     )
-    ax.errorbar(
+    container = ax.errorbar(
         summary["transfer_error"],
         summary["mean_gain"],
         yerr=[
@@ -622,22 +622,16 @@ def plot_transfer_difficulty_vision(filename: str, save: bool = False) -> None:
         capthick=0.5,
         zorder=2,
     )
-    for container in ax.containers:
-        if not isinstance(container, ErrorbarContainer):
-            continue
-
-        _, caplines, barlinecols = container.lines
-
-        for capline in caplines:
-            capline.set_color("#333333")
-            capline.set_linewidth(0.5)
-            capline.set_alpha(0.55)
-
-        for barlinecol in barlinecols:
-            barlinecol.set_color("#333333")
-            barlinecol.set_linewidth(0.5)
-            barlinecol.set_linestyle("--")
-            barlinecol.set_alpha(0.55)
+    _, caplines, barlinecols = container.lines
+    for capline in caplines:
+        capline.set_color("#333333")
+        capline.set_linewidth(0.5)
+        capline.set_alpha(0.55)
+    for barlinecol in barlinecols:
+        barlinecol.set_color("#333333")
+        barlinecol.set_linewidth(0.5)
+        barlinecol.set_linestyle("--")
+        barlinecol.set_alpha(0.55)
 
     # Spearman correlation rank test
     rho, pval = spearmanr(summary["transfer_error"], summary["mean_gain"])
@@ -761,6 +755,7 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
         order=severity_order,
         estimator=np.mean,
         errorbar=("ci", 95),
+        seed=0,
         color=GAIN_PALETTE["oracle"],
         legend=False,
         err_kws={
@@ -823,6 +818,7 @@ def plot_cifar10c_optimal_depth(filename: str, save: bool = False) -> None:
         order=severity_order,
         estimator=np.mean,
         errorbar=("ci", 95),
+        seed=0,
         color=GAIN_PALETTE["oracle"],
         legend=False,
         err_kws={
@@ -932,6 +928,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
         order=family_order,
         estimator=np.mean,
         errorbar=("ci", 95),
+        seed=0,
         color=GAIN_PALETTE["oracle"],
         legend=False,
         err_kws={
@@ -1468,6 +1465,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         order=order,
         estimator=np.mean,
         errorbar=("ci", 95),
+        seed=0,
         palette=[MODULE_PALETTE["rc2"], MODULE_PALETTE["act"], MODULE_PALETTE["act"]],
         legend=False,
         err_kws={
@@ -2486,6 +2484,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         order=order,
         estimator=np.mean,
         errorbar=("ci", 95),
+        seed=0,
         palette=[MODULE_PALETTE["rc2"], MODULE_PALETTE["ln2"], MODULE_PALETTE["ln2"]],
         legend=False,
         err_kws={

@@ -89,6 +89,7 @@ class RxRx1Dataset(Dataset):
     def __init__(self, config: RxRx1DatasetConfig):
         super().__init__()
         full_dataset = get_dataset(dataset="rxrx1", download=True, root_dir=str(config.save_dir))
+        assert full_dataset is not None
         self.samples = full_dataset.get_subset(config.mode)
         self.n_classes = 1139
 
@@ -99,7 +100,8 @@ class RxRx1Dataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx: int):
-        sample, label, _metadata = self.samples[idx]
+        # WILDS subsets return (image, label, metadata)
+        sample, label = self.samples[idx][:2]
         if self.transform is not None:
             sample = self.transform(sample)
 

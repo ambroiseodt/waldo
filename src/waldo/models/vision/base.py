@@ -119,10 +119,7 @@ class BaseVisionModel(nn.Module, ABC):
     @property
     @abstractmethod
     def final_norm(self) -> nn.Module:
-        r"""
-        Return the norm applied to the output of the last transformer block, whose output is the standard output
-        of the model (last_hidden_state in HuggingFace). It is used to probe the rc2norm module.
-        """
+        r"""Return the final norm, whose output is last_hidden_state in HuggingFace (rc2norm)."""
         ...
 
     @property
@@ -256,9 +253,8 @@ class BaseVisionModel(nn.Module, ABC):
             Layer indices to recover. Negative indices follow the Python convention, e.g., -1 is the last layer.
             If None, all layers are recovered.
         modules: list[str] | None, default=None
-            Module names from TRANSFORMER_MODULES, and RC2NORM for the output of the final norm (only defined for
-            the last layer, which must then be among the layers). If None, all modules from TRANSFORMER_MODULES
-            are recovered.
+            Module names from TRANSFORMER_MODULES, and RC2NORM (requires the last layer). If None, all modules from
+            TRANSFORMER_MODULES are recovered.
 
         Returns
         -------
@@ -323,7 +319,7 @@ class BaseVisionModel(nn.Module, ABC):
                         )
                     )
 
-        # Output of the final norm, only defined for the last layer
+        # Final norm
         if RC2NORM in modules:
             key = f"block_{self.n_layers - 1}_{RC2NORM}"
             handles.append(self.final_norm.register_forward_hook(self._make_hook(embeddings, key)))

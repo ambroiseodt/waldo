@@ -9,12 +9,13 @@ in the root directory of this source tree.
 @ 2026, Ambroise Odonnat
 """
 
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 import torch
 from transformers import Gemma3Config as HFGemma3Config
-from transformers import Gemma3Model, Gemma3TextModel
+from transformers import Gemma3Model, Gemma3TextConfig, Gemma3TextModel
 
 from waldo.models import Gemma3, Gemma3BlockAdapter, Gemma3Config
 
@@ -25,11 +26,12 @@ def _load(model_size: str) -> tuple[Gemma3, dict]:
     r"""Load Gemma3 with tiny text-only and multimodal models, and return the mocks of both loaders."""
     torch.manual_seed(0)
     vision = dict(hidden_size=32, intermediate_size=64, num_hidden_layers=1, num_attention_heads=2, patch_size=14)
-    multimodal = Gemma3Model(HFGemma3Config(text_config=TINY, vision_config=vision, mm_tokens_per_image=4))
+    hf_config: dict[str, Any] = dict(text_config=TINY, vision_config=vision, mm_tokens_per_image=4)
+    multimodal = Gemma3Model(HFGemma3Config(**hf_config))
+    text_config = multimodal.config.text_config
+    assert isinstance(text_config, Gemma3TextConfig)
     with (
-        patch.object(
-            Gemma3TextModel, "from_pretrained", return_value=Gemma3TextModel(multimodal.config.text_config)
-        ) as text,
+        patch.object(Gemma3TextModel, "from_pretrained", return_value=Gemma3TextModel(text_config)) as text,
         patch.object(Gemma3Model, "from_pretrained", return_value=multimodal) as mm,
         patch("waldo.models.language.gemma3.AutoTokenizer.from_pretrained", return_value=WhitespaceTokenizer()) as tok,
     ):

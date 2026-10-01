@@ -37,7 +37,7 @@ from waldo.models import BaseLanguageModel, build_model
 N_LAYERS = 3
 HIDDEN_SIZE = 32
 VOCAB_SIZE = 100
-TINY = dict(
+TINY: dict[str, Any] = dict(
     hidden_size=HIDDEN_SIZE,
     num_hidden_layers=N_LAYERS,
     num_attention_heads=4,

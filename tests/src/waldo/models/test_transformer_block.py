@@ -28,25 +28,25 @@ class Block(nn.Module):
 
 class BlockAdapter(TransformerBlockAdapter):
     def _get_ln1(self, layer: nn.Module) -> nn.Module:
-        return layer.norm1
+        return layer.get_submodule("norm1")
 
     def _get_mha(self, layer: nn.Module) -> nn.Module:
-        return layer.attention
+        return layer.get_submodule("attention")
 
     def _get_rc1(self, layer: nn.Module) -> nn.Module:
-        return layer.norm2
+        return layer.get_submodule("norm2")
 
     def _get_ln2(self, layer: nn.Module) -> nn.Module:
-        return layer.norm2
+        return layer.get_submodule("norm2")
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
-        return layer.fc1
+        return layer.get_submodule("fc1")
 
     def _get_act(self, layer: nn.Module) -> nn.Module:
-        return layer.act
+        return layer.get_submodule("act")
 
     def _get_fc2(self, layer: nn.Module) -> nn.Module:
-        return layer.fc2
+        return layer.get_submodule("fc2")
 
     def _get_rc2(self, layer: nn.Module) -> nn.Module:
         return layer

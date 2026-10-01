@@ -237,10 +237,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
     @property
     @abstractmethod
     def final_norm(self) -> nn.Module:
-        r"""
-        Return the norm applied to the output of the last transformer block, whose output is the standard output
-        of the model (last_hidden_state in HuggingFace). It is used to probe the rc2norm module.
-        """
+        r"""Return the final norm, whose output is last_hidden_state in HuggingFace (rc2norm)."""
         ...
 
     @property
@@ -324,8 +321,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         layer: int | None
             Index of the layer to probe. If None, the current layer is used.
         module: str | None
-            Module name from TRANSFORMER_MODULES, or RC2NORM for the output of the final norm, which is only
-            defined for the last layer. If None, the current module is used.
+            Module name from TRANSFORMER_MODULES, or RC2NORM (last layer only). If None, the current module is used.
 
         Raises
         ------
@@ -368,7 +364,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         # Recover embedding from the specified layer and module
         key = f"block_{self.layer}_{self.module}"
         if self.module == RC2NORM:
-            # Output of the final norm, only defined for the last layer
+            # Final norm
             handles.append(self.final_norm.register_forward_hook(self._make_hook(embeddings=embeddings, key=key)))
         else:
             adapter = self.block_adapter(self.blocks[self.layer])
@@ -548,8 +544,7 @@ class BaseLanguageModel(nn.Module, EncoderProtocol, ABC):
         layer: int | None
             Index of the layer to probe.
         module: str | None
-            Module name from TRANSFORMER_MODULES to probe, or RC2NORM for the output of the final norm
-            (only with the last layer).
+            Module name from TRANSFORMER_MODULES, or RC2NORM (last layer only).
         """
         # Valid layer and module
         self._check_probing(layer=layer, module=module)

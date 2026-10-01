@@ -100,7 +100,8 @@ class TestPipeline:
         scaler, solver = (step for _, step in probing._pipeline().steps)
         assert isinstance(scaler, StandardScaler)
         assert isinstance(solver, LogisticRegression)
-        assert (solver.C, solver.l1_ratio, solver.tol, solver.max_iter) == (1.0, 0.0, 1e-4, 200)
+        params = solver.get_params()
+        assert (params["C"], params["l1_ratio"], params["tol"], params["max_iter"]) == (1.0, 0.0, 1e-4, 200)
 
     def test_cuml_on_gpu(self, monkeypatch: pytest.MonkeyPatch) -> None:
         r"""On GPU, the classifier should be the cuML logistic regression, imported only then."""
@@ -115,7 +116,7 @@ class TestPipeline:
 
         for name in ["cuml", "cuml.linear_model", "cuml.preprocessing"]:
             module = types.ModuleType(name)
-            module.LogisticRegression = module.StandardScaler = Estimator
+            vars(module).update(LogisticRegression=Estimator, StandardScaler=Estimator)
             monkeypatch.setitem(sys.modules, name, module)
         monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
         _, solver = (step for _, step in LinearProbing(LinearProbingConfig(device="cuda:0"))._pipeline().steps)

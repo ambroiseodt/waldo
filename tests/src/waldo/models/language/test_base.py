@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from waldo.models import TRANSFORMER_MODULES, mean_pooling
+from waldo.models import TRANSFORMER_MODULES, BaseLanguageModel, mean_pooling
 from waldo.models.transformer_block import RC2NORM
 
 from ..conftest import assert_block_identities, capture_block_inputs
@@ -28,7 +28,7 @@ def _encode_inputs(sentences: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
     return encoding.input_ids, encoding.attention_mask
 
 
-def _encode(model: object, sentences: list[str] | DataLoader) -> torch.Tensor:
+def _encode(model: BaseLanguageModel, sentences: list[str] | DataLoader) -> torch.Tensor:
     r"""Encode sentences with the MTEB interface, whose task arguments are not used by the models."""
     return model.encode(sentences, task_metadata=None, hf_split="test", hf_subset="default")
 
@@ -159,7 +159,7 @@ class TestEncode:
     def test_dataloader_and_list_inputs_match(self, make_language_model: MakeLanguageModel) -> None:
         r"""MTEB DataLoader inputs should give the same embeddings as a list of sentences."""
         model, _ = make_language_model("qwen3")
-        loader = DataLoader([{"text": s} for s in SENTENCES], batch_size=2)
+        loader = DataLoader([{"text": s} for s in SENTENCES], batch_size=2)  # pyright: ignore[reportArgumentType]
         embeddings = _encode(model, loader)
         assert embeddings.shape == (len(SENTENCES), HIDDEN_SIZE)
         torch.testing.assert_close(embeddings, _encode(model, SENTENCES))
@@ -168,7 +168,7 @@ class TestEncode:
         r"""Inputs that are neither a DataLoader nor a list should raise a ValueError."""
         model, _ = make_language_model("qwen3")
         with pytest.raises(ValueError, match="Unsupported input type"):
-            _encode(model, "a sentence")
+            _encode(model, "a sentence")  # pyright: ignore[reportArgumentType]
 
     def test_pooling_excludes_special_tokens(self, make_language_model: MakeLanguageModel, language_spec: str) -> None:
         r"""The pooling of each model should exclude its BOS, EOS and padding tokens."""

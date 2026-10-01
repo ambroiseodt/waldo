@@ -120,4 +120,4 @@ class TestDinov2:
         assert model.block_adapter is Dinov2BlockAdapter
         assert model.final_norm is hf_model.layernorm
         assert model.n_prefix_tokens == VISION_SPECS[name].n_prefix_tokens
-        assert model.blocks is hf_model.encoder.layer
+        assert model.blocks is hf_model.get_submodule("encoder.layer")
