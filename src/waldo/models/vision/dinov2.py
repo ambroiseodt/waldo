@@ -69,8 +69,8 @@ class Dinov2Config:
         Type of model to use. Options are "small", "base", "large", and "giant", and their variants trained
         with register tokens [1]_ "small-registers", "base-registers", "large-registers", and "giant-registers".
     pooling: str
-        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
-        and "all" (concatenation of the CLS token and the mean over the patch tokens).
+        Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default),
+        "all" (concatenation of the CLS token and the mean over the patch tokens) and "cls" (CLS token only).
     device: str
         Device to use.
 
@@ -95,8 +95,8 @@ class Dinov2Config:
             raise ValueError(f"Invalid model size {self.model_size}. Options are {valid_sizes}.")
 
         # Valid pooling
-        if self.pooling not in ["content", "all"]:
-            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content' and 'all'.")
+        if self.pooling not in ["content", "all", "cls"]:
+            raise ValueError(f"Invalid pooling {self.pooling}. Options are 'content', 'all' and 'cls'.")
 
 
 # -------------------------------------------------------------------
@@ -229,8 +229,8 @@ class Dinov2(BaseVisionModel):
             trained with register tokens "small-registers", "base-registers", "large-registers", and
             "giant-registers".
         pooling: str
-            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default)
-            and "all" (concatenation of the CLS token and the mean over the patch tokens).
+            Pooling over the sequence of tokens. Options are "content" (mean over the patch tokens, default),
+            "all" (concatenation of the CLS token and the mean over the patch tokens) and "cls" (CLS token only).
         device: str
             Device to use.
 
@@ -310,7 +310,7 @@ class Dinov2(BaseVisionModel):
 
     @property
     def final_norm(self) -> nn.Module:
-        r"""Return the norm applied to the output of the last transformer block."""
+        r"""Return the final norm applied to the residual stream of the last transformer block."""
         return cast(nn.Module, self.model.layernorm)
 
     @property

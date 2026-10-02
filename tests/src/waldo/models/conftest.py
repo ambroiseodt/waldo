@@ -11,6 +11,7 @@ in the root directory of this source tree.
 
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -52,8 +53,8 @@ def _ffn_parts(block: nn.Module) -> tuple[Callable | None, Callable | None, Call
     post_attn = getattr(block, "layer_scale1", None) or identity
     post_ffn = getattr(block, "layer_scale2", None) or getattr(block, "post_feedforward_layernorm", None) or identity
     if hasattr(block, "pre_feedforward_layernorm"):
-        post_attn = block.post_attention_layernorm
-    mlp = getattr(block, "mlp", None) or getattr(block, "ffn", None)
+        post_attn = block.get_submodule("post_attention_layernorm")
+    mlp: Any = getattr(block, "mlp", None) or getattr(block, "ffn", None)
     if hasattr(mlp, "weights_in"):
         return F.silu, lambda x: mlp.weights_in(x).chunk(2, dim=-1)[1], post_attn, post_ffn
     if hasattr(mlp, "gate_proj"):
@@ -73,7 +74,10 @@ def assert_block_identities(
     FFNs), fc2 = W2(act) and rc2 = rc1 + fc2, up to LayerScale and post-norms applied before residual connections.
     """
     act_fn, up, post_attn, post_ffn = _ffn_parts(block)
-    expected_act = adapter.act(outputs["fc1"]) if up is None else act_fn(outputs["fc1"]) * up(outputs["ln2"])
+    if act_fn is None or up is None:
+        expected_act = adapter.act(outputs["fc1"])
+    else:
+        expected_act = act_fn(outputs["fc1"]) * up(outputs["ln2"])
     expected = {
         "ln1": adapter.ln1(block_input),
         "rc1": block_input + post_attn(outputs["mha"]),

@@ -88,6 +88,7 @@ class IWildCamDataset(Dataset):
     def __init__(self, config: IWildCamDatasetConfig):
         super().__init__()
         full_dataset = get_dataset(dataset="iwildcam", download=True, root_dir=str(config.save_dir))
+        assert full_dataset is not None
         self.samples = full_dataset.get_subset(config.mode)
         self.n_classes = 182
 
@@ -98,7 +99,8 @@ class IWildCamDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx: int):
-        sample, label, _metadata = self.samples[idx]
+        # WILDS subsets return (image, label, metadata)
+        sample, label = self.samples[idx][:2]
         if self.transform is not None:
             sample = self.transform(sample)
 

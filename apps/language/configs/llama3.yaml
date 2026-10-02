@@ -1,3 +1,6 @@
+# Experiment
+log_dir: "runs"
+
 # Model
 model_name: "llama3"
 model_size: "1B"

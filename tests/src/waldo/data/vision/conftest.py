@@ -209,7 +209,7 @@ def mock_dataset_wilds_factory(sample_image: Image.Image) -> Callable[..., Datas
 
     def _factory(
         config_class: Callable[..., Any],
-        dataset_class: Callable[..., Dataset[tuple]],
+        dataset_class: Callable[..., Any],
         patch_target: str,
         n_samples: int = 10,
         **config_kwargs,

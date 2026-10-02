@@ -59,7 +59,9 @@ class TestBuildModel:
 
     def test_returns_config(self) -> None:
         r"""With return_config, the full config of the model should also be returned as a dictionary."""
-        model, config = _build("vit", model_size="large", return_config=True)
+        result = _build("vit", model_size="large", return_config=True)
+        assert isinstance(result, tuple)
+        model, config = result
         assert type(model) is ViT
         assert config == {"model_size": "large", "patch_size": 16, "pooling": "content", "device": "cpu"}
 

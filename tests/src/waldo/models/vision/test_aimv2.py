@@ -46,10 +46,11 @@ class TestAimv2Config:
         with pytest.raises(ValueError, match="Invalid resolution"):
             Aimv2Config(resolution=512)
 
-    def test_all_pooling_raises(self) -> None:
-        r"""All pooling needs a CLS token, which AIMv2 does not have."""
+    @pytest.mark.parametrize("pooling", ["all", "cls"])
+    def test_cls_pooling_raises(self, pooling: str) -> None:
+        r"""Poolings using the CLS token should raise a ValueError, since AIMv2 does not have one."""
         with pytest.raises(ValueError, match="no CLS token"):
-            Aimv2Config(pooling="all")
+            Aimv2Config(pooling=pooling)
 
     def test_unknown_kwargs_are_ignored(self) -> None:
         r"""Unknown kwargs should be silently ignored and not set as attributes."""
@@ -88,5 +89,5 @@ class TestAimv2:
         assert model.block_adapter is Aimv2BlockAdapter
         assert model.final_norm is hf_model.rms_norm
         assert model.n_prefix_tokens == 0
-        assert model.blocks is hf_model.encoder.layers
+        assert model.blocks is hf_model.get_submodule("encoder.layers")
         assert (adapter.fc1, adapter.act, adapter.fc2) == (ffn.gate_proj, ffn.down_proj, ffn.down_proj)

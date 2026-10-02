@@ -253,7 +253,7 @@ class Aimv2(BaseVisionModel):
 
     @property
     def final_norm(self) -> nn.Module:
-        r"""Return the norm applied to the output of the last transformer block."""
+        r"""Return the final norm applied to the residual stream of the last transformer block."""
         return cast(nn.Module, self.model.rms_norm)
 
     @property

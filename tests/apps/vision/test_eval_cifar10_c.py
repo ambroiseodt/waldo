@@ -28,10 +28,26 @@ CONFIG_PATH = CONFIG_DIR / "vision/configs/cifar10_c.yaml"
 def test_configuration_file() -> None:
     r"""The configuration file should only contain fields of the app, with valid model and corruption values."""
     config = load_config(app.EvaluationConfig, CONFIG_PATH)
+    assert config.overwrite is False
     check_model_config(config, ["model_size", "patch_size", "resolution", "pooling"])
     for corruption in config.corruptions:
         for severity in config.severities:
             Cifar10CDatasetConfig(corruption_type=corruption, corruption_severity=severity)
+
+
+def _run(tmp_path: Path, **overrides: object) -> dict:
+    r"""Run eval with mocked model, data and linear probing, and return the arguments of the evaluation."""
+    build_loader = MagicMock(
+        side_effect=lambda config, return_n_classes=False: (config, 10) if return_n_classes else config
+    )
+    config = load_config(
+        app.EvaluationConfig, CONFIG_PATH, device="cpu", corruptions=["fog"], severities=[1, 5], **overrides
+    )
+    mocks = {"build_model": MagicMock(), "build_loader": build_loader, "build_linear_probing": MagicMock()}
+    mocks["build_model"].return_value.model_name = "google/vit-base-patch16-224-in21k"
+    with patch.multiple(app, SAVING_DIR=tmp_path / "savings", **mocks):
+        app.eval(config)
+    return mocks["build_linear_probing"].return_value.evaluate.call_args.kwargs
 
 
 # -------------------------------------------------------------------
@@ -39,20 +55,34 @@ def test_configuration_file() -> None:
 # -------------------------------------------------------------------
 def test_eval_trains_on_cifar10_and_tests_on_each_corruption(tmp_path: Path) -> None:
     r"""The probes should be trained on Cifar10 and tested on each corruption and severity independently."""
-    build_loader = MagicMock(
-        side_effect=lambda config, return_n_classes=False: (config, 10) if return_n_classes else config
-    )
-    config = load_config(app.EvaluationConfig, CONFIG_PATH, device="cpu", corruptions=["fog"], severities=[1, 5])
-    mocks = {"build_model": MagicMock(), "build_loader": build_loader, "build_linear_probing": MagicMock()}
-    mocks["build_model"].return_value.model_name = "google/vit-base-patch16-224-in21k"
-    with patch.object(app, "RUN_DIR", tmp_path), patch.multiple(app, **mocks):
-        app.eval(config)
-    kwargs = mocks["build_linear_probing"].return_value.evaluate.call_args.kwargs
+    kwargs = _run(tmp_path)
     assert kwargs["train_loader"]["dataset_name"] == "cifar10"
     assert list(kwargs["test_loader"]) == ["cifar10_c-corruption-fog-severity-1", "cifar10_c-corruption-fog-severity-5"]
     assert all(loader["mode"] == "test" for loader in kwargs["test_loader"].values())
-    assert kwargs["cache_path"] == tmp_path / "cifar10_c" / "google/vit-base-patch16-224-in21k"
-    assert (kwargs["cache_path"] / "config.json").exists()
+
+
+def test_no_overwrite_by_default(tmp_path: Path) -> None:
+    r"""By default, existing results should never be overwritten."""
+    assert app.EvaluationConfig().overwrite is False
+    assert _run(tmp_path)["overwrite"] is False
+
+
+# -------------------------------------------------------------------
+# Run directory
+# -------------------------------------------------------------------
+def test_default_log_dir(tmp_path: Path) -> None:
+    r"""By default, runs should be saved in savings/runs, as for the results of the paper."""
+    assert app.EvaluationConfig().log_dir == "runs"
+    cache_path = _run(tmp_path)["cache_path"]
+    assert cache_path == tmp_path / "savings/runs/cifar10_c/google/vit-base-patch16-224-in21k"
+    assert (cache_path / "config.json").exists()
+
+
+def test_custom_log_dir(tmp_path: Path) -> None:
+    r"""A given log_dir should be used relative to savings/, and nothing should be written in savings/runs."""
+    cache_path = _run(tmp_path, log_dir="ablations/final_norm")["cache_path"]
+    assert cache_path == tmp_path / "savings/ablations/final_norm/cifar10_c/google/vit-base-patch16-224-in21k"
+    assert not (tmp_path / "savings/runs").exists()
 
 
 # -------------------------------------------------------------------
@@ -60,7 +90,8 @@ def test_eval_trains_on_cifar10_and_tests_on_each_corruption(tmp_path: Path) -> 
 # -------------------------------------------------------------------
 def test_main_merges_configuration_file_and_command_line(monkeypatch: pytest.MonkeyPatch) -> None:
     r"""Command line arguments should override the configuration file, which overrides the defaults."""
-    monkeypatch.setattr("sys.argv", ["eval", f"config={CONFIG_PATH}", "severities=[5]"])
+    monkeypatch.setattr("sys.argv", ["eval", f"config={CONFIG_PATH}", "severities=[5]", "log_dir=ablations/final_norm"])
     with patch.object(app, "setup_logging"), patch.object(app, "eval") as run:
         app.main()
-    assert run.call_args.kwargs["config"].severities == [5]
+    config = run.call_args.kwargs["config"]
+    assert (config.severities, config.log_dir) == ([5], "ablations/final_norm")

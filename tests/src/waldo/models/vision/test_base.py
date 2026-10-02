@@ -155,6 +155,15 @@ class TestPooling:
         expected = torch.cat([hidden_states[:, 0], hidden_states[:, n_prefix:].mean(dim=1)], dim=-1)
         torch.testing.assert_close(model.pooling(hidden_states), expected)
 
+    @pytest.mark.parametrize("name", [name for name, spec in VISION_SPECS.items() if spec.n_prefix_tokens > 0])
+    def test_cls_pooling_keeps_cls_token(self, make_vision_model: MakeVisionModel, name: str) -> None:
+        r"""CLS pooling should keep the CLS token only, as a copy of it."""
+        model, _ = make_vision_model(name, pooling="cls")
+        hidden_states = torch.randn(BATCH_SIZE, VISION_SPECS[name].n_prefix_tokens + N_PATCHES, HIDDEN_SIZE)
+        embedding = model.pooling(hidden_states)
+        torch.testing.assert_close(embedding, hidden_states[:, 0])
+        assert embedding.untyped_storage().nbytes() == embedding.numel() * embedding.element_size()
+
     def test_all_pooling_doubles_embedding_dimension(
         self, make_vision_model: MakeVisionModel, images: torch.Tensor
     ) -> None:
@@ -167,7 +176,7 @@ class TestPooling:
     def test_invalid_pooling_raises(self, make_vision_model: MakeVisionModel, vision_spec: str) -> None:
         r"""Unknown pooling types should raise a ValueError."""
         with pytest.raises(ValueError, match="Invalid pooling"):
-            make_vision_model(vision_spec, pooling="cls")
+            make_vision_model(vision_spec, pooling="max")
 
 
 # -------------------------------------------------------------------
