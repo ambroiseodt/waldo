@@ -108,3 +108,23 @@ do
         tmux send-keys -t ${session} "${command}" C-m
     done
 done
+
+# CLIP-L/14 (default probing: content pooling, all layers and modules)
+ablation="clip"
+log_dir="ablations/${ablation}"
+model_name="clip"
+model_size="large"
+patch_size=14
+batch_size=32
+device="cuda:0"
+
+# Runs
+session="${ablation}_${model_name}_${model_size}"
+tmux new-session -d -s ${session}
+for dataset_name in ${datasets[@]}
+do
+    run="log_dir=${log_dir} model_size=${model_size} patch_size=${patch_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device}"
+    command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
+    echo "Running command: ${command}"
+    tmux send-keys -t ${session} "${command}" C-m
+done
