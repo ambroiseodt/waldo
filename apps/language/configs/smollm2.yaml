@@ -1,0 +1,22 @@
+# Experiment
+log_dir: "runs"
+
+# Model
+model_name: "smollm2"
+model_size: "135M"
+
+# Probe
+layers: ["all"]
+modules:  ["all"]
+
+# Data
+benchmark_name: "Multilingual"
+task_type: "Classification"
+max_n_docs: 8192
+batch_size: 4
+
+# Device
+device: "cuda:0"
+
+# Reproducibility
+seed: 42

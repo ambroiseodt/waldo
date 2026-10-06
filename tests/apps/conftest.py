@@ -15,7 +15,17 @@ from typing import Any
 from omegaconf import OmegaConf
 
 from waldo.infra import ROOT_DIR, build_with_type_check
-from waldo.models import Aimv2Config, Dinov2Config, Dinov3Config, Gemma3Config, Llama3Config, Qwen3Config, ViTConfig
+from waldo.models import (
+    Aimv2Config,
+    ClipConfig,
+    Dinov2Config,
+    Dinov3Config,
+    Gemma3Config,
+    Llama3Config,
+    Qwen3Config,
+    SmolLM2Config,
+    ViTConfig,
+)
 
 CONFIG_DIR = ROOT_DIR / "apps"
 MODEL_CONFIGS = {
@@ -23,9 +33,11 @@ MODEL_CONFIGS = {
     "dinov2": Dinov2Config,
     "dinov3": Dinov3Config,
     "aimv2": Aimv2Config,
+    "clip": ClipConfig,
     "gemma3": Gemma3Config,
     "llama3": Llama3Config,
     "qwen3": Qwen3Config,
+    "smollm2": SmolLM2Config,
 }
 
 

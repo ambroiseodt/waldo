@@ -46,6 +46,12 @@ def build_model(config: dict[str, Any], return_config: bool = False) -> nn.Modul
             model_type = Aimv2
             config_obj = build_with_type_check(Aimv2Config, config)
 
+        case "clip":
+            from waldo.models import Clip, ClipConfig
+
+            model_type = Clip
+            config_obj = build_with_type_check(ClipConfig, config)
+
         case "dinov2":
             from waldo.models import Dinov2, Dinov2Config
 
@@ -82,6 +88,12 @@ def build_model(config: dict[str, Any], return_config: bool = False) -> nn.Modul
 
             model_type = Qwen3
             config_obj = build_with_type_check(Qwen3Config, config)
+
+        case "smollm2":
+            from waldo.models import SmolLM2, SmolLM2Config
+
+            model_type = SmolLM2
+            config_obj = build_with_type_check(SmolLM2Config, config)
 
         case _:
             raise ValueError(f"Model {model_name} not found.")

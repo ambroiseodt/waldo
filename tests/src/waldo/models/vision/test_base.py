@@ -65,7 +65,9 @@ class TestGetEmbeddings:
         _full_sequences(model)
         rc2 = model.get_embeddings(images, layers=[-1], modules=["rc2"])[f"block_{N_LAYERS - 1}_rc2"]
         with torch.inference_mode():
-            torch.testing.assert_close(model.final_norm(rc2), hf_model(pixel_values=images).last_hidden_state)
+            last_hidden_state = hf_model(pixel_values=images).last_hidden_state
+            output = rc2 if VISION_SPECS[vision_spec].cls_final_norm else model.final_norm(rc2)
+        torch.testing.assert_close(output, last_hidden_state)
 
     def test_rc2norm_is_standard_output(
         self, make_vision_model: MakeVisionModel, vision_spec: str, images: torch.Tensor
@@ -74,8 +76,11 @@ class TestGetEmbeddings:
         model, hf_model = make_vision_model(vision_spec)
         embedding = model.get_embeddings(images, layers=[-1], modules=[RC2NORM])[f"block_{N_LAYERS - 1}_{RC2NORM}"]
         with torch.inference_mode():
-            last_hidden_state = hf_model(pixel_values=images).last_hidden_state
-        expected = mean_pooling(last_hidden_state, n_prefix_tokens=VISION_SPECS[vision_spec].n_prefix_tokens)
+            output = hf_model(pixel_values=images)
+        if VISION_SPECS[vision_spec].cls_final_norm:
+            expected = output.pooler_output
+        else:
+            expected = mean_pooling(output.last_hidden_state, n_prefix_tokens=VISION_SPECS[vision_spec].n_prefix_tokens)
         torch.testing.assert_close(embedding, expected)
 
     def test_hooks_are_removed(

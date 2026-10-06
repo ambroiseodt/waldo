@@ -23,6 +23,9 @@ MODELS=(
     "Qwen/Qwen3-1.7B-Base"
     "Qwen/Qwen3-4B-Base"
     "Qwen/Qwen3-8B-Base"
+    "HuggingFaceTB/SmolLM2-135M"
+    "HuggingFaceTB/SmolLM2-360M"
+    "HuggingFaceTB/SmolLM2-1.7B"
     "apple/aimv2-large-patch14-224"
     "apple/aimv2-huge-patch14-224"
     "apple/aimv2-1B-patch14-224"
@@ -42,6 +45,8 @@ MODELS=(
     "google/vit-base-patch16-224-in21k"
     "google/vit-large-patch16-224-in21k"
     "google/vit-huge-patch14-224-in21k"
+    "openai/clip-vit-base-patch16"
+    "openai/clip-vit-large-patch14"
 )
 SUCCESS_COUNT=0
 FAILED_COUNT=0

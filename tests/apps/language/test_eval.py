@@ -20,7 +20,7 @@ from waldo.models import TRANSFORMER_MODULES
 
 from ..conftest import CONFIG_DIR, check_model_config, load_config
 
-CONFIGS = ["gemma3.yaml", "llama3.yaml", "qwen3.yaml"]
+CONFIGS = ["gemma3.yaml", "llama3.yaml", "qwen3.yaml", "smollm2.yaml"]
 
 
 def _run(tmp_path: Path, **overrides: object) -> tuple[MagicMock, MagicMock]:

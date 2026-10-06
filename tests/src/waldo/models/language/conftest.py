@@ -81,6 +81,7 @@ LANGUAGE_SPECS = {
     "gemma3": LanguageSpec(Gemma3TextModel, Gemma3TextConfig(**TINY), {"model_name": "gemma3", "model_size": "1b"}),
     "llama3": LanguageSpec(LlamaModel, LlamaConfig(**TINY), {"model_name": "llama3", "model_size": "1B"}),
     "qwen3": LanguageSpec(Qwen3Model, Qwen3Config(**TINY), {"model_name": "qwen3", "model_size": "0.6B"}),
+    "smollm2": LanguageSpec(LlamaModel, LlamaConfig(**TINY), {"model_name": "smollm2", "model_size": "135M"}),
 }
 
 

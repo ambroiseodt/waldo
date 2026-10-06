@@ -22,6 +22,8 @@ import torch
 from transformers import (
     Aimv2VisionConfig,
     Aimv2VisionModel,
+    CLIPVisionConfig,
+    CLIPVisionModel,
     Dinov2Config,
     Dinov2Model,
     Dinov2WithRegistersConfig,
@@ -66,6 +68,8 @@ class VisionSpec:
     config: dict[str, Any]
     n_prefix_tokens: int
     gated: bool = False
+    # Whether the final norm is only applied to the CLS token (CLIP), whose output is then the pooler output
+    cls_final_norm: bool = False
 
 
 VISION_SPECS = {
@@ -98,6 +102,9 @@ VISION_SPECS = {
         gated=True,
     ),
     "aimv2": VisionSpec(Aimv2VisionModel, _tiny_config(Aimv2VisionConfig), {"model_name": "aimv2"}, 0, gated=True),
+    "clip": VisionSpec(
+        CLIPVisionModel, _tiny_config(CLIPVisionConfig), {"model_name": "clip"}, n_prefix_tokens=1, cls_final_norm=True
+    ),
 }
 
 

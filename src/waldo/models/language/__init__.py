@@ -13,6 +13,7 @@ from .base import BaseLanguageModel
 from .gemma3 import Gemma3, Gemma3BlockAdapter, Gemma3Config
 from .llama3 import Llama3, Llama3BlockAdapter, Llama3Config
 from .qwen3 import Qwen3, Qwen3BlockAdapter, Qwen3Config
+from .smollm2 import SmolLM2, SmolLM2BlockAdapter, SmolLM2Config
 
 __all__ = [
     "BaseLanguageModel",
@@ -25,4 +26,7 @@ __all__ = [
     "Qwen3",
     "Qwen3BlockAdapter",
     "Qwen3Config",
+    "SmolLM2",
+    "SmolLM2BlockAdapter",
+    "SmolLM2Config",
 ]

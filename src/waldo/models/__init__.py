@@ -27,6 +27,9 @@ _language = [
     "Qwen3",
     "Qwen3BlockAdapter",
     "Qwen3Config",
+    "SmolLM2",
+    "SmolLM2BlockAdapter",
+    "SmolLM2Config",
 ]
 
 _pooling = [
@@ -43,6 +46,9 @@ _vision = [
     "Aimv2",
     "Aimv2BlockAdapter",
     "Aimv2Config",
+    "Clip",
+    "ClipBlockAdapter",
+    "ClipConfig",
     "Dinov2",
     "Dinov2BlockAdapter",
     "Dinov2Config",

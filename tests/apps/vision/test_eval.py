@@ -20,7 +20,7 @@ from waldo.data import build_transform
 
 from ..conftest import CONFIG_DIR, check_model_config, load_config
 
-CONFIGS = ["vit.yaml", "dinov2.yaml", "dinov3.yaml", "aimv2.yaml"]
+CONFIGS = ["vit.yaml", "dinov2.yaml", "dinov3.yaml", "aimv2.yaml", "clip.yaml"]
 
 
 def _run(tmp_path: Path, **overrides: object) -> dict[str, MagicMock]:

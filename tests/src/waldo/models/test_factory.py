@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pytest
 import torch.nn as nn
 
-from waldo.models import Aimv2, Dinov2, Dinov3, Gemma3, Llama3, Qwen3, ViT, build_model
+from waldo.models import Aimv2, Clip, Dinov2, Dinov3, Gemma3, Llama3, Qwen3, SmolLM2, ViT, build_model
 
 from .language.conftest import LANGUAGE_SPECS, WhitespaceTokenizer
 from .vision.conftest import VISION_SPECS
@@ -44,9 +44,11 @@ class TestBuildModel:
             ("dinov2", Dinov2),
             ("dinov3", Dinov3),
             ("aimv2", Aimv2),
+            ("clip", Clip),
             ("gemma3", Gemma3),
             ("llama3", Llama3),
             ("qwen3", Qwen3),
+            ("smollm2", SmolLM2),
         ],
     )
     def test_dispatch(self, name: str, model_type: type) -> None:
