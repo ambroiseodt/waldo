@@ -21,15 +21,15 @@ _language = [
     "Gemma3",
     "Gemma3BlockAdapter",
     "Gemma3Config",
+    "Gemma4",
+    "Gemma4BlockAdapter",
+    "Gemma4Config",
     "Llama3",
     "Llama3BlockAdapter",
     "Llama3Config",
     "Qwen3",
     "Qwen3BlockAdapter",
     "Qwen3Config",
-    "SmolLM2",
-    "SmolLM2BlockAdapter",
-    "SmolLM2Config",
 ]
 
 _pooling = [

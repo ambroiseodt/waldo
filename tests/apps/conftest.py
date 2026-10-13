@@ -21,9 +21,9 @@ from waldo.models import (
     Dinov2Config,
     Dinov3Config,
     Gemma3Config,
+    Gemma4Config,
     Llama3Config,
     Qwen3Config,
-    SmolLM2Config,
     ViTConfig,
 )
 
@@ -35,9 +35,9 @@ MODEL_CONFIGS = {
     "aimv2": Aimv2Config,
     "clip": ClipConfig,
     "gemma3": Gemma3Config,
+    "gemma4": Gemma4Config,
     "llama3": Llama3Config,
     "qwen3": Qwen3Config,
-    "smollm2": SmolLM2Config,
 }
 
 

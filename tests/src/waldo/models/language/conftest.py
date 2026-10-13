@@ -23,6 +23,7 @@ from transformers import (
     BatchEncoding,
     Gemma3TextConfig,
     Gemma3TextModel,
+    Gemma4ForConditionalGeneration,
     LlamaConfig,
     LlamaModel,
     PretrainedConfig,
@@ -30,6 +31,7 @@ from transformers import (
     Qwen3Config,
     Qwen3Model,
 )
+from transformers import Gemma4Config as HFGemma4Config
 
 from waldo.models import BaseLanguageModel, build_model
 
@@ -45,6 +47,15 @@ TINY: dict[str, Any] = dict(
     head_dim=8,
     intermediate_size=64,
     vocab_size=VOCAB_SIZE,
+)
+# Gemma4 E2B and E4B: per-layer token embeddings and keys and values shared with earlier layers
+TINY_GEMMA4: dict[str, Any] = dict(
+    TINY,
+    layer_types=["sliding_attention", "full_attention", "full_attention"],
+    sliding_window=4,
+    hidden_size_per_layer_input=8,
+    vocab_size_per_layer_input=VOCAB_SIZE,
+    num_kv_shared_layers=1,
 )
 SENTENCES = ["The cat sits on the mat", "Hello", "A longer sentence with more words in it"]
 
@@ -75,13 +86,20 @@ class LanguageSpec:
     hf_class: type[PreTrainedModel]
     hf_config: PretrainedConfig
     config: dict[str, Any]
+    # Language model of multimodal models, which is probed
+    text_model: str | None = None
 
 
 LANGUAGE_SPECS = {
     "gemma3": LanguageSpec(Gemma3TextModel, Gemma3TextConfig(**TINY), {"model_name": "gemma3", "model_size": "1b"}),
+    "gemma4": LanguageSpec(
+        Gemma4ForConditionalGeneration,
+        HFGemma4Config(text_config=TINY_GEMMA4, vision_config=None, audio_config=None),
+        {"model_name": "gemma4", "model_size": "E2B"},
+        text_model="model.language_model",
+    ),
     "llama3": LanguageSpec(LlamaModel, LlamaConfig(**TINY), {"model_name": "llama3", "model_size": "1B"}),
     "qwen3": LanguageSpec(Qwen3Model, Qwen3Config(**TINY), {"model_name": "qwen3", "model_size": "0.6B"}),
-    "smollm2": LanguageSpec(LlamaModel, LlamaConfig(**TINY), {"model_name": "smollm2", "model_size": "135M"}),
 }
 
 
@@ -101,7 +119,7 @@ def make_language_model() -> MakeLanguageModel:
             patch(f"waldo.models.language.{name}.AutoTokenizer.from_pretrained", return_value=WhitespaceTokenizer()),
         ):
             model = build_model({**spec.config, "device": "cpu", **config})
-        return model, hf_model
+        return model, hf_model.get_submodule(spec.text_model) if spec.text_model else hf_model
 
     return _factory
 

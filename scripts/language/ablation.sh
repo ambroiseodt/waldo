@@ -34,19 +34,3 @@ do
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m
 done
-
-# SmolLM2-135M (default probing: all layers and modules)
-ablation="smollm2"
-log_dir="ablations/${ablation}"
-model_name="smollm2"
-model_size="135M"
-batch_size=4
-device="cuda:0"
-
-# Runs
-session="${ablation}_mteb"
-tmux new-session -d -s ${session}
-run="log_dir=${log_dir} model_size=${model_size} batch_size=${batch_size} device=${device}"
-command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
-echo "Running command: ${command}"
-tmux send-keys -t ${session} "${command}" C-m

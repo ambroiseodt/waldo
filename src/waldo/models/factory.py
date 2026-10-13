@@ -77,6 +77,12 @@ def build_model(config: dict[str, Any], return_config: bool = False) -> nn.Modul
             model_type = Gemma3
             config_obj = build_with_type_check(Gemma3Config, config)
 
+        case "gemma4":
+            from waldo.models import Gemma4, Gemma4Config
+
+            model_type = Gemma4
+            config_obj = build_with_type_check(Gemma4Config, config)
+
         case "llama3":
             from waldo.models import Llama3, Llama3Config
 
@@ -88,12 +94,6 @@ def build_model(config: dict[str, Any], return_config: bool = False) -> nn.Modul
 
             model_type = Qwen3
             config_obj = build_with_type_check(Qwen3Config, config)
-
-        case "smollm2":
-            from waldo.models import SmolLM2, SmolLM2Config
-
-            model_type = SmolLM2
-            config_obj = build_with_type_check(SmolLM2Config, config)
 
         case _:
             raise ValueError(f"Model {model_name} not found.")

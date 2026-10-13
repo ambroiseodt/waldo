@@ -2,8 +2,8 @@
 log_dir: "runs"
 
 # Model
-model_name: "smollm2"
-model_size: "135M"
+model_name: "gemma4"
+model_size: "E2B"
 
 # Probe
 layers: ["all"]
@@ -13,7 +13,7 @@ modules:  ["all"]
 benchmark_name: "Multilingual"
 task_type: "Classification"
 max_n_docs: 8192
-batch_size: 4
+batch_size: 32
 
 # Device
 device: "cuda:0"

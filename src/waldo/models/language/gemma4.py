@@ -1,5 +1,5 @@
 r"""
-SmolLM2 pretrained model following [1]_. It allows to study specific layers and modules.
+Gemma4 pretrained model following [1]_. It allows to study specific layers and modules.
 
 Comments abbreviations
 ----------------------
@@ -9,13 +9,12 @@ Comments abbreviations
 
 Notes
 -----
-We focus on the pretrained (base) models available on HuggingFace for text generation.
-See https://huggingface.co/collections/HuggingFaceTB/smollm2 for variants.
+We focus on the pretrained dense models available on HuggingFace for text generation.
+See https://huggingface.co/collections/google/gemma-4 for other variants.
 
 References
 ----------
-.. [1] L. Ben Allal et al. SmolLM2: When Smol Goes Big -- Data-Centric Training of a Small Language Model.
-       arXiv 2025
+.. [1] Gemma Team. Gemma 4 Technical Report. arXiv 2026
 
 See also
 --------
@@ -38,8 +37,8 @@ import torch
 import torch.nn as nn
 from mteb.models.model_meta import ModelMeta, ScoringFunction
 from torch.nn import ModuleList
-from transformers import AutoTokenizer, LlamaModel, PreTrainedModel, PreTrainedTokenizerBase
-from transformers.models.llama.modeling_llama import LlamaMLP
+from transformers import AutoTokenizer, Gemma4ForConditionalGeneration, PreTrainedModel, PreTrainedTokenizerBase
+from transformers.models.gemma4.modeling_gemma4 import Gemma4TextMLP
 
 from ..pooling import mean_pooling
 from ..transformer_block import TransformerBlockAdapter
@@ -52,16 +51,16 @@ logger = logging.getLogger(__name__)
 #   Config
 # -------------------------------------------------------------------
 @dataclass
-class SmolLM2Config:
+class Gemma4Config:
     r"""
-    SmolLM2 configuration file.
+    Gemma4 configuration file.
 
     Parameters
     ----------
     model_size: str
-        Size of the model. Options are "135M", "360M", "1.7B".
+        Size of the model. Options are "E2B", "E4B", "31B".
     dtype: torch.dtype
-        Dtype to load the model weights in. Defaults to bfloat16 since SmolLM2 was
+        Dtype to load the model weights in. Defaults to bfloat16 since Gemma4 was
         pretrained in bfloat16, which halves the memory footprint compared with float32.
         Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
         is required.
@@ -69,7 +68,7 @@ class SmolLM2Config:
         Device to use.
     """
 
-    model_size: str = "135M"
+    model_size: str = "E2B"
     dtype: torch.dtype = torch.bfloat16
     device: str = "cpu"
 
@@ -78,30 +77,35 @@ class SmolLM2Config:
         self.__post_init__()
 
     def __post_init__(self):
-        if self.model_size not in ["135M", "360M", "1.7B"]:
-            raise ValueError(f"Invalid model size '{self.model_size}'. Options are '135M', '360M', '1.7B'.")
+        if self.model_size not in ["E2B", "E4B", "31B"]:
+            raise ValueError(f"Invalid model size '{self.model_size}'. Options are 'E2B', 'E4B', '31B'.")
 
 
 # -------------------------------------------------------------------
 #   Transformer block adapter
 # -------------------------------------------------------------------
-class SmolLM2BlockAdapter(TransformerBlockAdapter):
+class Gemma4BlockAdapter(TransformerBlockAdapter):
     r"""
-    Adapter mapping the standard module names to the submodules of a SmolLM2 transformer block.
+    Adapter mapping the standard module names to the submodules of a Gemma4 transformer block.
 
     Parameters
     ----------
     layer: nn.Module
-        A single SmolLM2 transformer block.
+        A single Gemma4 transformer block.
 
     Notes
     -----
-    SmolLM2 relies on the Llama architecture, with RMSNorm and a SwiGLU activation in the FFN [1, 2, 3]_: act is the
-    input of the down projection, following the decomposition of TransformerBlockAdapter.
+    Gemma4 relies on RMSNorm and on a GeGLU activation in the FFN [1, 2, 3]_: act is the input of the down
+    projection, following the decomposition of TransformerBlockAdapter. Gemma4 also normalizes the outputs of the
+    attention and FFN blocks before the residual connections. For consistency with other models, we do not probe
+    them: mha and fc2 are recovered before these norms. The output of the block, rc2, is scaled by a learned scalar
+    (layer_scalar). In the E2B and E4B models, the block also adds a projection of per-layer token embeddings to the
+    residual stream after the FFN, which is included in rc2.
 
     References
     ----------
-    .. [1] P. Ramachandran et al. Searching for activation functions. arXiv 2017
+    .. [1] D. Hendrycks and K. Gimpel. Bridging nonlinearities and stochastic regularizers with
+           gaussian error linear units. arXiv 2016
 
     .. [2] Y. Dauphin et al. Language Modeling with Gated Convolutional Networks. In ICML 2017
 
@@ -119,23 +123,23 @@ class SmolLM2BlockAdapter(TransformerBlockAdapter):
         return cast(nn.Module, layer.self_attn)
 
     def _get_rc1(self, layer: nn.Module) -> nn.Module:
-        # Use pre_hook to capture rc1: residual after attention, before FFN branch
-        return cast(nn.Module, layer.post_attention_layernorm)
+        # Use pre_hook to capture rc1
+        return cast(nn.Module, layer.pre_feedforward_layernorm)
 
     def _get_ln2(self, layer: nn.Module) -> nn.Module:
-        return cast(nn.Module, layer.post_attention_layernorm)
+        return cast(nn.Module, layer.pre_feedforward_layernorm)
 
     def _get_fc1(self, layer: nn.Module) -> nn.Module:
-        ffn = cast(LlamaMLP, layer.mlp)
+        ffn = cast(Gemma4TextMLP, layer.mlp)
         return cast(nn.Module, ffn.gate_proj)
 
     def _get_act(self, layer: nn.Module) -> nn.Module:
-        # Use pre_hook to capture act: gated activation output = input to down_proj
-        ffn = cast(LlamaMLP, layer.mlp)
+        # Use pre_hook to capture act
+        ffn = cast(Gemma4TextMLP, layer.mlp)
         return cast(nn.Module, ffn.down_proj)
 
     def _get_fc2(self, layer: nn.Module) -> nn.Module:
-        ffn = cast(LlamaMLP, layer.mlp)
+        ffn = cast(Gemma4TextMLP, layer.mlp)
         return cast(nn.Module, ffn.down_proj)
 
     def _get_rc2(self, layer: nn.Module) -> nn.Module:
@@ -152,9 +156,9 @@ class SmolLM2BlockAdapter(TransformerBlockAdapter):
 # -------------------------------------------------------------------
 #   Model
 # -------------------------------------------------------------------
-class SmolLM2(BaseLanguageModel):
+class Gemma4(BaseLanguageModel):
     r"""
-    SmolLM2 language model following [1]_.
+    Gemma4 language model following [1]_.
 
     By default, the probing is done on the output of the final transformer block.
     Set the layer and module to probe with set_probing(layer: int, module: str).
@@ -164,9 +168,9 @@ class SmolLM2(BaseLanguageModel):
     ----------
     config: configuration class with
         model_size: str
-            Size of the model. Options are "135M", "360M", "1.7B".
+            Size of the model. Options are "E2B", "E4B", "31B".
         dtype: torch.dtype
-            Dtype to load the model weights in. Defaults to bfloat16 since SmolLM2 was
+            Dtype to load the model weights in. Defaults to bfloat16 since Gemma4 was
             pretrained in bfloat16, which halves the memory footprint compared with float32.
             Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
             is required.
@@ -177,25 +181,19 @@ class SmolLM2(BaseLanguageModel):
     -----
     The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()`
     explicitly if you intend to fine-tune.
-    The model is loaded with LlamaModel since SmolLM2 relies on the Llama architecture.
 
     References
     ----------
-    .. [1] L. Ben Allal et al. SmolLM2: When Smol Goes Big -- Data-Centric Training of a Small Language Model.
-           arXiv 2025
+    .. [1] Gemma Team. Gemma 4 Technical Report. arXiv 2026
     """
 
-    def __init__(self, config: SmolLM2Config):
+    def __init__(self, config: Gemma4Config):
         super().__init__()
         self.device = config.device
-        self.model_name = f"HuggingFaceTB/SmolLM2-{config.model_size}"
+        self.model_name = f"google/gemma-4-{config.model_size}"
         self.dtype = config.dtype
         self.model = self._load_model(model_name=self.model_name, dtype=self.dtype, device=self.device)
         self.tokenizer = self._load_tokenizer(model_name=self.model_name)
-
-        # SmolLM2 tokenizer does not have a pad token. Following standard practices, we set it equal to eos token.
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.model.config.pad_token_id = self.tokenizer.eos_token_id
 
     def _load_model(self, model_name: str, dtype: torch.dtype, device: str) -> PreTrainedModel:
         r"""
@@ -205,11 +203,11 @@ class SmolLM2(BaseLanguageModel):
         ----------
         model_name: str
             Name of the model. Options are:
-                "HuggingFaceTB/SmolLM2-135M",
-                "HuggingFaceTB/SmolLM2-360M",
-                "HuggingFaceTB/SmolLM2-1.7B".
+                "google/gemma-4-E2B",
+                "google/gemma-4-E4B",
+                "google/gemma-4-31B".
         dtype: torch.dtype
-            Dtype to load the model weights in. Defaults to bfloat16 since SmolLM2 was
+            Dtype to load the model weights in. Defaults to bfloat16 since Gemma4 was
             pretrained in bfloat16, which halves the memory footprint compared with float32.
             Use float16 for older GPUs that do not support bfloat16, or float32 when full precision
             is required.
@@ -218,22 +216,30 @@ class SmolLM2(BaseLanguageModel):
 
         Notes
         -----
+        All sizes are multimodal models (vision, and audio for E2B and E4B). They are loaded with
+        Gemma4ForConditionalGeneration, the class of the checkpoints, from which we recover the language model.
+        Unlike Gemma3Model, Gemma4Model does not handle the "model." prefix of the checkpoints: all its weights would
+        be randomly initialized. We focus on the language part only: the vision and audio towers are discarded and all
+        the probing is done on the transformer blocks of the language model. The layers of E2B and E4B that share the
+        keys and values of earlier layers do not use their own key and value projections, which are stored in the
+        checkpoints but not loaded.
+        The 12B model relies on another architecture (gemma4_unified), which requires transformers>=5.10.
         The model is loaded in evaluation mode by default (dropout disabled). Call `model.train()`
         explicitly if you intend to fine-tune.
-        The model is loaded with LlamaModel since SmolLM2 relies on the Llama architecture.
         """
         available_models = [
-            "HuggingFaceTB/SmolLM2-135M",
-            "HuggingFaceTB/SmolLM2-360M",
-            "HuggingFaceTB/SmolLM2-1.7B",
+            "google/gemma-4-E2B",
+            "google/gemma-4-E4B",
+            "google/gemma-4-31B",
         ]
         if model_name not in available_models:
             raise ValueError(f"Model name '{model_name}' is not valid. Available models: {available_models}")
-        model = LlamaModel.from_pretrained(
+        multimodal_model = Gemma4ForConditionalGeneration.from_pretrained(
             model_name,
             dtype=dtype,
             device_map=device,
         )
+        model = multimodal_model.model.language_model
         model.eval()
         return model
 
@@ -290,7 +296,7 @@ class SmolLM2(BaseLanguageModel):
     @property
     def block_adapter(self) -> type[TransformerBlockAdapter]:
         r"""Return the block adapter class for the model's transformer blocks."""
-        return SmolLM2BlockAdapter
+        return Gemma4BlockAdapter
 
     @property
     def blocks(self) -> ModuleList:
@@ -311,8 +317,7 @@ class SmolLM2(BaseLanguageModel):
         -----
         Since we consider pretrained models and not instruction-tuned variants,
         we do not expect special tokens related to multi-turn or thinking. As such,
-        we only exclude separation and padding tokens. In SmolLM2, the BOS, EOS and
-        padding tokens are the same <|endoftext|> token.
+        we only exclude separation and padding tokens.
         """
         return [
             self.tokenizer.bos_token_id,
@@ -323,11 +328,12 @@ class SmolLM2(BaseLanguageModel):
     @property
     def mteb_model_meta(self) -> ModelMeta:
         r"""
-        Metadata for SmolLM2. It encompasses the layer and module used to encode text.
+        Metadata for Gemma4. It encompasses the layer and module used to encode text.
 
         Fields with None values are either not applicable (e.g. training datasets for a proprietary model)
         or not publicly available (e.g. memory usage, training code, training data).
-        More information at https://arxiv.org/pdf/2502.02737.
+        More information at https://arxiv.org/pdf/2607.02770.
+
         """
 
         # Ensure positive layer index
@@ -336,7 +342,7 @@ class SmolLM2(BaseLanguageModel):
         return ModelMeta(
             name=f"{self.model_name}_layer_{layer}_module_{self.module}",
             revision="main",
-            release_date="2024-10-31",
+            release_date="2026-03-12" if "31B" in self.model_name else "2026-03-02",
             open_weights=True,
             framework=["PyTorch"],
             license="apache-2.0",

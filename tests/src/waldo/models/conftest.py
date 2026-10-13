@@ -71,7 +71,9 @@ def assert_block_identities(
     r"""
     Check that the 8 recovered representations of a transformer block are consistent with each other:
     ln1 = norm1(input), rc1 = input + mha, ln2 = norm2(rc1), fc1 = W1(ln2), act = act(fc1) (times up(ln2) for gated
-    FFNs), fc2 = W2(act) and rc2 = rc1 + fc2, up to LayerScale and post-norms applied before residual connections.
+    FFNs), fc2 = W2(act) and rc2 = rc1 + fc2, up to LayerScale and post-norms applied before residual connections,
+    and to the output scaling of Gemma4. The rc2 identity is skipped for blocks adding per-layer token embeddings
+    after the FFN (Gemma4 E2B and E4B), whose inputs are not recovered.
     """
     act_fn, up, post_attn, post_ffn = _ffn_parts(block)
     if act_fn is None or up is None:
@@ -85,7 +87,9 @@ def assert_block_identities(
         "fc1": adapter.process_output("fc1", adapter.fc1(outputs["ln2"])),
         "act": expected_act,
         "fc2": adapter.fc2(outputs["act"]),
-        "rc2": outputs["rc1"] + post_ffn(outputs["fc2"]),
+        "rc2": (outputs["rc1"] + post_ffn(outputs["fc2"])) * getattr(block, "layer_scalar", 1.0),
     }
+    if hasattr(block, "per_layer_input_gate"):
+        del expected["rc2"]
     for name, value in expected.items():
         torch.testing.assert_close(outputs[name], value, msg=f"Inconsistent {name}.")
