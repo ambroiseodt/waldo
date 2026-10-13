@@ -11,7 +11,8 @@ Research code for the paper "Probing Transformer Representations Layer by Layer,
 vision models (ViT, DINOv2, DINOv3, AIMv2) and LLMs (Gemma3, Llama3, Qwen3) at every layer and every module of the
 transformer block, then evaluate each representation with linear probing (vision) or MTEB (language).
 Library code in `src/waldo`, experiment entry points and configs in `apps/`, launch scripts in `scripts/`, aggregation
-of the runs into `analysis/results/` and paper figures and tables in `analysis/`.
+of the runs into `analysis/results/` (`runs/` for the paper, `ablations/`, each with a `summary/` per model) and paper
+figures and tables in `analysis/`.
 
 ## Commands
 

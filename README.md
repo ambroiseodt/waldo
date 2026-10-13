@@ -171,14 +171,15 @@ sessions for each group of experiments, e.g.:
 ```bash
 bash scripts/vision/eval.sh
 ```
-The runs are then aggregated in `analysis/results/` by running the following commands from the root of the
-repository (`cifar10_c` and `mteb` work the same way):
+The runs are then aggregated in `analysis/results/runs/` (one row per layer and module, with a per-model summary in
+`summary/`) by running the following commands from the root of the repository (`cifar10_c` and `mteb` work the
+same way):
 ```bash
 python analysis/aggregate.py cls
 python analysis/aggregate.py analysis_cls
 ```
-The results of the paper are provided in `analysis/results/` (csv files tracked with Git LFS, run `git lfs pull` after
-cloning). The figures and tables of the paper can be reproduced from them:
+The results of the paper are provided in `analysis/results/runs/` (csv files tracked with Git LFS, run `git lfs pull`
+after cloning). The figures and tables of the paper can be reproduced from them:
 ```bash
 python analysis/analysis.py plot   # figures, saved in figures/
 python analysis/analysis.py table  # LaTeX tables

@@ -27,6 +27,9 @@ from waldo.infra import FIGURE_DIR, RESULT_DIR
 
 logger = logging.getLogger("waldo.analysis")
 
+# Paths
+RUN_RESULT_DIR = RESULT_DIR / "runs"
+
 # Variables
 MODULE_ORDER = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
 LABEL = {
@@ -80,7 +83,18 @@ VFM_MARKER_SIZE = {
 }
 
 # LLMs
-LLMs = ["Qwen3", "Llama-3", "gemma-3"]
+# Models of the paper, selected by name (e.g., Qwen3-Base models are not part of the paper)
+LLMs = [
+    "Qwen3-1.7B",
+    "Qwen3-4B",
+    "Qwen3-8B",
+    "Llama-3.2-1B",
+    "Llama-3.2-3B",
+    "Llama-3.1-8B",
+    "gemma-3-1b-pt",
+    "gemma-3-4b-pt",
+    "gemma-3-12b-pt",
+]
 REPRESENTATIVE_LLMs = {"qwen3": "Qwen3-1.7B", "llama3": "Llama-3.2-1B", "gemma3": "gemma-3-1b-pt"}
 LLM_NAMES = {"qwen3": "Qwen3", "llama3": "Llama3", "gemma3": "Gemma3"}
 LLM_FAMILIES = {
@@ -155,7 +169,7 @@ def save_plot(figname: str, dirname: str | None = None, format: str = "pdf", dpi
 # ------------------------------------------------------------------------------
 def table_runs() -> None:
     r"""Compute the number of runs in our experiments."""
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
 
     # Vision
     comp = 0
@@ -172,8 +186,7 @@ def table_runs() -> None:
     filename = "mteb"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
-    pattern = "|".join(LLMs)
-    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+    df = cast(pd.DataFrame, df[df["model_name"].isin(LLMs)])
     comp += len(df)
     print(f"There are {len(df)} LLMs runs.")
 
@@ -183,7 +196,7 @@ def table_runs() -> None:
 
 def get_ordered_dataset(filename: str) -> list:
     # Recover results
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -268,7 +281,7 @@ def plot_intro(vision_filename: str = "cls", language_filename: str = "mteb", sa
     for modality_idx, (modality, filename) in enumerate(
         zip(("vision", "language"), (vision_filename, language_filename), strict=True)
     ):
-        path = RESULT_DIR / "analysis"
+        path = RUN_RESULT_DIR / "summary"
         df = pd.read_csv(path / f"{filename}.csv")
         df = df.copy()
         if modality == "vision":
@@ -283,11 +296,7 @@ def plot_intro(vision_filename: str = "cls", language_filename: str = "mteb", sa
                 df[df["dataset_name"].str.contains(pattern, case=False, na=False)],
             )
         else:
-            pattern = "|".join(LLMs)
-            df = cast(
-                pd.DataFrame,
-                df[df["model_name"].str.contains(pattern, case=False, na=False)],
-            )
+            df = cast(pd.DataFrame, df[df["model_name"].isin(LLMs)])
 
         logger.info(f"{modality}: results are presented over a total of {len(df)} runs.")
 
@@ -485,7 +494,7 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
     ax = fig.gca()
 
     # Recover results
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -566,7 +575,7 @@ def plot_transfer_difficulty_vision(filename: str, save: bool = False) -> None:
     ax = fig.gca()
 
     # Recover results
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -738,7 +747,7 @@ def plot_cifar10c_severity(filename: str, save: bool = False) -> None:
     ax = fig.gca()
 
     # Recover results
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -804,7 +813,7 @@ def plot_cifar10c_optimal_depth(filename: str, save: bool = False) -> None:
     fig = plt.figure(figsize=figsize)
     ax = fig.gca()
 
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     pattern = "|".join(VFMs)
     df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)].copy())
@@ -901,7 +910,7 @@ def plot_pretraining_scale_vision(filename: str, save: bool = False) -> None:
     ax = fig.gca()
 
     # Recover results
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -1004,7 +1013,7 @@ def plot_model_family_vision(filename: str, save: bool = False, ncol: int = 1) -
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
 
     # Recover results
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -1129,7 +1138,7 @@ def plot_probing_depth_vision(filename: str, save: bool = False) -> None:
                 reference = axes[i, column]
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -1271,7 +1280,7 @@ def plot_probing_depth_family_vision(filename: str, model_name: str, save: bool 
     ncols = len(sizes)
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -1397,7 +1406,7 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
     ax = fig.gca()
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -1514,7 +1523,7 @@ def table_model_size_vision(filename: str) -> None:
         Name of the result file to use.
     """
     # Recover results
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
@@ -1569,7 +1578,7 @@ def table_winning_module_frequency_vision(filename: str) -> None:
         Name of the result file to use.
     """
     # Recover results
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv").copy()
 
     # Keep only vision foundation models
@@ -1596,7 +1605,7 @@ def table_performance_comparison_vision(filename: str) -> None:
     ordered_dataset = get_ordered_dataset(filename=filename)
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
 
     # Keep vision models
@@ -1711,7 +1720,7 @@ def table_performance_comparison_all_vision(filename: str) -> None:
     ordered_dataset = get_ordered_dataset(filename=filename)
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
 
     # Keep vision models
@@ -1828,7 +1837,7 @@ def table_performance_comparison_act_fc1_vision(filename: str) -> None:
     ordered_dataset = get_ordered_dataset(filename=filename)
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
 
     # Keep vision models
@@ -1947,7 +1956,7 @@ def table_global_statistics_vision(filename: str) -> None:
     filename: str
         Name of the result file to use.
     """
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
 
     # Keep vision models and datasets
@@ -2014,7 +2023,7 @@ def table_global_statistics_ood_vision(filename: str) -> None:
         "domainnet-sketch",
     ]
 
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
 
     # Keep vision models and hard datasets
@@ -2093,13 +2102,12 @@ def plot_model_family_language(filename: str, save: bool = False, ncol: int = 1)
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize, sharey=True)
 
     # Recover aggregate results.
-    path = RESULT_DIR / "analysis"
+    path = RUN_RESULT_DIR / "summary"
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
     # Keep language models
-    pattern = "|".join(LLMs)
-    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+    df = cast(pd.DataFrame, df[df["model_name"].isin(LLMs)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -2192,13 +2200,12 @@ def plot_probing_depth_language(filename: str, save: bool = False) -> None:
     fig, axes = plt.subplots(ncols=ncols, figsize=figsize)
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
     # Keep language models
-    pattern = "|".join(LLMs)
-    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+    df = cast(pd.DataFrame, df[df["model_name"].isin(LLMs)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -2301,13 +2308,12 @@ def plot_probing_depth_all_language(filename: str, save: bool = False) -> None:
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharex=True)
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
 
     # Keep language models
-    pattern = "|".join(LLMs)
-    df = cast(pd.DataFrame, df[df["model_name"].str.contains(pattern, case=False, na=False)])
+    df = cast(pd.DataFrame, df[df["model_name"].isin(LLMs)])
     logger.info(f"Results are presented over a total of {len(df)} runs.")
 
     # Results
@@ -2419,7 +2425,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
     ax = fig.gca()
 
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
     df = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
@@ -2525,7 +2531,7 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
 def table_performance_comparison_language(filename: str) -> None:
     r"""Performance comparison between standard probing, heuristic probing and oracle probing."""
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv")
     df = df.copy()
     df = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
@@ -2679,11 +2685,10 @@ def table_performance_comparison_task_language(filename: str) -> None:
         Name of the result file to use.
     """
     # Recover results
-    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
+    df = pd.read_csv(RUN_RESULT_DIR / f"{filename}.csv").copy()
 
     # Keep LLM models
-    pattern = "|".join(LLMs)
-    df = df[df["model_name"].str.contains(pattern, case=False, na=False)]
+    df = df[df["model_name"].isin(LLMs)]
 
     # Results
     rows = []
@@ -2770,7 +2775,7 @@ def table_performance_comparison_all_language(filename: str, model_family: str) 
         LLM family to report, e.g. "Qwen3", "Llama3", or "Gemma3".
     """
     # Recover results
-    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
+    df = pd.read_csv(RUN_RESULT_DIR / f"{filename}.csv").copy()
 
     # Model configuration: checkpoint name -> displayed name (consistent with the main text)
     model_names = {
@@ -2873,7 +2878,7 @@ def table_global_statistics_language(filename: str) -> None:
         Name of the result file to use.
     """
     # Recover results
-    df = pd.read_csv(RESULT_DIR / f"{filename}.csv").copy()
+    df = pd.read_csv(RUN_RESULT_DIR / f"{filename}.csv").copy()
 
     # Keep LLM models
     all_models = [m for models in LLM_FAMILIES.values() for m in models]
@@ -2979,7 +2984,7 @@ def table_global_statistics_language_(filename: str) -> None:
         Name of the result file to use.
     """
     # Recover results
-    path = RESULT_DIR
+    path = RUN_RESULT_DIR
     df = pd.read_csv(path / f"{filename}.csv").copy()
 
     # Keep LLM models

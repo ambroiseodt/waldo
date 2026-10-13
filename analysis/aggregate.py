@@ -24,6 +24,9 @@ logger = logging.getLogger("waldo.aggregate")
 
 # Paths
 RUN_DIR = SAVING_DIR / "runs"
+ABLATION_DIR = SAVING_DIR / "ablations"
+RUN_RESULT_DIR = RESULT_DIR / "runs"
+ABLATION_RESULT_DIR = RESULT_DIR / "ablations"
 
 
 # ------------------------------------------------------------------------------
@@ -172,8 +175,8 @@ def get_cls_results() -> None:
         "module",
         "accuracy",
     ]
-    RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    save_path = RESULT_DIR / "cls.csv"
+    RUN_RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = RUN_RESULT_DIR / "cls.csv"
     df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
     logger.info(f"Results saved at {save_path}.")
 
@@ -243,8 +246,8 @@ def get_cifar10_c_results() -> None:
         "module",
         "accuracy",
     ]
-    RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    save_path = RESULT_DIR / "cifar10_c.csv"
+    RUN_RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = RUN_RESULT_DIR / "cifar10_c.csv"
     df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
     logger.info(f"Results saved at {save_path}.")
 
@@ -310,8 +313,8 @@ def get_mteb_results() -> None:
         "module",
         "accuracy",
     ]
-    RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    save_path = RESULT_DIR / "mteb.csv"
+    RUN_RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = RUN_RESULT_DIR / "mteb.csv"
     df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
     logger.info(f"Results saved at {save_path}.")
 
@@ -326,7 +329,7 @@ def analysis_cls_results() -> None:
     at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
     of the baseline probing.
     """
-    path = RESULT_DIR / "cls.csv"
+    path = RUN_RESULT_DIR / "cls.csv"
     df = pd.read_csv(path)
     grouping_cols = [
         "dataset_name",
@@ -396,7 +399,7 @@ def analysis_cls_results() -> None:
 
     df_out = pd.DataFrame(results)
     df_out = df_out.sort_values(by=["dataset_name", "model_name", "model_size"])
-    save_path = RESULT_DIR / "analysis" / "cls.csv"
+    save_path = RUN_RESULT_DIR / "summary" / "cls.csv"
     save_path.parent.mkdir(parents=True, exist_ok=True)
     df_out.to_csv(save_path, index=False, encoding="utf-8")
     logger.info(f"Saved table to {save_path}")
@@ -409,7 +412,7 @@ def analysis_cifar10_c_results() -> None:
     at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
     of the baseline probing.
     """
-    path = RESULT_DIR / "cifar10_c.csv"
+    path = RUN_RESULT_DIR / "cifar10_c.csv"
     df = pd.read_csv(path)
     grouping_cols = [
         "corruption",
@@ -481,7 +484,7 @@ def analysis_cifar10_c_results() -> None:
 
     df_out = pd.DataFrame(results)
     df_out = df_out.sort_values(by=["corruption", "severity", "model_name", "model_size"])
-    save_path = RESULT_DIR / "analysis" / "cifar10_c.csv"
+    save_path = RUN_RESULT_DIR / "summary" / "cifar10_c.csv"
     save_path.parent.mkdir(parents=True, exist_ok=True)
     df_out.to_csv(save_path, index=False, encoding="utf-8")
     logger.info(f"Saved table to {save_path}")
@@ -508,7 +511,7 @@ def analysis_mteb_results() -> None:
     .. [4] O. Skean et al. Layer by Layer: Uncovering Hidden Representations in Language Models. In ICML 2025
 
     """
-    path = RESULT_DIR / "mteb.csv"
+    path = RUN_RESULT_DIR / "mteb.csv"
     df = pd.read_csv(path)
 
     # Average accuracy across tasks per (model, layer, module)
@@ -571,9 +574,283 @@ def analysis_mteb_results() -> None:
     df_out = pd.DataFrame(results)
     column_order = ["model_name"]
     df_out = df_out.sort_values(by=column_order)
-    save_path = RESULT_DIR / "analysis" / "mteb.csv"
+    save_path = RUN_RESULT_DIR / "summary" / "mteb.csv"
     save_path.parent.mkdir(parents=True, exist_ok=True)
     df_out.to_csv(save_path, index=False, na_rep="N/A", encoding="utf-8")
+    logger.info(f"Saved table to {save_path}")
+
+
+# ------------------------------------------------------------------------------
+# Ablations
+# ------------------------------------------------------------------------------
+def get_ablation_cls_results() -> None:
+    r"""
+    Sweep over image classification ablations json files and aggregate results in a single csv.
+
+    Notes
+    -----
+    Each subfolder of the ablations directory, e.g. "cls_concat", is an ablation whose name is stored in the
+    ablation column. The pooling over the sequence of tokens is also stored since it can differ across ablations.
+    """
+
+    # Check that path exists
+    if not ABLATION_DIR.exists():
+        logger.info(f"Result directory '{ABLATION_DIR}' does not exist.")
+        return
+
+    # Compile results by looping over ablations and datasets json files
+    results = []
+    ablation_paths = [f for f in ABLATION_DIR.iterdir() if f.is_dir()]
+    for ablation_path in ablation_paths:
+        ablation = ablation_path.name
+        results_paths = [f for f in ablation_path.iterdir() if f.is_dir() and f.name != "mteb"]
+        for results_path in results_paths:
+            dataset_name = results_path.name
+            logger.info(f"Start recovering results from {results_path}.")
+            config_files = [f for f in results_path.glob("**/config.json")]
+            for config_path in tqdm(config_files, desc=f"Writing results for {ablation}/{dataset_name}", unit="runs"):
+                # Recover model config
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                model_name = config["model_name"]
+                model_size = config["model_size"]
+                patch_size = config["patch_size"]
+                resolution = config["resolution"]
+                pooling = config.get("pooling", "content")
+
+                # Recover results
+                folder_path = config_path.parent / "results"
+                results_files = [f for f in folder_path.glob("*.json")]
+                for json_path in results_files:
+                    # Recover layer index and module name
+                    layer, module = parse_result_config(name=json_path.name)
+                    with open(json_path, encoding="utf-8") as f:
+                        content = f.read().replace("NaN", "null")
+                        data = json.loads(content)
+                        accuracy = 100 * data["acc_test"]
+                        results.append(
+                            {
+                                "ablation": ablation,
+                                "dataset_name": dataset_name,
+                                "model_name": model_name,
+                                "model_size": model_size,
+                                "patch_size": patch_size,
+                                "resolution": resolution,
+                                "pooling": pooling,
+                                "layer": layer,
+                                "module": module,
+                                "accuracy": accuracy,
+                            }
+                        )
+
+    # Check that results exist
+    if not results:
+        logger.info(f"No image classification results found in '{ABLATION_DIR}'.")
+        return
+
+    # Aggregate results
+    df = pd.DataFrame(results)
+    column_order = [
+        "ablation",
+        "dataset_name",
+        "model_name",
+        "model_size",
+        "patch_size",
+        "resolution",
+        "pooling",
+        "layer",
+        "module",
+    ]
+    df = df.sort_values(by=column_order, ascending=True)
+    columns = [
+        "ablation",
+        "dataset_name",
+        "model_name",
+        "model_size",
+        "patch_size",
+        "resolution",
+        "pooling",
+        "layer",
+        "module",
+        "accuracy",
+    ]
+    ABLATION_RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = ABLATION_RESULT_DIR / "cls.csv"
+    df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
+    logger.info(f"Results saved at {save_path}.")
+
+
+def get_ablation_mteb_results() -> None:
+    r"""
+    Sweep over MTEB ablations json files and aggregate results in a single csv.
+
+    Notes
+    -----
+    Each subfolder of the ablations directory with MTEB results, e.g. "final_norm", is an ablation whose name is
+    stored in the ablation column. See get_mteb_results for the evaluation splits of MTEB.
+    """
+
+    # Check that path exists
+    if not ABLATION_DIR.exists():
+        logger.info(f"Result directory '{ABLATION_DIR}' does not exist.")
+        return
+
+    # Compile results by looping over ablations json files
+    results = []
+    ablation_paths = [f for f in ABLATION_DIR.iterdir() if (f / "mteb").is_dir()]
+    for ablation_path in ablation_paths:
+        ablation = ablation_path.name
+        results_path = ablation_path / "mteb"
+        logger.info(f"Start recovering results from {results_path}.")
+        config_files = [f for f in results_path.glob("**/model_meta.json")]
+        for config_path in tqdm(config_files, desc=f"Writing results for {ablation}", unit="runs"):
+            # Recover model config
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            model_name, layer, module = parse_model_config(name=config["name"])
+
+            # Recover results
+            folder_path = config_path.parent
+            results_files = [f for f in folder_path.glob("*.json") if f.name != "model_meta.json"]
+            for json_path in results_files:
+                with open(json_path, encoding="utf-8") as f:
+                    content = f.read().replace("NaN", "null")
+                    data = json.loads(content)
+                    task_name = data["task_name"]
+                    _, scores = data["scores"].popitem()
+                    accuracy = 100 * scores[0]["accuracy"]
+                    languages = scores[0]["languages"]
+                    results.append(
+                        {
+                            "ablation": ablation,
+                            "task_name": task_name,
+                            "languages": json.dumps(languages),
+                            "model_name": model_name,
+                            "layer": layer,
+                            "module": module,
+                            "accuracy": accuracy,
+                        }
+                    )
+
+    # Check that results exist
+    if not results:
+        logger.info(f"No MTEB results found in '{ABLATION_DIR}'.")
+        return
+
+    # Aggregate results
+    df = pd.DataFrame(results)
+    column_order = ["ablation", "task_name", "languages", "model_name", "layer", "module"]
+    df = df.sort_values(by=column_order, ascending=True)
+    columns = [
+        "ablation",
+        "task_name",
+        "languages",
+        "model_name",
+        "layer",
+        "module",
+        "accuracy",
+    ]
+    ABLATION_RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = ABLATION_RESULT_DIR / "mteb.csv"
+    df.to_csv(save_path, columns=columns, index=False, na_rep="N/A", encoding="utf-8")
+    logger.info(f"Results saved at {save_path}.")
+
+
+def analysis_ablation_cls_results() -> None:
+    r"""
+    Aggregate image classification ablation results by recovering the best probing location,
+    the corresponding accuracy, the baseline accuracy, defined as the probing accuracy of the rc2 module
+    at the last layer, the absolute and relative gain of probing the best pair of layer-module instead
+    of the baseline probing.
+
+    Notes
+    -----
+    Ablations without the rc2 module at the last layer, e.g. final_norm with the rc2norm module only, have no
+    baseline and are skipped. They can be compared with the main results directly.
+    """
+    path = ABLATION_RESULT_DIR / "cls.csv"
+    df = pd.read_csv(path)
+    grouping_cols = [
+        "ablation",
+        "dataset_name",
+        "model_name",
+        "model_size",
+        "patch_size",
+        "resolution",
+        "pooling",
+    ]
+
+    # Recover results
+    results = []
+    for keys, group in tqdm(
+        df.groupby(grouping_cols),
+        desc="Building analysis table",
+    ):
+        ablation, dataset_name, model_name, model_size, patch_size, resolution, pooling = keys
+        n_layers = int(group["layer"].max()) + 1
+
+        # Baseline probe
+        last_layer = int(group["layer"].max())
+        baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
+        if baseline_row.empty:
+            logger.info(f"Skipping {keys}: no rc2 module at the last layer.")
+            continue
+        baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
+
+        # Best probe
+        best_row = group.iloc[group["accuracy"].argmax()]
+        best_layer = best_row["layer"]
+        best_module = best_row["module"]
+        best_accuracy = best_row["accuracy"]
+        gain = best_accuracy - baseline_accuracy
+
+        # Best layer with rc2 fixed
+        rc2_df = group[group["module"] == "rc2"]
+        best_layer_rc2_row = rc2_df.iloc[rc2_df["accuracy"].argmax()]
+        best_layer_rc2 = best_layer_rc2_row["layer"]
+        layer_accuracy = best_layer_rc2_row["accuracy"]
+        gain_layer = layer_accuracy - baseline_accuracy
+
+        # Best module at last layer
+        last_layer_df = group[group["layer"] == last_layer]
+        best_module_last_row = last_layer_df.iloc[last_layer_df["accuracy"].argmax()]
+        best_module_last_layer = best_module_last_row["module"]
+        module_accuracy = best_module_last_row["accuracy"]
+        gain_module = module_accuracy - baseline_accuracy
+
+        # Update results
+        results.append(
+            {
+                "ablation": ablation,
+                "dataset_name": dataset_name,
+                "model_name": model_name,
+                "model_size": model_size,
+                "patch_size": patch_size,
+                "resolution": resolution,
+                "pooling": pooling,
+                "n_layers": n_layers,
+                "baseline_accuracy": baseline_accuracy,
+                "best_layer": best_layer,
+                "best_module": best_module,
+                "best_accuracy": best_accuracy,
+                "gain": gain,
+                "best_layer_rc2": best_layer_rc2,
+                "layer_accuracy": layer_accuracy,
+                "gain_layer": gain_layer,
+                "best_module_last_layer": best_module_last_layer,
+                "module_accuracy": module_accuracy,
+                "gain_module": gain_module,
+            }
+        )
+
+    # Check that results exist
+    if not results:
+        logger.info(f"No ablation with the rc2 module at the last layer in '{path}'.")
+        return
+
+    df_out = pd.DataFrame(results)
+    df_out = df_out.sort_values(by=["ablation", "dataset_name", "model_name", "model_size"])
+    save_path = ABLATION_RESULT_DIR / "summary" / "cls.csv"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    df_out.to_csv(save_path, index=False, encoding="utf-8")
     logger.info(f"Saved table to {save_path}")
 
 
@@ -593,6 +870,9 @@ def main() -> None:
             "analysis_cls": analysis_cls_results,
             "analysis_cifar10_c": analysis_cifar10_c_results,
             "analysis_mteb": analysis_mteb_results,
+            "ablation_cls": get_ablation_cls_results,
+            "ablation_mteb": get_ablation_mteb_results,
+            "analysis_ablation_cls": analysis_ablation_cls_results,
         }
     )
 
