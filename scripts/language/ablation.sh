@@ -34,3 +34,19 @@ do
     echo "Running command: ${command}"
     tmux send-keys -t ${session} "${command}" C-m
 done
+
+# Gemma4-E2B (default probing: all layers and modules)
+ablation="gemma4"
+log_dir="ablations/${ablation}"
+model_name="gemma4"
+model_size="E2B"
+batch_size=1
+device="cuda:0"
+
+# Runs
+session="${ablation}_mteb"
+tmux new-session -d -s ${session}
+run="log_dir=${log_dir} model_size=${model_size} batch_size=${batch_size} device=${device}"
+command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+echo "Running command: ${command}"
+tmux send-keys -t ${session} "${command}" C-m
