@@ -29,6 +29,7 @@ logger = logging.getLogger("waldo.analysis")
 
 # Paths
 RUN_RESULT_DIR = RESULT_DIR / "runs"
+ABLATION_RESULT_DIR = RESULT_DIR / "ablations"
 
 # Variables
 MODULE_ORDER = ["ln1", "mha", "rc1", "ln2", "fc1", "act", "fc2", "rc2"]
@@ -1509,6 +1510,94 @@ def plot_oracle_recovery_vision(filename: str, save: bool = False) -> None:
         save_plot(figname=f"oracle_recovery_vision_{filename}")
 
 
+def plot_probing_depth_clip_vision(save: bool = False) -> None:
+    r"""
+    Evolution of the act and rc2 probing accuracy along with the depth for CLIP-L.
+
+    Parameters
+    ----------
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 5
+    height = 4
+    ncols = len(REPRESENTATIVE_DATASETS)
+    fig, axes = plt.subplots(nrows=1, ncols=ncols, figsize=(ncols * width, height), sharex=True)
+
+    # Recover results
+    df = pd.read_csv(ABLATION_RESULT_DIR / "cls.csv")
+    df = df.loc[df["ablation"] == "clip"]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Results
+    for j, dataset_name in enumerate(REPRESENTATIVE_DATASETS):
+        ax = axes[j]
+        for module in ["rc2", "act"]:
+            subset = df.loc[(df["dataset_name"] == dataset_name) & (df["module"] == module)].copy()
+            subset = subset.sort_values(by="layer")
+            n_layers = subset["layer"].max()
+            subset["depth"] = 100 * subset["layer"] / n_layers
+            ax.plot(
+                subset["depth"],
+                subset["accuracy"],
+                color=MODULE_PALETTE[module],
+                linewidth=LINEWIDTH,
+                linestyle="-" if module != "rc2" else "--",
+                label=module.upper() if module != "act" else "Act",
+            )
+
+            # Mark the highest act performance
+            if module == "act":
+                index = np.argmax(subset["accuracy"])
+                ax.scatter(
+                    subset["depth"].values[index],
+                    subset["accuracy"].values[index],
+                    label="Best Act",
+                    edgecolor="#333333",
+                    s=300,
+                    c=MODULE_PALETTE[module],
+                    marker="*",
+                    zorder=3,
+                )
+
+        # Visualization
+        ax.grid(alpha=ALPHA_GRID, lw=1.3)
+        ax.spines["left"].set_linewidth(1)
+        ax.spines["right"].set_linewidth(1)
+        ax.spines["top"].set_linewidth(1)
+        ax.spines["bottom"].set_linewidth(1)
+        ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+        ymin, ymax = ax.get_ylim()
+        tol = 1
+        ax.set_yticks(np.linspace(ymin - tol, ymax - tol, 3).astype(int))
+        ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
+        ax.set_title(f"{DATASETS[dataset_name]}\n", fontsize=FONTSIZE)
+        if j == 0:
+            ax.set_ylabel("CLIP\n" + r"Accuracy ($\%$)", fontsize=FONTSIZE)
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+
+    # Common legend
+    legend = axes[0].legend(
+        loc="upper center",
+        bbox_to_anchor=(0.63, 0.52),
+        fancybox=True,
+        borderaxespad=0,
+        shadow=False,
+        frameon=True,
+        handlelength=1.9,
+        fontsize=LEG_FONTSIZE,
+    )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
+    plt.tight_layout()
+    if save:
+        figname = "probing_depth_clip_vision"
+        save_plot(figname=figname)
+
+
 # ------------------------------------------------------------------------------
 # VFMs table functions
 # ------------------------------------------------------------------------------
@@ -2068,6 +2157,309 @@ def table_global_statistics_ood_vision(filename: str) -> None:
         pd.DataFrame, df[df["model_size"] == df["model_name"].map(lambda value: REPRESENTATIVE_VFMs[str(value)])]
     )
     print_statistics(large_df, "Large variants")
+
+
+def table_ablation_pooling_vision() -> None:
+    r"""
+    Performance comparison between standard, heuristic and oracle probing on large vision models with a CLS token,
+    for each pooling over the sequence of tokens: mean over patch tokens (main results), CLS token, and concatenation
+    of the CLS token and the mean over patch tokens.
+    """
+    # Recover results
+    main_df = pd.read_csv(RUN_RESULT_DIR / "cls.csv")
+    ablation_df = pd.read_csv(ABLATION_RESULT_DIR / "cls.csv")
+    poolings = {
+        "content": main_df,
+        "cls": ablation_df.loc[ablation_df["ablation"] == "cls"],
+        "all": ablation_df.loc[ablation_df["ablation"] == "cls_concat"],
+    }
+
+    # Results on representative models with a CLS token (AIMv2 has none)
+    family_order = ["vit", "dinov2", "dinov3"]
+    rows: list[dict[str, object]] = []
+    for pooling, df in poolings.items():
+        for family in family_order:
+            for dataset in REPRESENTATIVE_DATASETS:
+                mask = (
+                    (df["model_name"] == family)
+                    & (df["model_size"] == REPRESENTATIVE_VFMs[family])
+                    & (df["dataset_name"] == dataset)
+                )
+                sub = df.loc[mask]
+                last_layer = int(sub["layer"].max())
+                standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
+                fixed = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "act"), "accuracy"].iloc[0])
+                oracle = float(sub["accuracy"].max())
+                rows.append(
+                    {
+                        "pooling": pooling,
+                        "family": family,
+                        "dataset": dataset,
+                        "standard": standard,
+                        "fixed": fixed - standard,
+                        "oracle": oracle - standard,
+                    }
+                )
+    summary = pd.DataFrame(rows)
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\add{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\sub{{{value:.1f}}}"
+        return "0.0"
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    # LaTeX NiceTabular: one group of columns per dataset, one column per pooling
+    pooling_labels = {"content": "Mean", "cls": "CLS", "all": "Concat"}
+    datasets = REPRESENTATIVE_DATASETS
+    n_poolings = len(pooling_labels)
+    n_columns = 1 + n_poolings * len(datasets)
+    lines = [rf"\begin{{NiceTabular}}{{l{'c' * (n_columns - 1)}}}", r"\toprule"]
+    groups = [DATASETS[dataset] for dataset in datasets]
+    lines.append(
+        r"\multirow{2}{*}{Strategy} & "
+        + " & ".join(rf"\multicolumn{{{n_poolings}}}{{c}}{{{group}}}" for group in groups)
+        + r" \\"
+    )
+    lines.append(
+        " ".join(rf"\cmidrule(l){{{2 + n_poolings * k}-{1 + n_poolings * (k + 1)}}}" for k in range(len(datasets)))
+    )
+    lines.append(" & " + " & ".join(list(pooling_labels.values()) * len(datasets)) + r" \\")
+    lines.append(r"\midrule")
+    for family in family_order:
+        family_df = summary.loc[summary["family"] == family]
+        lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{{VFM_NAMES[family]}}}}} \\")
+        lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
+        for strategy, label in [
+            ("standard", r"\texttt{Baseline}"),
+            ("fixed", r"$\vfm$"),
+            ("oracle", r"\oraclerow \texttt{Oracle}"),
+        ]:
+            formatter = format_accuracy if strategy == "standard" else format_gain
+            values = []
+            for dataset in datasets:
+                for pooling in pooling_labels:
+                    pooling_df = family_df.loc[family_df["pooling"] == pooling]
+                    value = float(pooling_df.loc[pooling_df["dataset"] == dataset, strategy].iloc[0])
+                    values.append(formatter(value))
+            lines.append(f"{label} & " + " & ".join(values) + r" \\")
+        lines.append(r"\arrayrulecolor{black}")
+        if family != family_order[-1]:
+            lines.append(r"\midrule")
+    lines.extend([r"\bottomrule", r"\end{NiceTabular}"])
+    print("\n".join(lines))
+
+
+def table_ablation_registers_vision() -> None:
+    r"""
+    Performance comparison between standard, heuristic and oracle probing on DINOv2-L without and with register
+    tokens [1]_, which are excluded from the pooling as the CLS token.
+
+    References
+    ----------
+    .. [1] T. Darcet et al. Vision Transformers Need Registers. In ICLR 2024
+    """
+    # Recover results
+    main_df = pd.read_csv(RUN_RESULT_DIR / "cls.csv")
+    ablation_df = pd.read_csv(ABLATION_RESULT_DIR / "cls.csv")
+    models = {
+        "DINOv2-L": main_df.loc[(main_df["model_name"] == "dinov2") & (main_df["model_size"] == "large")],
+        "DINOv2-L with registers": ablation_df.loc[ablation_df["ablation"] == "registers"],
+    }
+
+    # Results
+    rows: list[dict[str, object]] = []
+    for model, df in models.items():
+        for dataset in REPRESENTATIVE_DATASETS:
+            sub = df.loc[df["dataset_name"] == dataset]
+            last_layer = int(sub["layer"].max())
+            standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
+            fixed = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "act"), "accuracy"].iloc[0])
+            oracle = float(sub["accuracy"].max())
+            rows.append(
+                {
+                    "model": model,
+                    "dataset": dataset,
+                    "standard": standard,
+                    "fixed": fixed - standard,
+                    "oracle": oracle - standard,
+                }
+            )
+    summary = pd.DataFrame(rows)
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\add{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\sub{{{value:.1f}}}"
+        return "0.0"
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    # LaTeX NiceTabular
+    header = ["Strategy"] + [DATASETS[dataset] for dataset in REPRESENTATIVE_DATASETS]
+    n_columns = len(header)
+    lines = [rf"\begin{{NiceTabular}}{{l{'c' * (n_columns - 1)}}}", r"\toprule", " & ".join(header) + r" \\"]
+    lines.append(r"\midrule")
+    for model in models:
+        model_df = summary.loc[summary["model"] == model]
+        lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{{model}}}}} \\")
+        lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
+        for strategy, label in [
+            ("standard", r"\texttt{Baseline}"),
+            ("fixed", r"$\vfm$"),
+            ("oracle", r"\oraclerow \texttt{Oracle}"),
+        ]:
+            formatter = format_accuracy if strategy == "standard" else format_gain
+            values = [
+                formatter(float(model_df.loc[model_df["dataset"] == dataset, strategy].iloc[0]))
+                for dataset in REPRESENTATIVE_DATASETS
+            ]
+            lines.append(f"{label} & " + " & ".join(values) + r" \\")
+        lines.append(r"\arrayrulecolor{black}")
+        if model != list(models)[-1]:
+            lines.append(r"\midrule")
+    lines.extend([r"\bottomrule", r"\end{NiceTabular}"])
+    print("\n".join(lines))
+
+
+def table_ablation_clip_vision() -> None:
+    r"""
+    Performance comparison between standard, heuristic and oracle probing on CLIP-L [1]_, a contrastive
+    image-text model, used as a vision encoder.
+
+    References
+    ----------
+    .. [1] A. Radford, J. W. Kim et al. Learning Transferable Visual Models From Natural Language
+           Supervision. In ICML 2021
+    """
+    # Recover results
+    ablation_df = pd.read_csv(ABLATION_RESULT_DIR / "cls.csv")
+    df = ablation_df.loc[ablation_df["ablation"] == "clip"]
+
+    # Results
+    rows: list[dict[str, object]] = []
+    for dataset in REPRESENTATIVE_DATASETS:
+        sub = df.loc[df["dataset_name"] == dataset]
+        last_layer = int(sub["layer"].max())
+        standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
+        fixed = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "act"), "accuracy"].iloc[0])
+        oracle = float(sub["accuracy"].max())
+        rows.append({"dataset": dataset, "standard": standard, "fixed": fixed - standard, "oracle": oracle - standard})
+    summary = pd.DataFrame(rows)
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\add{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\sub{{{value:.1f}}}"
+        return "0.0"
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    # LaTeX NiceTabular
+    header = ["Strategy"] + [DATASETS[dataset] for dataset in REPRESENTATIVE_DATASETS]
+    n_columns = len(header)
+    lines = [rf"\begin{{NiceTabular}}{{l{'c' * (n_columns - 1)}}}", r"\toprule", " & ".join(header) + r" \\"]
+    lines.append(r"\midrule")
+    lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{CLIP-L}}}} \\")
+    lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
+    for strategy, label in [
+        ("standard", r"\texttt{Baseline}"),
+        ("fixed", r"$\vfm$"),
+        ("oracle", r"\oraclerow \texttt{Oracle}"),
+    ]:
+        formatter = format_accuracy if strategy == "standard" else format_gain
+        values = [
+            formatter(float(summary.loc[summary["dataset"] == dataset, strategy].iloc[0]))
+            for dataset in REPRESENTATIVE_DATASETS
+        ]
+        lines.append(f"{label} & " + " & ".join(values) + r" \\")
+    lines.extend([r"\arrayrulecolor{black}", r"\bottomrule", r"\end{NiceTabular}"])
+    print("\n".join(lines))
+
+
+def table_ablation_final_norm_vision() -> None:
+    r"""
+    Performance comparison between standard probing (rc2 at the last layer), standard probing after the final norm
+    (rc2norm, i.e. the output of the model) and heuristic probing (act at the last layer) on large vision models.
+    """
+    # Recover results
+    main_df = pd.read_csv(RUN_RESULT_DIR / "cls.csv")
+    ablation_df = pd.read_csv(ABLATION_RESULT_DIR / "cls.csv")
+    final_norm_df = ablation_df.loc[(ablation_df["ablation"] == "final_norm") & (ablation_df["module"] == "rc2norm")]
+
+    # Results on representative models
+    family_order = list(REPRESENTATIVE_VFMs.keys())
+    rows: list[dict[str, object]] = []
+    for family in family_order:
+        for dataset in REPRESENTATIVE_DATASETS:
+            mask = (
+                (main_df["model_name"] == family)
+                & (main_df["model_size"] == REPRESENTATIVE_VFMs[family])
+                & (main_df["dataset_name"] == dataset)
+            )
+            sub = main_df.loc[mask]
+            last_layer = int(sub["layer"].max())
+            standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
+            fixed = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "act"), "accuracy"].iloc[0])
+            mask = (
+                (final_norm_df["model_name"] == family)
+                & (final_norm_df["model_size"] == REPRESENTATIVE_VFMs[family])
+                & (final_norm_df["dataset_name"] == dataset)
+            )
+            final_norm = float(final_norm_df.loc[mask, "accuracy"].iloc[0])
+            rows.append(
+                {
+                    "family": family,
+                    "dataset": dataset,
+                    "standard": standard,
+                    "final_norm": final_norm - standard,
+                    "fixed": fixed - standard,
+                }
+            )
+    summary = pd.DataFrame(rows)
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\add{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\sub{{{value:.1f}}}"
+        return "0.0"
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    # LaTeX NiceTabular
+    header = ["Strategy"] + [DATASETS[dataset] for dataset in REPRESENTATIVE_DATASETS]
+    n_columns = len(header)
+    lines = [rf"\begin{{NiceTabular}}{{l{'c' * (n_columns - 1)}}}", r"\toprule", " & ".join(header) + r" \\"]
+    lines.append(r"\midrule")
+    for family in family_order:
+        family_df = summary.loc[summary["family"] == family]
+        lines.append(rf"\multicolumn{{{n_columns}}}{{l}}{{\textit{{{VFM_NAMES[family]}}}}} \\")
+        lines.extend([r"\arrayrulecolor{gray!50}", r"\midrule"])
+        for strategy, label in [
+            ("standard", r"\texttt{Baseline}"),
+            ("final_norm", r"\texttt{RC2Norm@100}"),
+            ("fixed", r"$\vfm$"),
+        ]:
+            formatter = format_accuracy if strategy == "standard" else format_gain
+            values = [
+                formatter(float(family_df.loc[family_df["dataset"] == dataset, strategy].iloc[0]))
+                for dataset in REPRESENTATIVE_DATASETS
+            ]
+            lines.append(f"{label} & " + " & ".join(values) + r" \\")
+        lines.append(r"\arrayrulecolor{black}")
+        if family != family_order[-1]:
+            lines.append(r"\midrule")
+    lines.extend([r"\bottomrule", r"\end{NiceTabular}"])
+    print("\n".join(lines))
 
 
 # ------------------------------------------------------------------------------
@@ -3045,6 +3437,94 @@ def table_global_statistics_language_(filename: str) -> None:
     print_statistics("best_ln2", "Depth-LN2")
 
 
+def table_ablation_final_norm_language() -> None:
+    r"""
+    Performance comparison between standard probing (rc2 at the last layer), standard probing after the final norm
+    (rc2norm, i.e. the output of the model) and heuristic probing (ln2 at 60% of the depth) on LLMs, with the
+    accuracy averaged over tasks.
+    """
+    # Recover results
+    main_df = pd.read_csv(RUN_RESULT_DIR / "mteb.csv")
+    main_df = main_df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
+    ablation_df = pd.read_csv(ABLATION_RESULT_DIR / "mteb.csv")
+    ablation_df = ablation_df.loc[(ablation_df["ablation"] == "final_norm") & (ablation_df["module"] == "rc2norm")]
+    final_norm = ablation_df.groupby("model_name")["accuracy"].mean()
+
+    # Results
+    model_order = [model for models in LLM_FAMILIES.values() for model in models]
+    rows: list[dict[str, object]] = []
+    for model_name in model_order:
+        sub = main_df.loc[main_df["model_name"] == model_name]
+        last_layer = int(sub["layer"].max())
+        heuristic_layer = int(0.6 * last_layer)
+        standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
+        fixed = float(sub.loc[(sub["layer"] == heuristic_layer) & (sub["module"] == "ln2"), "accuracy"].iloc[0])
+        rows.append(
+            {
+                "model_name": model_name,
+                "standard": standard,
+                "final_norm": float(final_norm[model_name]),
+                "fixed": fixed,
+            }
+        )
+    summary = pd.DataFrame(rows).set_index("model_name")
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\addsmall{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\subsmall{{{value:.1f}}}"
+        return "0.0"
+
+    # Displayed sizes
+    model_sizes = ["1.7B", "4B", "8B", "1B", "3B", "8B", "1B", "4B", "12B"]
+
+    # LaTeX NiceTabular
+    lines = []
+    lines.append(
+        r"\begin{NiceTabular}{"
+        r"@{} l "
+        r"*{9}{w{r}{2.8em}"
+        r"@{\hspace{3pt}}"
+        r"w{r}{1.7em}"
+        r"@{\hspace{1pt}}"
+        r"}@{}"
+        r"}"
+    )
+    lines.append(r"\toprule")
+    lines.append(
+        r"\multirow{2}{*}{Strategy} & "
+        r"\multicolumn{6}{c}{\textit{Qwen3}} & "
+        r"\multicolumn{6}{c}{\textit{Llama3}} & "
+        r"\multicolumn{6}{c}{\textit{Gemma3}} \\"
+    )
+    lines.append(r"\cmidrule(l){2-7} \cmidrule(l){8-13} \cmidrule(l){14-19}")
+    lines.append(" & " + " & ".join(rf"\multicolumn{{2}}{{c}}{{{size}}}" for size in model_sizes) + r" \\")
+    lines.append(r"\midrule")
+
+    # Baseline
+    values = []
+    for model in model_order:
+        values.extend([format_accuracy(float(summary.loc[model, "standard"])), ""])
+    lines.append(r"\texttt{Baseline} & " + " & ".join(values) + r" \\")
+
+    # Final norm and fixed strategy
+    for strategy, label in [("final_norm", r"\texttt{RC2Norm@100}"), ("fixed", r"$\llm$")]:
+        values = []
+        for model in model_order:
+            standard = float(summary.loc[model, "standard"])
+            value = float(summary.loc[model, strategy])
+            values.extend([format_accuracy(value), format_gain(value - standard)])
+        lines.append(f"{label} & " + " & ".join(values) + r" \\")
+
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{NiceTabular}")
+    print("\n".join(lines))
+
+
 # ------------------------------------------------------------------------------
 # Results functions
 # ------------------------------------------------------------------------------
@@ -3145,6 +3625,23 @@ def get_tables() -> None:
     table_global_statistics_language(filename=filename)
 
 
+def plot_ablation_figures() -> None:
+    r"""Ablations plots."""
+    save = True
+    plot_probing_depth_clip_vision(save=save)
+
+
+def get_ablation_tables() -> None:
+    r"""VFMs ablations tables."""
+    table_ablation_pooling_vision()
+    table_ablation_registers_vision()
+    table_ablation_clip_vision()
+    table_ablation_final_norm_vision()
+
+    r"""LLMs ablations tables."""
+    table_ablation_final_norm_language()
+
+
 # %% Main
 def main() -> None:
     logging.basicConfig(
@@ -3157,6 +3654,8 @@ def main() -> None:
         {
             "plot": plot_figures,
             "table": get_tables,
+            "ablation_plot": plot_ablation_figures,
+            "ablation_table": get_ablation_tables,
         }
     )
 
