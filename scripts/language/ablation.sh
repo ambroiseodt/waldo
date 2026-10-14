@@ -35,6 +35,27 @@ do
     tmux send-keys -t ${session} "${command}" C-m
 done
 
+# Qwen3-Base (default probing: all layers and modules)
+ablation="qwen3_base"
+log_dir="ablations/${ablation}"
+model_name="qwen3"
+device="cuda:0"
+
+# Runs
+session="${ablation}_mteb"
+tmux new-session -d -s ${session}
+for config in \
+    "1.7B-Base 4" \
+    "4B-Base 8" \
+    "8B-Base 4"
+do
+    read model_size batch_size <<< ${config}
+    run="log_dir=${log_dir} model_size=${model_size} batch_size=${batch_size} device=${device}"
+    command="python -m apps.language.eval config=apps/language/configs/${model_name}.yaml ${run}"
+    echo "Running command: ${command}"
+    tmux send-keys -t ${session} "${command}" C-m
+done
+
 # Gemma4-E2B (default probing: all layers and modules)
 ablation="gemma4"
 log_dir="ablations/${ablation}"

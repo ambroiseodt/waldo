@@ -28,6 +28,25 @@ ABLATION_DIR = SAVING_DIR / "ablations"
 RUN_RESULT_DIR = RESULT_DIR / "runs"
 ABLATION_RESULT_DIR = RESULT_DIR / "ablations"
 
+# Models of the paper, other runs in the runs directory are not aggregated
+VFMs = {
+    "vit": ["base", "large", "huge"],
+    "dinov2": ["small", "base", "large", "giant"],
+    "dinov3": ["vits16", "vitb16", "vitl16", "vit7b16"],
+    "aimv2": ["large", "huge", "1B", "3B"],
+}
+LLMs = [
+    "Qwen3-1.7B",
+    "Qwen3-4B",
+    "Qwen3-8B",
+    "Llama-3.2-1B",
+    "Llama-3.2-3B",
+    "Llama-3.1-8B",
+    "gemma-3-1b-pt",
+    "gemma-3-4b-pt",
+    "gemma-3-12b-pt",
+]
+
 
 # ------------------------------------------------------------------------------
 # Utils
@@ -101,6 +120,7 @@ def get_cls_results() -> None:
 
     # Compile results by looping over datasets json files
     results = []
+    skipped = set()
     dataset_names = [
         "aircraft",
         "cifar10",
@@ -138,6 +158,11 @@ def get_cls_results() -> None:
             patch_size = config["patch_size"]
             resolution = config["resolution"]
 
+            # Keep models of the paper
+            if model_size not in VFMs.get(model_name, []):
+                skipped.add(f"{model_name}-{model_size}")
+                continue
+
             # Recover results
             folder_path = config_path.parent / "results"
             results_files = [f for f in folder_path.glob("*.json")]
@@ -160,6 +185,9 @@ def get_cls_results() -> None:
                             "accuracy": accuracy,
                         }
                     )
+
+    if skipped:
+        logger.info(f"Skipping models that are not part of the paper: {sorted(skipped)}.")
 
     # Aggregate results
     df = pd.DataFrame(results)
@@ -192,6 +220,7 @@ def get_cifar10_c_results() -> None:
 
     # Compile results by looping over datasets json files
     results = []
+    skipped = set()
     logger.info(f"Start recovering results from {results_path}.")
     config_files = [f for f in results_path.glob("**/config.json")]
     for config_path in tqdm(config_files, desc="Writing results", unit="runs"):
@@ -203,6 +232,11 @@ def get_cifar10_c_results() -> None:
         resolution = config["resolution"]
         corruptions = config["corruptions"]
         severities = config["severities"]
+
+        # Keep models of the paper
+        if model_size not in VFMs.get(model_name, []):
+            skipped.add(f"{model_name}-{model_size}")
+            continue
 
         # Recover results
         folder_path = config_path.parent / "results"
@@ -230,6 +264,9 @@ def get_cifar10_c_results() -> None:
                                 "accuracy": accuracy,
                             }
                         )
+
+    if skipped:
+        logger.info(f"Skipping models that are not part of the paper: {sorted(skipped)}.")
 
     # Aggregate results
     df = pd.DataFrame(results)
@@ -273,11 +310,17 @@ def get_mteb_results() -> None:
     # Compile results by looping over json files
     logger.info(f"Start recovering results from {results_path}.")
     results = []
+    skipped = set()
     config_files = [f for f in results_path.glob("**/model_meta.json")]
     for config_path in tqdm(config_files, desc="Writing results", unit="runs"):
         # Recover model config
         config = json.loads(config_path.read_text(encoding="utf-8"))
         model_name, layer, module = parse_model_config(name=config["name"])
+
+        # Keep models of the paper
+        if model_name not in LLMs:
+            skipped.add(model_name)
+            continue
 
         # Recover results
         folder_path = config_path.parent
@@ -300,6 +343,9 @@ def get_mteb_results() -> None:
                         "accuracy": accuracy,
                     }
                 )
+
+    if skipped:
+        logger.info(f"Skipping models that are not part of the paper: {sorted(skipped)}.")
 
     # Aggregate results
     df = pd.DataFrame(results)
@@ -854,6 +900,95 @@ def analysis_ablation_cls_results() -> None:
     logger.info(f"Saved table to {save_path}")
 
 
+def analysis_ablation_mteb_results() -> None:
+    r"""
+    Aggregate MTEB ablation results for each model, layer, module choices.
+
+    Notes
+    -----
+    The performance is averaged over tasks as in analysis_mteb_results. Ablations without the rc2 module at the
+    last layer, e.g. final_norm with the rc2norm module only, have no baseline and are skipped. They can be compared
+    with the main results directly.
+    """
+    path = ABLATION_RESULT_DIR / "mteb.csv"
+    df = pd.read_csv(path)
+
+    # Average accuracy across tasks per (ablation, model, layer, module)
+    df_avg = df.groupby(["ablation", "model_name", "layer", "module"])["accuracy"].mean().reset_index()
+    grouping_cols = ["ablation", "model_name"]
+
+    # Recover results
+    results = []
+    for keys, group in tqdm(
+        df_avg.groupby(grouping_cols),
+        desc="Building analysis table",
+    ):
+        ablation, model_name = keys
+        n_layers = int(group["layer"].max()) + 1
+
+        # Baseline probe
+        last_layer = int(group["layer"].max())
+        baseline_row = group[(group["layer"] == last_layer) & (group["module"] == "rc2")]
+        if baseline_row.empty:
+            logger.info(f"Skipping {keys}: no rc2 module at the last layer.")
+            continue
+        baseline_accuracy = float(baseline_row["accuracy"].iloc[0])
+
+        # Best probe
+        best_row = group.iloc[group["accuracy"].argmax()]
+        best_layer = best_row["layer"]
+        best_module = best_row["module"]
+        best_accuracy = best_row["accuracy"]
+        gain = best_accuracy - baseline_accuracy
+
+        # Best layer with rc2 fixed
+        rc2_df = group[group["module"] == "rc2"]
+        best_layer_rc2_row = rc2_df.iloc[rc2_df["accuracy"].argmax()]
+        best_layer_rc2 = best_layer_rc2_row["layer"]
+        layer_accuracy = best_layer_rc2_row["accuracy"]
+        gain_layer = layer_accuracy - baseline_accuracy
+
+        # Best module at last layer
+        last_layer_df = group[group["layer"] == last_layer]
+        best_module_last_row = last_layer_df.iloc[last_layer_df["accuracy"].argmax()]
+        best_module_last_layer = best_module_last_row["module"]
+        module_accuracy = best_module_last_row["accuracy"]
+        gain_module = module_accuracy - baseline_accuracy
+
+        # Update results
+        results.append(
+            {
+                "ablation": ablation,
+                "model_name": model_name,
+                "n_layers": n_layers,
+                "baseline_accuracy": baseline_accuracy,
+                "best_layer": best_layer,
+                "best_module": best_module,
+                "best_accuracy": best_accuracy,
+                "gain": gain,
+                "best_layer_rc2": best_layer_rc2,
+                "layer_accuracy": layer_accuracy,
+                "gain_layer": gain_layer,
+                "best_module_last_layer": best_module_last_layer,
+                "module_accuracy": module_accuracy,
+                "gain_module": gain_module,
+            }
+        )
+
+    # Check that results exist
+    if not results:
+        logger.info(f"No ablation with the rc2 module at the last layer in '{path}'.")
+        return
+
+    df_out = pd.DataFrame(results)
+    column_order = ["ablation", "model_name"]
+    df_out = df_out.sort_values(by=column_order)
+    save_path = ABLATION_RESULT_DIR / "summary" / "mteb.csv"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    df_out.to_csv(save_path, index=False, na_rep="N/A", encoding="utf-8")
+    logger.info(f"Saved table to {save_path}")
+
+
 # %% Main
 def main() -> None:
     logging.basicConfig(
@@ -873,6 +1008,7 @@ def main() -> None:
             "ablation_cls": get_ablation_cls_results,
             "ablation_mteb": get_ablation_mteb_results,
             "analysis_ablation_cls": analysis_ablation_cls_results,
+            "analysis_ablation_mteb": analysis_ablation_mteb_results,
         }
     )
 
