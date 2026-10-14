@@ -3774,13 +3774,13 @@ def get_tables() -> None:
     table_runs()
 
     r"""VFMs tables."""
-    # Model size
-    filename = "cls"
-    table_model_size_vision(filename=filename)
-
     # Winning module frequency
     filename = "cls"
     table_winning_module_frequency_vision(filename=filename)
+
+    # Model size
+    filename = "cls"
+    table_model_size_vision(filename=filename)
 
     # Performance comparison
     filename = "cls"
