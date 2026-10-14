@@ -526,7 +526,7 @@ def plot_cdf_vision(filename: str, ncol: int = 1, save: bool = False) -> None:
     yticks = [0, 25, 50, 75, 100]
     ax.set_yticks(yticks)
     ax.set_xlabel("Gain over probing baseline (pp)", fontsize=FONTSIZE)
-    ax.set_ylabel(r"Probing runs with gain $> x$", fontsize=FONTSIZE)
+    ax.set_ylabel(r"Runs with gain $> x$ ($\%$)", fontsize=FONTSIZE)
     x, y = ax.yaxis.label.get_position()
     ax.yaxis.label.set_position((x, 0.4))
     sns.despine(fig, ax, trim=True, right=True, offset=10)
