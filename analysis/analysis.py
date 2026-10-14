@@ -2919,8 +2919,8 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
 
 def plot_probing_depth_post_training_language(save: bool = False) -> None:
     r"""
-    Evolution of the ln2 and rc2 probing accuracy along with the depth for Qwen3 before (pretrained, Base models)
-    and after post-training, with the accuracy averaged over tasks.
+    Evolution of the ln2 and rc2 probing accuracy along with the depth for Qwen3 before (pretrained, Base models,
+    top row) and after post-training (bottom row), with the accuracy averaged over tasks.
 
     Parameters
     ----------
@@ -2930,8 +2930,11 @@ def plot_probing_depth_post_training_language(save: bool = False) -> None:
     # Figure
     width = 5.5
     height = 5
-    ncols = 2
-    fig, axes = plt.subplots(ncols=ncols, figsize=(ncols * width, height), sharey=True)
+    sizes = ["1.7B", "4B", "8B"]
+    nrows = 2
+    ncols = len(sizes)
+    figsize = ncols * width, nrows * height
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharex=True, sharey="col")
 
     # Recover results
     main_df = pd.read_csv(RUN_RESULT_DIR / "mteb.csv")
@@ -2942,11 +2945,9 @@ def plot_probing_depth_post_training_language(save: bool = False) -> None:
     }
 
     # Results
-    sizes = ["1.7B", "4B", "8B"]
-    colors = sns.light_palette(LLM_PALETTE["qwen3"], n_colors=len(sizes) + 1)[1:]
     for i, (stage, (df, suffix)) in enumerate(stages.items()):
-        ax = axes[i]
-        for size, color in zip(sizes, colors, strict=True):
+        for j, size in enumerate(sizes):
+            ax = axes[i, j]
             model_name = f"Qwen3-{size}{suffix}"
             for module in ["rc2", "ln2"]:
                 subset = df.loc[(df["model_name"] == model_name) & (df["module"] == module)]
@@ -2955,10 +2956,10 @@ def plot_probing_depth_post_training_language(save: bool = False) -> None:
                 ax.plot(
                     depth,
                     acc.to_numpy(),
-                    color=color,
+                    color=MODULE_PALETTE[module],
                     linewidth=LINEWIDTH,
                     linestyle="-" if module != "rc2" else "--",
-                    label=f"{size} {module.upper()}",
+                    label=module.upper(),
                 )
 
                 # Mark the highest ln2 performance
@@ -2967,36 +2968,45 @@ def plot_probing_depth_post_training_language(save: bool = False) -> None:
                     ax.scatter(
                         depth[index],
                         acc.to_numpy()[index],
+                        label="Best LN2",
                         edgecolor="#333333",
                         s=300,
-                        color=color,
+                        c=MODULE_PALETTE[module],
                         marker="*",
                         zorder=3,
                     )
 
-        # Visualization
-        ax.grid(alpha=ALPHA_GRID, lw=1.3)
-        ax.spines["left"].set_linewidth(1)
-        ax.spines["right"].set_linewidth(1)
-        ax.spines["top"].set_linewidth(1)
-        ax.spines["bottom"].set_linewidth(1)
-        ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
-        ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
-        if i == 0:
-            ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
-        ax.set_title(stage, fontsize=FONTSIZE)
-    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+            # Visualization
+            ax.grid(alpha=ALPHA_GRID, lw=1.3)
+            ax.spines["left"].set_linewidth(1)
+            ax.spines["right"].set_linewidth(1)
+            ax.spines["top"].set_linewidth(1)
+            ax.spines["bottom"].set_linewidth(1)
+            ax.tick_params(
+                axis="both",
+                direction="out",
+                length=5,
+                width=1,
+                labelsize=FONTSIZE,
+                labelbottom=i == nrows - 1,
+            )
+            if i == 0:
+                ax.set_title(f"Qwen3 {size}\n", fontsize=FONTSIZE)
+            if i == nrows - 1:
+                ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
+            if j == 0:
+                ax.set_ylabel(f"{stage}\n" + r"Accuracy ($\%$)", fontsize=FONTSIZE)
+    sns.despine(fig, axes[0, 0], trim=True, right=True, offset=10)
 
     # Common legend
-    legend = axes[1].legend(
+    legend = axes[0, 0].legend(
         loc="lower right",
         fancybox=True,
         borderaxespad=0,
         shadow=False,
         frameon=True,
         handlelength=1.9,
-        ncol=2,
-        fontsize=LEG_FONTSIZE - 6,
+        fontsize=LEG_FONTSIZE,
     )
     legend.get_frame().set_edgecolor("none")
     legend.get_frame().set_facecolor("white")
