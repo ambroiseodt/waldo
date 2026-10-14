@@ -1595,7 +1595,7 @@ def plot_probing_depth_clip_vision(save: bool = False) -> None:
     plt.tight_layout()
     if save:
         figname = "probing_depth_clip_vision"
-        save_plot(figname=figname)
+        save_plot(figname=figname, dirname="ablations")
 
 
 # ------------------------------------------------------------------------------
@@ -2917,6 +2917,97 @@ def plot_oracle_recovery_language(filename: str, save: bool = False) -> None:
         save_plot(figname=f"oracle_recovery_language_{filename}")
 
 
+def plot_probing_depth_post_training_language(save: bool = False) -> None:
+    r"""
+    Evolution of the ln2 and rc2 probing accuracy along with the depth for Qwen3 before (pretrained, Base models)
+    and after post-training, with the accuracy averaged over tasks.
+
+    Parameters
+    ----------
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 5.5
+    height = 5
+    ncols = 2
+    fig, axes = plt.subplots(ncols=ncols, figsize=(ncols * width, height), sharey=True)
+
+    # Recover results
+    main_df = pd.read_csv(RUN_RESULT_DIR / "mteb.csv")
+    ablation_df = pd.read_csv(ABLATION_RESULT_DIR / "mteb.csv")
+    stages = {
+        "Pretrained": (ablation_df.loc[ablation_df["ablation"] == "qwen3_base"], "-Base"),
+        "Post-trained": (main_df, ""),
+    }
+
+    # Results
+    sizes = ["1.7B", "4B", "8B"]
+    colors = sns.light_palette(LLM_PALETTE["qwen3"], n_colors=len(sizes) + 1)[1:]
+    for i, (stage, (df, suffix)) in enumerate(stages.items()):
+        ax = axes[i]
+        for size, color in zip(sizes, colors, strict=True):
+            model_name = f"Qwen3-{size}{suffix}"
+            for module in ["rc2", "ln2"]:
+                subset = df.loc[(df["model_name"] == model_name) & (df["module"] == module)]
+                acc = subset.groupby("layer")["accuracy"].mean().sort_index()
+                depth = 100 * acc.index.to_numpy() / acc.index.max()
+                ax.plot(
+                    depth,
+                    acc.to_numpy(),
+                    color=color,
+                    linewidth=LINEWIDTH,
+                    linestyle="-" if module != "rc2" else "--",
+                    label=f"{size} {module.upper()}",
+                )
+
+                # Mark the highest ln2 performance
+                if module == "ln2":
+                    index = int(np.argmax(acc.to_numpy()))
+                    ax.scatter(
+                        depth[index],
+                        acc.to_numpy()[index],
+                        edgecolor="#333333",
+                        s=300,
+                        color=color,
+                        marker="*",
+                        zorder=3,
+                    )
+
+        # Visualization
+        ax.grid(alpha=ALPHA_GRID, lw=1.3)
+        ax.spines["left"].set_linewidth(1)
+        ax.spines["right"].set_linewidth(1)
+        ax.spines["top"].set_linewidth(1)
+        ax.spines["bottom"].set_linewidth(1)
+        ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+        ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
+        if i == 0:
+            ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
+        ax.set_title(stage, fontsize=FONTSIZE)
+    sns.despine(fig, axes[0], trim=True, right=True, offset=10)
+
+    # Common legend
+    legend = axes[1].legend(
+        loc="lower right",
+        fancybox=True,
+        borderaxespad=0,
+        shadow=False,
+        frameon=True,
+        handlelength=1.9,
+        ncol=2,
+        fontsize=LEG_FONTSIZE - 6,
+    )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
+    plt.tight_layout()
+    if save:
+        figname = "probing_depth_post_training_language"
+        save_plot(figname=figname, dirname="ablations")
+
+
 # ------------------------------------------------------------------------------
 # LLMs table functions
 # ------------------------------------------------------------------------------
@@ -3525,6 +3616,86 @@ def table_ablation_final_norm_language() -> None:
     print("\n".join(lines))
 
 
+def table_ablation_post_training_language() -> None:
+    r"""
+    Performance comparison between standard probing (rc2 at the last layer), heuristic probing (ln2 at 60% of the
+    depth) and oracle probing on Qwen3 before (pretrained, Base models) and after post-training, with the accuracy
+    averaged over tasks.
+    """
+    # Recover results
+    main_df = pd.read_csv(RUN_RESULT_DIR / "mteb.csv")
+    ablation_df = pd.read_csv(ABLATION_RESULT_DIR / "mteb.csv")
+    df = pd.concat([main_df, ablation_df.loc[ablation_df["ablation"] == "qwen3_base"]])
+    df = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
+
+    # Results
+    sizes = ["1.7B", "4B", "8B"]
+    stages = {"Pretrained": "-Base", "Post-trained": ""}
+    model_order = [f"Qwen3-{size}{suffix}" for size in sizes for suffix in stages.values()]
+    rows: list[dict[str, object]] = []
+    for model_name in model_order:
+        sub = df.loc[df["model_name"] == model_name]
+        last_layer = int(sub["layer"].max())
+        heuristic_layer = int(0.6 * last_layer)
+        standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
+        fixed = float(sub.loc[(sub["layer"] == heuristic_layer) & (sub["module"] == "ln2"), "accuracy"].iloc[0])
+        oracle = float(sub["accuracy"].max())
+        rows.append({"model_name": model_name, "standard": standard, "fixed": fixed, "oracle": oracle})
+    summary = pd.DataFrame(rows).set_index("model_name")
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\addsmall{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\subsmall{{{value:.1f}}}"
+        return "0.0"
+
+    # LaTeX NiceTabular
+    n_models = len(model_order)
+    lines = []
+    lines.append(
+        r"\begin{NiceTabular}{"
+        r"@{} l "
+        rf"*{{{n_models}}}{{w{{r}}{{2.8em}}"
+        r"@{\hspace{3pt}}"
+        r"w{r}{1.7em}"
+        r"@{\hspace{1pt}}"
+        r"}@{}"
+        r"}"
+    )
+    lines.append(r"\toprule")
+    lines.append(
+        r"\multirow{2}{*}{Strategy} & "
+        + " & ".join(rf"\multicolumn{{4}}{{c}}{{\textit{{Qwen3 {size}}}}}" for size in sizes)
+        + r" \\"
+    )
+    lines.append(" ".join(rf"\cmidrule(l){{{2 + 4 * k}-{5 + 4 * k}}}" for k in range(len(sizes))))
+    lines.append(" & " + " & ".join([rf"\multicolumn{{2}}{{c}}{{{stage}}}" for stage in stages] * len(sizes)) + r" \\")
+    lines.append(r"\midrule")
+
+    # Baseline
+    values = []
+    for model in model_order:
+        values.extend([format_accuracy(float(summary.loc[model, "standard"])), ""])
+    lines.append(r"\texttt{Baseline} & " + " & ".join(values) + r" \\")
+
+    # Fixed strategy and oracle
+    for strategy, label in [("fixed", r"$\llm$"), ("oracle", r"\oraclerow \texttt{Oracle}")]:
+        values = []
+        for model in model_order:
+            standard = float(summary.loc[model, "standard"])
+            value = float(summary.loc[model, strategy])
+            values.extend([format_accuracy(value), format_gain(value - standard)])
+        lines.append(f"{label} & " + " & ".join(values) + r" \\")
+
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{NiceTabular}")
+    print("\n".join(lines))
+
+
 # ------------------------------------------------------------------------------
 # Results functions
 # ------------------------------------------------------------------------------
@@ -3629,6 +3800,7 @@ def plot_ablation_figures() -> None:
     r"""Ablations plots."""
     save = True
     plot_probing_depth_clip_vision(save=save)
+    plot_probing_depth_post_training_language(save=save)
 
 
 def get_ablation_tables() -> None:
@@ -3640,6 +3812,7 @@ def get_ablation_tables() -> None:
 
     r"""LLMs ablations tables."""
     table_ablation_final_norm_language()
+    table_ablation_post_training_language()
 
 
 # %% Main
