@@ -95,7 +95,6 @@ done
 model_name="dinov3"
 device="cuda:0"
 batch_size=8
-log_dir="runs/debug"
 
 # Runs
 for model_size in \
@@ -108,7 +107,7 @@ do
     tmux new-session -d -s ${session}
     for dataset_name in ${datasets[@]}
     do
-        run="log_dir=${log_dir} model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
+        run="model_size=${model_size} dataset_name=${dataset_name} batch_size=${batch_size} device=${device} overwrite=false"
         command="python -m apps.vision.eval config=apps/vision/configs/${model_name}.yaml ${run}"
         echo "Running command: ${command}"
         tmux send-keys -t ${session} "${command}" C-m

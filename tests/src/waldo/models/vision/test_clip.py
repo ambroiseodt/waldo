@@ -10,6 +10,7 @@ in the root directory of this source tree.
 """
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -112,9 +113,12 @@ class TestClip:
         monkeypatch.undo()
         torch.manual_seed(0)
         text = dict(TINY, vocab_size=100, max_position_embeddings=16)
-        clip = CLIPModel(CLIPConfig(text_config=text, vision_config=dict(TINY, **TINY_IMAGE)))
+        config: dict[str, Any] = dict(text_config=text, vision_config=dict(TINY, **TINY_IMAGE))
+        clip = CLIPModel(CLIPConfig(**config))
         clip.save_pretrained(tmp_path)
-        vision, info = CLIPVisionModel.from_pretrained(tmp_path, output_loading_info=True)
+        result = CLIPVisionModel.from_pretrained(tmp_path, output_loading_info=True)
+        assert isinstance(result, tuple)
+        vision, info = result
         assert not info["missing_keys"]
         assert all(not key.startswith("vision_model") for key in info["unexpected_keys"])
         for name, parameter in vision.vision_model.state_dict().items():

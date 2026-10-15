@@ -3553,22 +3553,18 @@ def table_ablation_final_norm_language() -> None:
 
     # Results
     model_order = [model for models in LLM_FAMILIES.values() for model in models]
-    rows: list[dict[str, object]] = []
+    summary: dict[str, dict[str, float]] = {}
     for model_name in model_order:
         sub = main_df.loc[main_df["model_name"] == model_name]
         last_layer = int(sub["layer"].max())
         heuristic_layer = int(0.6 * last_layer)
         standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
         fixed = float(sub.loc[(sub["layer"] == heuristic_layer) & (sub["module"] == "ln2"), "accuracy"].iloc[0])
-        rows.append(
-            {
-                "model_name": model_name,
-                "standard": standard,
-                "final_norm": float(final_norm[model_name]),
-                "fixed": fixed,
-            }
-        )
-    summary = pd.DataFrame(rows).set_index("model_name")
+        summary[model_name] = {
+            "standard": standard,
+            "final_norm": float(final_norm[model_name]),
+            "fixed": fixed,
+        }
 
     def format_accuracy(value: float) -> str:
         return f"{value:.1f}"
@@ -3609,15 +3605,15 @@ def table_ablation_final_norm_language() -> None:
     # Baseline
     values = []
     for model in model_order:
-        values.extend([format_accuracy(float(summary.loc[model, "standard"])), ""])
+        values.extend([format_accuracy(summary[model]["standard"]), ""])
     lines.append(r"\texttt{Baseline} & " + " & ".join(values) + r" \\")
 
     # Final norm and fixed strategy
     for strategy, label in [("final_norm", r"\texttt{RC2Norm@100}"), ("fixed", r"$\llm$")]:
         values = []
         for model in model_order:
-            standard = float(summary.loc[model, "standard"])
-            value = float(summary.loc[model, strategy])
+            standard = summary[model]["standard"]
+            value = summary[model][strategy]
             values.extend([format_accuracy(value), format_gain(value - standard)])
         lines.append(f"{label} & " + " & ".join(values) + r" \\")
 
@@ -3642,7 +3638,7 @@ def table_ablation_post_training_language() -> None:
     sizes = ["1.7B", "4B", "8B"]
     stages = {"Pretrained": "-Base", "Post-trained": ""}
     model_order = [f"Qwen3-{size}{suffix}" for size in sizes for suffix in stages.values()]
-    rows: list[dict[str, object]] = []
+    summary: dict[str, dict[str, float]] = {}
     for model_name in model_order:
         sub = df.loc[df["model_name"] == model_name]
         last_layer = int(sub["layer"].max())
@@ -3650,8 +3646,7 @@ def table_ablation_post_training_language() -> None:
         standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
         fixed = float(sub.loc[(sub["layer"] == heuristic_layer) & (sub["module"] == "ln2"), "accuracy"].iloc[0])
         oracle = float(sub["accuracy"].max())
-        rows.append({"model_name": model_name, "standard": standard, "fixed": fixed, "oracle": oracle})
-    summary = pd.DataFrame(rows).set_index("model_name")
+        summary[model_name] = {"standard": standard, "fixed": fixed, "oracle": oracle}
 
     def format_accuracy(value: float) -> str:
         return f"{value:.1f}"
@@ -3689,15 +3684,15 @@ def table_ablation_post_training_language() -> None:
     # Baseline
     values = []
     for model in model_order:
-        values.extend([format_accuracy(float(summary.loc[model, "standard"])), ""])
+        values.extend([format_accuracy(summary[model]["standard"]), ""])
     lines.append(r"\texttt{Baseline} & " + " & ".join(values) + r" \\")
 
     # Fixed strategy and oracle
     for strategy, label in [("fixed", r"$\llm$"), ("oracle", r"\oraclerow \texttt{Oracle}")]:
         values = []
         for model in model_order:
-            standard = float(summary.loc[model, "standard"])
-            value = float(summary.loc[model, strategy])
+            standard = summary[model]["standard"]
+            value = summary[model][strategy]
             values.extend([format_accuracy(value), format_gain(value - standard)])
         lines.append(f"{label} & " + " & ".join(values) + r" \\")
 

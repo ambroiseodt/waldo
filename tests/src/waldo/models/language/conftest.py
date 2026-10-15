@@ -57,6 +57,8 @@ TINY_GEMMA4: dict[str, Any] = dict(
     vocab_size_per_layer_input=VOCAB_SIZE,
     num_kv_shared_layers=1,
 )
+# Gemma4 without vision and audio towers
+GEMMA4: dict[str, Any] = dict(text_config=TINY_GEMMA4, vision_config=None, audio_config=None)
 SENTENCES = ["The cat sits on the mat", "Hello", "A longer sentence with more words in it"]
 
 # Type of the make_language_model fixture
@@ -94,7 +96,7 @@ LANGUAGE_SPECS = {
     "gemma3": LanguageSpec(Gemma3TextModel, Gemma3TextConfig(**TINY), {"model_name": "gemma3", "model_size": "1b"}),
     "gemma4": LanguageSpec(
         Gemma4ForConditionalGeneration,
-        HFGemma4Config(text_config=TINY_GEMMA4, vision_config=None, audio_config=None),
+        HFGemma4Config(**GEMMA4),
         {"model_name": "gemma4", "model_size": "E2B"},
         text_model="model.language_model",
     ),
@@ -119,7 +121,11 @@ def make_language_model() -> MakeLanguageModel:
             patch(f"waldo.models.language.{name}.AutoTokenizer.from_pretrained", return_value=WhitespaceTokenizer()),
         ):
             model = build_model({**spec.config, "device": "cpu", **config})
-        return model, hf_model.get_submodule(spec.text_model) if spec.text_model else hf_model
+        if spec.text_model is not None:
+            text_model = hf_model.get_submodule(spec.text_model)
+            assert isinstance(text_model, PreTrainedModel)
+            return model, text_model
+        return model, hf_model
 
     return _factory
 

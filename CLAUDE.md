@@ -11,8 +11,7 @@ Research code for the paper "Probing Transformer Representations Layer by Layer,
 vision models (ViT, DINOv2, DINOv3, AIMv2) and LLMs (Gemma3, Llama3, Qwen3) at every layer and every module of the
 transformer block, then evaluate each representation with linear probing (vision) or MTEB (language).
 Library code in `src/waldo`, experiment entry points and configs in `apps/`, launch scripts in `scripts/`, aggregation
-of the runs into `analysis/results/` (`runs/` for the paper, `ablations/`, each with a `summary/` per model) and paper
-figures and tables in `analysis/`.
+of the runs into `analysis/results/runs/` (with a `summary/` per model) and paper figures and tables in `analysis/`.
 
 ## Commands
 
@@ -47,9 +46,9 @@ Gated models (DINOv3, Gemma3, Llama3) need `hf auth login`. Tests mirror `src/wa
   linear probing, compare the default outputs with `main` on tiny random models (patch `from_pretrained`): embeddings
   must be identical, byte for byte, unless the change is an intended fix.
 - Never delete or overwrite experiment outputs: `savings/` (runs), `analysis/results/` (aggregated CSVs, Git LFS). With
-  `overwrite=true`, linear probing deletes the existing results of a run. New, corrected or ablation runs go to another
-  directory with the `log_dir` option of the apps (relative to `savings/`, default `runs`, e.g.
-  `log_dir=ablations/final_norm`), so that `savings/runs/` and `analysis/` keep reproducing the paper.
+  `overwrite=true`, linear probing deletes the existing results of a run. New or corrected runs go to another
+  directory with the `log_dir` option of the apps (relative to `savings/`, default `runs`), so that `savings/runs/`
+  and `analysis/` keep reproducing the paper.
 - `temp/` is gitignored scratch space (rebuttal notes, check scripts).
 
 ## Architecture
@@ -62,9 +61,12 @@ Gated models (DINOv3, Gemma3, Llama3) need `hf auth login`. Tests mirror `src/wa
   `TransformerBlockAdapter` per model. Hooks capture all requested modules in a single forward pass. Pre-norm is
   assumed: `rc1` is the input of `ln2` (pre-hook). Gated FFNs (SwiGLU, GeGLU): `fc1 = gate_proj`,
   `act = act(gate) * up` (input of `down_proj`, pre-hook), `fc2 = down_proj`.
-- Vision models pool inside the hooks (`BaseVisionModel.pooling`, `pooling="content"` or `"all"` = CLS and patch
-  mean). LLMs keep full sequences and pool with the attention mask, excluding BOS/EOS/padding, and implement MTEB's
-  `EncoderProtocol`.
+- Vision models pool inside the hooks (`BaseVisionModel.pooling`, `pooling="content"` = patch mean, `"all"` = CLS and
+  patch mean, or `"cls"`). LLMs keep full sequences and pool with the attention mask, excluding BOS/EOS/padding, and
+  implement MTEB's `EncoderProtocol`.
+- Beyond the setting of the paper, the code can probe other poolings, the output of the final norm (`rc2norm`, last
+  layer only) and models that are not part of the paper (CLIP, Gemma4). `analysis/aggregate.py` keeps only the models
+  of the paper in `analysis/results/runs/`.
 
 ## Code style
 

@@ -38,7 +38,8 @@ TINY_GEMMA4_DENSE: dict[str, Any] = dict(
 def _multimodal(text_config: dict[str, Any] = TINY_GEMMA4) -> Gemma4ForConditionalGeneration:
     r"""Tiny multimodal Gemma4 model without vision and audio towers."""
     torch.manual_seed(0)
-    config = HFGemma4Config(text_config=text_config, vision_config=None, audio_config=None)
+    config_kwargs: dict[str, Any] = dict(text_config=text_config, vision_config=None, audio_config=None)
+    config = HFGemma4Config(**config_kwargs)
     return Gemma4ForConditionalGeneration(config).eval()
 
 
@@ -96,12 +97,16 @@ class TestGemma4:
         monkeypatch.undo()
         full = _multimodal()
         full.save_pretrained(tmp_path)
-        loaded, info = Gemma4ForConditionalGeneration.from_pretrained(tmp_path, output_loading_info=True)
+        result = Gemma4ForConditionalGeneration.from_pretrained(tmp_path, output_loading_info=True)
+        assert isinstance(result, tuple)
+        loaded, info = result
         assert not info["missing_keys"]
         expected = full.model.language_model.state_dict()
         for name, parameter in loaded.model.language_model.state_dict().items():
             torch.testing.assert_close(parameter, expected[name])
-        _, info = Gemma4Model.from_pretrained(tmp_path, output_loading_info=True)
+        result = Gemma4Model.from_pretrained(tmp_path, output_loading_info=True)
+        assert isinstance(result, tuple)
+        _, info = result
         assert any(key.startswith("language_model.") for key in info["missing_keys"])
 
     def test_text_model_matches_multimodal_model(self) -> None:
