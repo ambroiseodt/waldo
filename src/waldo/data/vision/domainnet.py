@@ -1,0 +1,145 @@
+r"""
+DomainNet Dataset.
+
+License
+-------
+This source code is licensed under the MIT license found in the LICENSE file
+in the root directory of this source tree.
+
+@ 2026, Ambroise Odonnat
+"""
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import torchvision
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision.transforms import Compose
+
+from ...infra import DATASET_DIR
+from .factory import deterministic_split
+
+
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
+@dataclass
+class DomainNetDatasetConfig:
+    r"""
+    DomainNet configuration file.
+
+    Parameters
+    ----------
+    save_dir: Path
+        Path from where to load the data.
+    domain: str, default="clipart"
+        Domain of the images. Options are:
+            "clipart",
+            "infograph",
+            "painting",
+            "quickdraw",
+            "real",
+            "sketch".
+    mode: str
+        Mode. Options are "train" and "test".
+    transform: Compose | None
+        Transformation to apply to the images.
+    """
+
+    save_dir: Path = DATASET_DIR / "domainnet"
+    domain: str = "clipart"
+    mode: str = "train"
+    transform: Compose | None = None
+
+    def __init__(self, **kwargs):
+        self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
+        self.__post_init__()
+
+    def __post_init__(self):
+        # Valid domain
+        if self.domain not in ["clipart", "infograph", "painting", "quickdraw", "real", "sketch"]:
+            raise ValueError(f"Invalid domain {self.domain}. See documentation for options.")
+
+        # Valid mode
+        if self.mode not in ["train", "test"]:
+            raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
+
+
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
+class DomainNetDataset(Dataset):
+    r"""
+    DomainNet dataset from [1]_.
+
+    It consists of images of 345 categories of objects from 6 different domains.
+    Since there is no official train or test sets for each domain, we create a deterministic 80/20 split.
+
+    Parameters
+    ----------
+    config: configuration class with
+        save_dir: Path
+            Path from where to load the data.
+        domain: str
+            Domain of the images.
+        mode: str
+            Mode. Options are "train" and "test".
+        transform: Compose
+            Transformation to apply to the images.
+
+    Notes
+    -----
+    Official website: http://csr.bu.edu/ftp/visda/2019/multi-source
+
+    Download
+    --------
+    To download the data, run the following command (replacing domain by infograph, quickdraw, real, or sketch):
+    ```bash
+    $ wget http://csr.bu.edu/ftp/visda/2019/multi-source/domain.zip
+    ```
+    For clipart and painting domains, run the following command:
+    ```bash
+    $ wget http://csr.bu.edu/ftp/visda/2019/multi-source/groundtruth/domain.zip
+    ```
+    Move the downloaded files to the desired location, e.g, datasets/domainnet, and extract them with
+    ```bash
+    $ unzip domain.zip
+    ```
+
+    References
+    ----------
+    .. [1] X. Peng et al. Moment matching for multi-source domain adaptation. In ICCV 2019
+    """
+
+    def __init__(self, config: DomainNetDatasetConfig):
+        super().__init__()
+        train = True if config.mode == "train" else False
+
+        # Recover dataset
+        dataset = torchvision.datasets.ImageFolder(root=str(config.save_dir / config.domain))
+        samples = np.asarray(dataset.imgs)
+
+        # Recover the (deterministic) train or test set
+        indices = deterministic_split(data=samples, train_size=0.8, train=train)
+        self.samples = samples[indices]
+        self.n_classes = 345
+
+        # Recover transform
+        self.transform = config.transform
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx: int):
+        path, label = self.samples[idx]
+        sample = Image.open(path).convert("RGB")
+        label = int(label)
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        return sample, label
+
+    def __repr__(self):
+        return f"Dataset with {len(self.samples)} images."

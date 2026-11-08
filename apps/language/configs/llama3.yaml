@@ -1,0 +1,22 @@
+# Experiment
+log_dir: "runs"
+
+# Model
+model_name: "llama3"
+model_size: "1B"
+
+# Probe
+layers: ["all"]
+modules:  ["all"]
+
+# Data
+benchmark_name: "Multilingual"
+task_type: "Classification"
+max_n_docs: 8192
+batch_size: 4
+
+# Device
+device: "cuda:0"
+
+# Reproducibility
+seed: 42

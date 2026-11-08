@@ -1,0 +1,115 @@
+r"""
+FGVCAircraft Dataset.
+
+License
+-------
+This source code is licensed under the MIT license found in the LICENSE file
+in the root directory of this source tree.
+
+@ 2026, Ambroise Odonnat
+"""
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import torchvision
+from torch.utils.data import Dataset
+from torchvision.transforms import Compose
+
+from ...infra import DATASET_DIR
+
+
+# ------------------------------------------------------------------------------
+#   Config
+# ------------------------------------------------------------------------------
+@dataclass
+class AircraftDatasetConfig:
+    r"""
+    FGVCAircraft configuration file.
+
+    Parameters
+    ----------
+    save_dir: Path
+        Path from where to load the data or save them if it does not exist.
+    mode: str
+        Mode. Options are "train" and "test".
+    transform: Compose | None
+        Transformation to apply to the images.
+    """
+
+    save_dir: Path = DATASET_DIR / "aircraft"
+    mode: str = "train"
+    transform: Compose | None = None
+
+    def __init__(self, **kwargs):
+        self.__dict__.update((k, v) for k, v in kwargs.items() if k in self.__annotations__)
+        self.__post_init__()
+
+    def __post_init__(self):
+        if self.mode not in ["train", "test"]:
+            raise ValueError(f"Invalid mode '{self.mode}'. Options are 'train' and 'test'.")
+
+
+# ------------------------------------------------------------------------------
+#   Dataset
+# ------------------------------------------------------------------------------
+class AircraftDataset(Dataset):
+    r"""
+    FGVCAircraft dataset from [1]_.
+
+    It consists of 10_000 aircraft images in 100 classes, with 100 images per class.
+    We make use of the default annotation_level set as 'variant', which means the number of classes is 100.
+    Other values are possible, see the official documentation for details.
+
+    Parameters
+    ----------
+    config: configuration class with
+        save_dir: Path
+            Path from where to load the data or save them if it does not exist.
+        mode: str
+            Mode. Options are "train" and "test".
+        transform: Compose
+            Transformation to apply to the images.
+
+    Notes
+    -----
+    Aircraft was created by Subhransu Maji, Esa Rahtu, Juho Kannala, Matthew Blaschko, Andrea Vedaldi.
+    Official website: https://www.robots.ox.ac.uk/~vgg/data/fgvc-aircraft/.
+
+    References
+    ----------
+    .. [1] S. Maji et al. Fine-Grained Visual Classification of Aircraft. arXiv, 2013
+    """
+
+    def __init__(self, config: AircraftDatasetConfig):
+        super().__init__()
+        split = "trainval" if config.mode == "train" else "test"
+        dataset = torchvision.datasets.FGVCAircraft(
+            root=str(config.save_dir),
+            split=split,
+            annotation_level="variant",
+            download=True,
+        )
+
+        # Recover images and corresponding labels
+        self.data = dataset._image_files
+        self.targets = dataset._labels
+        self.loader = dataset.loader
+        self.n_classes = 100
+
+        # Recover transform
+        self.transform = config.transform
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx: int):
+        sample = self.loader(self.data[idx])
+        label = self.targets[idx]
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        return sample, label
+
+    def __repr__(self):
+        return f"Dataset with {len(self.data)} images."

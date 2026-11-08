@@ -1,0 +1,107 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waldo"
+version = "0.0.0"
+authors = [
+  { name="Ambroise Odonnat", email="ambroiseodonnattechnologie@gmail.com" },
+]
+description = "Probing Transformer Representations Layer by Layer, Module by Module"
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy==2.2.6",
+    "omegaconf==2.3.0",
+    "scipy==1.17.1",
+    "torch==2.9.1",
+    "torchvision==0.24.1",
+    "tqdm==4.68.2",
+]
+
+[project.optional-dependencies]
+exps = [
+    "accelerate==1.12.0",
+    "cuml-cu12==26.2.*",
+    "huggingface_hub[hf_xet]==1.5.0",
+    "mteb[xet] @ git+https://github.com/embeddings-benchmark/mteb.git@2.13.2",
+    "sentencepiece==0.2.2",
+    "scikit-learn==1.8.0",
+    "transformers[sentencepiece]==5.5.4",
+    "wilds==2.0.0",
+]
+
+figs = [
+    "fire==0.7.1",
+    "ipykernel==7.2.0",
+    "ipywidgets==8.1.8",
+    "matplotlib==3.10.8",
+    "pandas==2.3.3",
+    "seaborn==0.13.2",
+]
+
+dev = [
+    "pytest==9.0.2",
+    "pytest-cov==7.0.0",
+    "ruff==0.15.4",
+]
+
+test = [
+    "pytest==9.0.2",
+    "pytest-cov==7.0.0",
+    "mteb[xet] @ git+https://github.com/embeddings-benchmark/mteb.git@2.13.2",
+    "scikit-learn==1.8.0",
+    "transformers[sentencepiece]==5.5.4",
+    "wilds==2.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.urls]
+"Homepage" = "https://github.com/ambroiseodt/waldo"
+"Documentation" = "https://github.com/ambroiseodt/waldo#readme"
+"Bug Tracker" = "https://github.com/ambroiseodt/waldo/issues"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",  # Default rules
+  "ANN001",       # Function arguments should annotate types
+  "ANN201",       # Public function should annotate return type
+  "B",            # Common bugs
+  "DTZ",          # Timezone issues
+  "I",            # Sort inputs
+  "PLE",          # Common errors
+  "RUF100",       # Remove unused noqa
+  "UP",           # Modern syntax
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.pip-tools]
+extra-index-url = ["https://pypi.nvidia.com"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=src --cov-report=xml --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]

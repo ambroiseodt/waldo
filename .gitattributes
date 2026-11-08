@@ -1,0 +1,2 @@
+# Aggregated results are stored with Git LFS
+analysis/results/**/*.csv filter=lfs diff=lfs merge=lfs -text

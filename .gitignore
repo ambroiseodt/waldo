@@ -1,0 +1,33 @@
+# Build, cache and configuration files
+.DS_Store
+*.egg-info
+*.vscode
+*.log
+*.cache
+*.meta
+__pycache__
+
+# Saving directories
+assets/
+checkpoints/
+datasets/
+figures/
+logs/
+savings/
+temp/
+
+# Coverage
+coverage.xml
+.coverage
+htmlcov/
+
+# Data
+*.gz
+*.json
+*tar
+
+# Personal Claude Code instructions
+CLAUDE.local.md
+
+# Personal notes
+TODO.md

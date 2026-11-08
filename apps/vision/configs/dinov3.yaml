@@ -1,0 +1,21 @@
+# Experiment
+log_dir: "runs"
+overwrite: false
+
+# Model
+model_name: "dinov3"
+model_size: "vitb16"
+
+# Data
+dataset_name: "cifar10"
+batch_size: 512
+
+# Linear probing
+tol: 1e-4
+max_iter: 1000
+
+# Device
+device: "cuda:0"
+
+# Reproducibility
+seed: 42
