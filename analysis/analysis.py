@@ -3018,6 +3018,86 @@ def plot_probing_depth_post_training_language(save: bool = False) -> None:
         save_plot(figname=figname, dirname="ablations")
 
 
+def plot_probing_depth_gemma4_language(save: bool = False) -> None:
+    r"""
+    Evolution of the ln2 and rc2 probing accuracy along with the depth for Gemma4-E2B, a model that is not part of
+    the main results, with the accuracy averaged over tasks.
+
+    Parameters
+    ----------
+    save: bool, default=False
+        Whether to save the plot.
+    """
+    # Figure
+    width = 5.5
+    height = 5
+    fig, ax = plt.subplots(figsize=(width, height))
+
+    # Recover results
+    df = pd.read_csv(ABLATION_RESULT_DIR / "mteb.csv")
+    df = df.loc[df["ablation"] == "gemma4"]
+    logger.info(f"Results are presented over a total of {len(df)} runs.")
+
+    # Results
+    for module in ["rc2", "ln2"]:
+        subset = df.loc[df["module"] == module]
+        acc = subset.groupby("layer")["accuracy"].mean().sort_index()
+        depth = 100 * acc.index.to_numpy() / acc.index.max()
+        ax.plot(
+            depth,
+            acc.to_numpy(),
+            color=MODULE_PALETTE[module],
+            linewidth=LINEWIDTH,
+            linestyle="-" if module != "rc2" else "--",
+            label=module.upper(),
+        )
+
+        # Mark the highest ln2 performance
+        if module == "ln2":
+            index = int(np.argmax(acc.to_numpy()))
+            ax.scatter(
+                depth[index],
+                acc.to_numpy()[index],
+                label="Best LN2",
+                edgecolor="#333333",
+                s=300,
+                c=MODULE_PALETTE[module],
+                marker=MarkerStyle("*"),
+                zorder=3,
+            )
+
+    # Visualization
+    ax.grid(alpha=ALPHA_GRID, lw=1.3)
+    ax.spines["left"].set_linewidth(1)
+    ax.spines["right"].set_linewidth(1)
+    ax.spines["top"].set_linewidth(1)
+    ax.spines["bottom"].set_linewidth(1)
+    ax.tick_params(axis="both", direction="out", length=5, width=1, labelsize=FONTSIZE)
+    ax.set_xlabel(r"Layer depth ($\%$)", fontsize=FONTSIZE)
+    ax.set_ylabel(r"Accuracy ($\%$)", fontsize=FONTSIZE)
+    ax.set_title("Gemma4 E2B", fontsize=FONTSIZE)
+    sns.despine(fig, ax, trim=True, right=True, offset=10)
+
+    # Legend
+    legend = ax.legend(
+        loc="lower center",
+        fancybox=True,
+        borderaxespad=0,
+        shadow=False,
+        frameon=True,
+        handlelength=1.9,
+        fontsize=LEG_FONTSIZE,
+    )
+    legend.get_frame().set_edgecolor("none")
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
+    legend.set_zorder(10)
+    plt.tight_layout()
+    if save:
+        figname = "probing_depth_gemma4_language"
+        save_plot(figname=figname, dirname="ablations")
+
+
 # ------------------------------------------------------------------------------
 # LLMs table functions
 # ------------------------------------------------------------------------------
@@ -3701,6 +3781,84 @@ def table_ablation_post_training_language() -> None:
     print("\n".join(lines))
 
 
+def table_ablation_gemma4_language() -> None:
+    r"""
+    Performance comparison between standard probing (rc2 at the last layer), heuristic probing (ln2 at 60% of the
+    depth) and oracle probing on Gemma4-E2B, a model that is not part of the main results, next to Gemma3, with the
+    accuracy averaged over tasks.
+    """
+    # Recover results
+    main_df = pd.read_csv(RUN_RESULT_DIR / "mteb.csv")
+    ablation_df = pd.read_csv(ABLATION_RESULT_DIR / "mteb.csv")
+    df = pd.concat([main_df, ablation_df.loc[ablation_df["ablation"] == "gemma4"]])
+    df = df.groupby(["model_name", "layer", "module"])["accuracy"].mean().reset_index()
+
+    # Results
+    model_order = LLM_FAMILIES["gemma3"] + ["gemma-4-E2B"]
+    summary: dict[str, dict[str, float]] = {}
+    for model_name in model_order:
+        sub = df.loc[df["model_name"] == model_name]
+        last_layer = int(sub["layer"].max())
+        heuristic_layer = int(0.6 * last_layer)
+        standard = float(sub.loc[(sub["layer"] == last_layer) & (sub["module"] == "rc2"), "accuracy"].iloc[0])
+        fixed = float(sub.loc[(sub["layer"] == heuristic_layer) & (sub["module"] == "ln2"), "accuracy"].iloc[0])
+        oracle = float(sub["accuracy"].max())
+        summary[model_name] = {"standard": standard, "fixed": fixed, "oracle": oracle}
+
+    def format_accuracy(value: float) -> str:
+        return f"{value:.1f}"
+
+    def format_gain(value: float) -> str:
+        if round(value, 1) > 0:
+            return rf"\addsmall{{+{value:.1f}}}"
+        if round(value, 1) < 0:
+            return rf"\subsmall{{{value:.1f}}}"
+        return "0.0"
+
+    # Displayed sizes
+    model_sizes = ["1B", "4B", "12B", "E2B"]
+
+    # LaTeX NiceTabular
+    n_models = len(model_order)
+    lines = []
+    lines.append(
+        r"\begin{NiceTabular}{"
+        r"@{} l "
+        rf"*{{{n_models}}}{{w{{r}}{{2.8em}}"
+        r"@{\hspace{3pt}}"
+        r"w{r}{1.7em}"
+        r"@{\hspace{1pt}}"
+        r"}@{}"
+        r"}"
+    )
+    lines.append(r"\toprule")
+    lines.append(
+        r"\multirow{2}{*}{Strategy} & \multicolumn{6}{c}{\textit{Gemma3}} & \multicolumn{2}{c}{\textit{Gemma4}} \\"
+    )
+    lines.append(r"\cmidrule(l){2-7} \cmidrule(l){8-9}")
+    lines.append(" & " + " & ".join(rf"\multicolumn{{2}}{{c}}{{{size}}}" for size in model_sizes) + r" \\")
+    lines.append(r"\midrule")
+
+    # Baseline
+    values = []
+    for model in model_order:
+        values.extend([format_accuracy(summary[model]["standard"]), ""])
+    lines.append(r"\texttt{Baseline} & " + " & ".join(values) + r" \\")
+
+    # Fixed strategy and oracle
+    for strategy, label in [("fixed", r"$\llm$"), ("oracle", r"\oraclerow \texttt{Oracle}")]:
+        values = []
+        for model in model_order:
+            standard = summary[model]["standard"]
+            value = summary[model][strategy]
+            values.extend([format_accuracy(value), format_gain(value - standard)])
+        lines.append(f"{label} & " + " & ".join(values) + r" \\")
+
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{NiceTabular}")
+    print("\n".join(lines))
+
+
 # ------------------------------------------------------------------------------
 # Results functions
 # ------------------------------------------------------------------------------
@@ -3806,6 +3964,7 @@ def plot_ablation_figures() -> None:
     save = True
     plot_probing_depth_clip_vision(save=save)
     plot_probing_depth_post_training_language(save=save)
+    plot_probing_depth_gemma4_language(save=save)
 
 
 def get_ablation_tables() -> None:
@@ -3818,6 +3977,7 @@ def get_ablation_tables() -> None:
     r"""LLMs ablations tables."""
     table_ablation_final_norm_language()
     table_ablation_post_training_language()
+    table_ablation_gemma4_language()
 
 
 # %% Main
