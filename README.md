@@ -1,18 +1,18 @@
 # Probing Transformer Representations Layer by Layer, Module by Module
 
-[![arXiv](https://img.shields.io/badge/arXiv-TBD-b31b1b.svg)](https://arxiv.org/abs/TBD)
-[![Dataset](https://img.shields.io/badge/🤗%20Hugging%20Face-Paper-yellow)](https://huggingface.co/papers/TBD)
+[![arXiv](https://img.shields.io/badge/arXiv-2611.11531-b31b1b.svg)](https://arxiv.org/abs/2611.11531)
+[![Dataset](https://img.shields.io/badge/🤗%20Hugging%20Face-Paper-yellow)](https://huggingface.co/papers/2611.11531)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://github.com/ambroiseodt/waldo/actions/workflows/testing.yaml/badge.svg)](https://github.com/ambroiseodt/waldo/actions)
 
-Official implementation of the paper **[Probing Transformer Representations Layer by Layer, Module by Module](TBD)**. <br>
+Official implementation of the paper **[Probing Transformer Representations Layer by Layer, Module by Module](https://arxiv.org/abs/2611.11531)**. <br>
 **Goal**: Understand which transformer representations should be probed in foundation models. <br>
 **Findings**: The gain over standard probing depends jointly on the layer and module choices; for VFMs, these gains grow under distribution shift. <br>
 **Practical takeaways**: Simple fixed strategies without search recover much of the gains: the FFN activation of the last layer (Act@100) for VFMs, and the second normalization at 60% depth (LN2@60) for LLMs.
 
 <p align="center">
-  <img width="915" height="349" alt="overview" src="https://github.com/user-attachments/assets/b335f3e8-8004-4317-9224-cb2bce768a91" />
+  <img width="800" alt="Animated heatmaps of the best probing location across layers and modules, for vision models and LLMs" src=".github/waldo.gif" />
 </p>
 
 ## Abstract
@@ -203,12 +203,12 @@ If you have any questions, feel free to reach out at
 If you find our work useful, please consider giving a star ⭐, and citing us as:
 ```
 @misc{odonnat2026probing,
-    title={Probing Transformer Representations Layer by Layer, Module by Module}, 
-    author={Ambroise Odonnat and Theo Gnassounou and Laetitia Chapel and Romain Tavenard and Ievgen Redko},
-    year={2026},
-    eprint={TBD},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG},
-    url={https://arxiv.org/abs/TBD}, 
+      title={Probing Transformer Representations Layer by Layer, Module by Module}, 
+      author={Ambroise Odonnat and Theo Gnassounou and Laetitia Chapel and Romain Tavenard and Ievgen Redko},
+      year={2026},
+      eprint={2611.11531},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2611.11531}, 
 }
 ```
