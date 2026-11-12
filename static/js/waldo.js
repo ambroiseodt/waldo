@@ -7,6 +7,8 @@
     language: { name: "LN2@60", module: 3, depth: 0.6 },
   };
   const DEFAULT_MODEL = { vision: "ViT L", language: "Qwen3 8B" };
+  const MODULE_NAMES = ["first normalization", "attention", "residual stream after attention", "second normalization",
+    "first FFN layer", "FFN activation", "FFN output", "residual stream"];
   const state = { mode: "vision", model: "ViT L", dataset: "Food-101", pickDepth: 0.5, pickModule: 7 };
   const $ = (id) => document.getElementById(id);
   const chart = $("explorer-chart");
@@ -99,7 +101,7 @@
           fill: v > base ? color((v - base) / (hi - base)) : token("--waldo-below"),
         }, svg);
         rect.addEventListener("pointerenter", () => {
-          tip.textContent = `Layer ${l} (${depth(l)}%) · ${name} · ${pct(v)} (${pp(v - base)})`;
+          tip.textContent = `${name}, ${MODULE_NAMES[m]} · layer ${l} (${depth(l)}%) · ${pct(v)} (${pp(v - base)})`;
           tip.style.left = Math.min(Math.max(cx(l), 120), width - 120) + "px";
           tip.style.top = top + m * cellH + "px";
           tip.style.display = "block";
@@ -136,10 +138,10 @@
     const pick = grid[pickLayer][state.pickModule];
     const ruleValue = grid[ruleLayer][rule.module];
     $("explorer-readout").innerHTML = `
-      <div class="pick"><dt>▢ Your pick: ${D.modules[state.pickModule]} at ${depth(pickLayer)}%</dt><dd>${pct(pick)}<small>${pp(pick - base)}${share(pick)}</small></dd></div>
+      <div class="pick"><dt>▢ Your pick: ${D.modules[state.pickModule]} (${MODULE_NAMES[state.pickModule]}) at ${depth(pickLayer)}% depth</dt><dd>${pct(pick)}<small>${pp(pick - base)}${share(pick)}</small></dd></div>
       <div><dt>○ Standard probing, RC2@100</dt><dd>${pct(base)}<small>residual stream, last layer</small></dd></div>
       <div><dt>◇ ${rule.name}, fixed rule</dt><dd>${pct(ruleValue)}<small>${pp(ruleValue - base)}${share(ruleValue)}</small></dd></div>
-      <div><dt>★ Best location, oracle</dt><dd>${pct(bestValue)}<small>${pp(oracle)}, ${D.modules[best[1]]} at layer ${best[0]} (${depth(best[0])}%)</small></dd></div>`;
+      <div><dt>★ Best location, oracle</dt><dd>${pct(bestValue)}<small>${pp(oracle)}, ${D.modules[best[1]]} (${MODULE_NAMES[best[1]]}) at ${depth(best[0])}% depth</small></dd></div>`;
     $("explorer-legend").innerHTML = `
       <span><span class="swatch"></span>not better than standard probing</span>
       <span>better: +0<span class="ramp" style="background:linear-gradient(90deg,${D.ramp.join(",")})"></span>${pp(oracle)}</span>
