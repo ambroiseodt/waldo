@@ -159,7 +159,9 @@
     const series = shown.map((m) => grid.map((row) => row[m]));
     const values = series.flat();
     const lo = Math.floor(Math.min(...values)), hi = Math.ceil(Math.max(...values));
-    const top = 26, h = 130, height = top + h + 16;
+    // On narrow screens the legend goes on its own line under the title
+    const narrow = width < 560, legendY = narrow ? 30 : 8;
+    const top = narrow ? 46 : 26, h = 130, height = top + h + 16;
     const x = (l) => left + ((l + 0.5) / L) * (width - left - right);
     const y = (v) => top + h - ((v - lo) / (hi - lo || 1)) * h;
     const svg = el("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img",
@@ -170,15 +172,15 @@
       el("text", { x: left - 8, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = Math.round(v);
     });
     const ink = token("--waldo-ink");
-    let legendX = left + 170;
+    let legendX = narrow ? left : left + 170;
     shown.forEach((m, i) => {
       const color = MODULE_COLOR[m] ? token(MODULE_COLOR[m]) : ink;
       const dash = m === M - 1 ? { "stroke-dasharray": "5 4" } : {};
       const d = series[i].map((v, l) => `${l ? "L" : "M"}${x(l).toFixed(1)},${y(v).toFixed(1)}`).join("");
       el("path", { d, fill: "none", stroke: color, "stroke-width": 2.2, ...dash }, svg);
-      el("line", { x1: legendX, x2: legendX + 22, y1: 8, y2: 8, stroke: color, "stroke-width": 2.2, ...dash }, svg);
-      el("text", { x: legendX + 28, y: 12 }, svg).textContent = D.modules[m] + (m === state.pickModule ? " (your pick)" : "");
-      legendX += m === state.pickModule ? 140 : 70;
+      el("line", { x1: legendX, x2: legendX + 22, y1: legendY, y2: legendY, stroke: color, "stroke-width": 2.2, ...dash }, svg);
+      el("text", { x: legendX + 28, y: legendY + 4 }, svg).textContent = D.modules[m] + (m === state.pickModule ? " (your pick)" : "");
+      legendX += m === state.pickModule ? 125 : 65;
     });
     const rc2 = series[0];
     el("circle", { cx: x(L - 1), cy: y(rc2[L - 1]), r: 5, fill: "#ffffff", stroke: ink, "stroke-width": 2 }, svg);

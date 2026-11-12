@@ -11,7 +11,7 @@
 
   <meta property="og:type" content="article">
   <meta property="og:title" content="Probing Transformer Representations Layer by Layer, Module by Module">
-  <meta property="og:description" content="144,288 probing evaluations across every layer and module of vision models and LLMs.">
+  <meta property="og:description" content="140,000+ linear probing evaluations across every layer and module of vision models and LLMs.">
   <meta property="og:url" content="https://ambroiseodt.github.io/waldo/">
   <meta property="og:image" content="https://ambroiseodt.github.io/waldo/static/images/waldo_poster.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -30,6 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <link rel="icon" href="static/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="static/css/bulma.min.css">
   <link rel="stylesheet" href="static/css/index.css">
   <link rel="stylesheet" href="static/css/academicons.min.css">
@@ -92,7 +93,7 @@
           <img src="static/images/waldo.gif" width="1200" height="675" alt="Two heatmaps of layer depth against the eight modules of a transformer block fill in cell by cell. Vision models concentrate on the FFN activation of the last layer, marked Act@100. LLMs concentrate on the second normalization around 60% depth, marked LN2@60. The usual probing location, the residual stream of the last layer, is rarely the best.">
         </picture>
         <h2 class="subtitle has-text-centered">
-          Probing a transformer usually means reading the residual stream of its last layer. Across 144,288 evaluations of 15 vision models and 9 LLMs, better representations sit <em>inside</em> the blocks. Two fixed rules, <span class="kw-act">Act@100</span> for vision and <span class="kw-ln2">LN2@60</span> for language, recover much of the gain without any search.
+          Better representations sit <strong>inside</strong> transformer blocks, and two fixed rules, <span class="kw-act">Act@100</span> and <span class="kw-ln2">LN2@60</span>, recover much of the gain <strong>without search</strong>.
         </h2>
       </div>
     </div>
@@ -163,8 +164,11 @@
           </div>
           <label class="explorer-field" for="explorer-model">Model<select id="explorer-model"></select></label>
           <label class="explorer-field" for="explorer-dataset" id="explorer-dataset-field">Dataset, easy to hard<select id="explorer-dataset"></select></label>
-          <label class="explorer-field" for="explorer-layer"><span id="explorer-layer-label">Layer</span><input type="range" id="explorer-layer" min="0" max="1" step="1" value="0"></label>
+        </div>
+        <div class="explorer-controls explorer-pick">
+          <span class="explorer-pick-label">▢ Your pick</span>
           <label class="explorer-field" for="explorer-module">Module<select id="explorer-module"></select></label>
+          <label class="explorer-field" for="explorer-layer"><span id="explorer-layer-label">Layer</span><input type="range" id="explorer-layer" min="0" max="1" step="1" value="0"></label>
         </div>
         <div class="explorer-chart" id="explorer-chart"><div class="explorer-tip" id="explorer-tip" role="status"></div></div>
         <div class="explorer-depth" id="explorer-depth"></div>
