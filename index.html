@@ -43,7 +43,7 @@
       <div class="container is-max-desktop">
         <div class="columns is-centered">
           <div class="column has-text-centered">
-            <h1 class="title is-1 publication-title">Probing Transformer Representations Layer by Layer, Module by Module</h1>
+            <h1 class="title is-1 publication-title">Probing Transformer Representations<br><span class="title-line">Layer by Layer, Module by Module</span></h1>
             <div class="is-size-5 publication-authors">
               <span class="author-block"><a href="https://ambroiseodt.github.io/" target="_blank">Ambroise Odonnat</a><sup>1</sup>,</span>
               <span class="author-block"><a href="https://tgnassou.github.io/" target="_blank">Théo Gnassounou</a><sup>2</sup>,</span>
@@ -86,7 +86,7 @@
 
   <section class="hero teaser">
     <div class="container is-max-desktop">
-      <div class="hero-body">
+      <div class="hero-body page-column">
         <picture>
           <source media="(prefers-reduced-motion: reduce)" srcset="static/images/waldo_poster.png">
           <img src="static/images/waldo.gif" width="1200" height="675" alt="Two heatmaps of layer depth against the eight modules of a transformer block fill in cell by cell. Vision models concentrate on the FFN activation of the last layer, marked Act@100. LLMs concentrate on the second normalization around 60% depth, marked LN2@60. The usual probing location, the residual stream of the last layer, is rarely the best.">
@@ -100,13 +100,11 @@
 
   <section class="section hero is-light">
     <div class="container is-max-desktop">
-      <div class="columns is-centered has-text-centered">
-        <div class="column is-four-fifths">
-          <h2 class="title is-3">Abstract</h2>
-          <div class="content has-text-justified">
+      <div class="page-column">
+          <h2 class="title is-3 has-text-centered">Abstract</h2>
+          <div class="content">
             <p>Which representation should be probed in a transformer-based foundation model? Recent work shows that the standard practice of probing the final layer is often suboptimal, as intermediate layers can provide better features. Yet, representations are still largely studied along depth alone, treating each transformer block as an atomic unit. In this work, we analyze transformer representations <em>layer by layer, module by module</em>. Through more than 144,000 linear probing evaluations of vision foundation models (VFMs) and large language models (LLMs), we show that layer and module choices should be considered jointly: the best layer-module pair yields substantially larger gains over the final-layer residual stream than the best layer with the residual stream fixed. Moreover, module performance can vary substantially across layers, showing that useful representations cannot be characterized by depth alone. Building on these findings, we evaluate simple fixed probing strategies: the final-layer feedforward activation (Act@100) for vision and the second normalization layer at 60% depth (LN2@60) for language. These strategies improve over the probing baseline in a majority of evaluations and recover, on average, 42% and 86% of the gains from probing the best layer-module pair for vision and language, respectively. For VFMs, these gains increase with the transfer difficulty between pretraining and downstream data.</p>
           </div>
-        </div>
       </div>
     </div>
   </section>
@@ -144,8 +142,8 @@
           <div><dt>+2.9 pp</dt><dd>average oracle gain in LLMs, from +2.0 to +4.1 pp across the 9 models</dd></div>
         </dl>
         <p>The gain comes from choosing the layer and the module together. Searching over both beats searching over the layers of the residual stream or over the modules of the last layer, in both modalities. In LLMs, the residual stream is never part of the best pair.</p>
-        <figure class="figure-narrow"><img src="static/images/cdf_vision_cls.png" width="460" height="360" alt="Complementary cumulative distribution of the gain over standard probing across 270 VFM model-dataset pairs, for the best layer, the best module and the best layer-module pair. The joint curve lies above the others and reaches 10 pp."><figcaption>VFMs: share of the 270 model-dataset pairs with a gain above x, when choosing the best layer, the best module, or both.</figcaption></figure>
-        <figure class="figure-wide"><img src="static/images/model_family_language_mteb.png" width="740" height="310" alt="Bar chart of the gain over standard probing for the 9 LLMs, for the best layer, the best module and the best layer-module pair. The joint gain ranges from 2.0 to 4.1 pp."><figcaption>LLMs: gain over standard probing on MTEB(Multilingual), for the best layer, the best module, or both.</figcaption></figure>
+        <figure><img src="static/images/cdf_vision_cls.png" width="736" height="330" alt="Complementary cumulative distribution of the gain over standard probing across 270 VFM model-dataset pairs, for the best layer, the best module and the best layer-module pair. The joint curve lies above the others and reaches 10 pp."><figcaption>VFMs: share of the 270 model-dataset pairs with a gain above x, when choosing the best layer, the best module, or both.</figcaption></figure>
+        <figure><img src="static/images/model_family_language_mteb.png" width="736" height="310" alt="Bar chart of the gain over standard probing for the 9 LLMs, for the best layer, the best module and the best layer-module pair. The joint gain ranges from 2.0 to 4.1 pp."><figcaption>LLMs: gain over standard probing on MTEB(Multilingual), for the best layer, the best module, or both.</figcaption></figure>
       </div>
     </div>
   </section>
@@ -157,7 +155,7 @@
         <p>For vision, mostly in the FFN activation of the last layers: <span class="kw-act">Act</span> is in the best pair for 64.8% of the model-dataset pairs, against 5.9% for the residual stream. For language, in the second normalization at intermediate depth: <span class="kw-ln2">LN2</span> is in the best pair for 8 of the 9 LLMs, at 48% to 78% of the depth.</p>
         <p><strong>Try it yourself.</strong> Pick a model, then click any cell, or use the layer and module controls, to compare that location with standard probing, our fixed rule and the best location.</p>
       </div>
-      <div class="explorer wide" id="explorer">
+      <div class="explorer page-column" id="explorer">
         <div class="explorer-controls">
           <div class="segmented" role="group" aria-label="Modality">
             <button type="button" data-mode="vision" aria-pressed="true">Vision</button>
@@ -169,6 +167,7 @@
           <label class="explorer-field" for="explorer-module">Module<select id="explorer-module"></select></label>
         </div>
         <div class="explorer-chart" id="explorer-chart"><div class="explorer-tip" id="explorer-tip" role="status"></div></div>
+        <div class="explorer-depth" id="explorer-depth"></div>
         <dl class="readout" id="explorer-readout" aria-live="polite"></dl>
         <div class="explorer-legend" id="explorer-legend"></div>
       </div>
@@ -180,7 +179,7 @@
       <div class="question content">
         <h2 class="title is-3">Can we get there without search?</h2>
         <p>Yes, with one fixed location per modality. <span class="kw-act">Act@100</span>, the FFN activation of the last layer, improves over standard probing in 63.7% of the 270 VFM evaluations. <span class="kw-ln2">LN2@60</span>, the second normalization at 60% depth, improves on 21 of the 24 MTEB tasks and on all 9 LLMs.</p>
-        <figure class="figure-wide"><img src="static/images/fixed_rules.png" width="740" height="320" alt="Bar chart of the gain over standard probing per model. For VFMs (307M variants), Act@100 gains 2.3, 1.3, 0.4 and 0.7 pp against oracle gains of 4.4, 2.4, 1.7 and 1.8 pp for ViT, DINOv2, DINOv3 and AIMv2. For the 9 LLMs, LN2@60 gains 2.0 to 3.5 pp against oracle gains of 2.0 to 4.1 pp."><figcaption>Gain of the fixed rule (colored) against the oracle gain (gray), per model.</figcaption></figure>
+        <figure><img src="static/images/fixed_rules.png" width="736" height="320" alt="Bar chart of the gain over standard probing per model. For VFMs (307M variants), Act@100 gains 2.3, 1.3, 0.4 and 0.7 pp against oracle gains of 4.4, 2.4, 1.7 and 1.8 pp for ViT, DINOv2, DINOv3 and AIMv2. For the 9 LLMs, LN2@60 gains 2.0 to 3.5 pp against oracle gains of 2.0 to 4.1 pp."><figcaption>Gain of the fixed rule (colored) against the oracle gain (gray), per model.</figcaption></figure>
         <p>On average, <span class="kw-act">Act@100</span> recovers 41.9% of the oracle gain in VFMs and <span class="kw-ln2">LN2@60</span> recovers 86.0% in LLMs, more than the best layer of the residual stream in both cases. Probing the best layer of the same module recovers 78.1% and 99.8%.</p>
       </div>
     </div>
@@ -191,13 +190,13 @@
       <div class="question content">
         <h2 class="title is-3">When does it matter most?</h2>
         <p>When the downstream data departs from pretraining. In VFMs, the oracle gain grows with transfer difficulty, measured by the probing error of standard probing (Spearman ρ = 0.87). On the distribution shifts of WILDS and DomainNet, <span class="kw-act">Act@100</span> improves 25 of the 28 evaluations of the 307M variants, by +1.8 pp on average.</p>
-        <figure class="figure-narrow"><img src="static/images/transfer_difficulty_vision_cls.png" width="460" height="380" alt="Scatter plot of the oracle gain per dataset against the mean probing error of standard probing, with a rising trend line. Cifar10 has a small gain, Quickdraw a large one."><figcaption>VFMs: oracle gain per dataset against transfer difficulty.</figcaption></figure>
+        <figure><img src="static/images/transfer_difficulty_vision_cls.png" width="736" height="350" alt="Scatter plot of the oracle gain per dataset against the mean probing error of standard probing, with a rising trend line. Cifar10 has a small gain, Quickdraw a large one."><figcaption>VFMs: oracle gain per dataset against transfer difficulty.</figcaption></figure>
       </div>
     </div>
   </section>
 
   <section class="section" id="BibTeX">
-    <div class="container is-max-desktop content">
+    <div class="container is-max-desktop content page-column">
       <h2 class="title">BibTeX</h2>
       <div class="bibtex-box">
         <button class="button is-small copy-bibtex-btn" type="button" title="Copy BibTeX to clipboard"><span class="copy-text">Copy</span></button>

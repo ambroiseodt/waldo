@@ -128,6 +128,7 @@
     el("circle", { cx: cx(L - 1), cy: cy(M - 1), r: 6.5, fill: "#ffffff", stroke: ink, "stroke-width": 2, ...none }, svg);
     el("polygon", { points: starPoints(cx(best[0]), cy(best[1]), 9.5), fill: token("--waldo-star"), stroke: ink, "stroke-width": 0.8, ...none }, svg);
     chart.appendChild(svg);
+    renderDepth(grid, pickLayer, width, left, right);
 
     const bestValue = grid[best[0]][best[1]];
     const oracle = bestValue - base;
@@ -143,6 +144,45 @@
       <span><span class="swatch"></span>not better than standard probing</span>
       <span>better: +0<span class="ramp" style="background:linear-gradient(90deg,${D.ramp.join(",")})"></span>${pp(oracle)}</span>
       <span>${state.mode === "vision" ? "Top-1 test accuracy of linear probing" : "Average accuracy over the 24 classification tasks of MTEB(Multilingual)"}</span>`;
+  }
+
+
+  // Accuracy along depth: the residual stream, the module of the fixed rule and the picked module
+  const MODULE_COLOR = { 5: "--waldo-act", 3: "--waldo-ln2", 7: "--waldo-rc2" };
+  function renderDepth(grid, pickLayer, width, left, right) {
+    const box = $("explorer-depth");
+    box.querySelector("svg")?.remove();
+    const L = grid.length, M = D.modules.length, ruleModule = RULES[state.mode].module;
+    const shown = [...new Set([M - 1, ruleModule, state.pickModule])];
+    const series = shown.map((m) => grid.map((row) => row[m]));
+    const values = series.flat();
+    const lo = Math.floor(Math.min(...values)), hi = Math.ceil(Math.max(...values));
+    const top = 26, h = 130, height = top + h + 16;
+    const x = (l) => left + ((l + 0.5) / L) * (width - left - right);
+    const y = (v) => top + h - ((v - lo) / (hi - lo || 1)) * h;
+    const svg = el("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img",
+      "aria-label": `Accuracy along depth of ${shown.map((m) => D.modules[m]).join(", ")}.` });
+    el("text", { x: left, y: 12 }, svg).textContent = "Accuracy (%) along depth";
+    [lo, (lo + hi) / 2, hi].forEach((v) => {
+      el("line", { x1: left, x2: width - right, y1: y(v), y2: y(v), stroke: "#ededed" }, svg);
+      el("text", { x: left - 8, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = Math.round(v);
+    });
+    const ink = token("--waldo-ink");
+    let legendX = left + 170;
+    shown.forEach((m, i) => {
+      const color = MODULE_COLOR[m] ? token(MODULE_COLOR[m]) : ink;
+      const dash = m === M - 1 ? { "stroke-dasharray": "5 4" } : {};
+      const d = series[i].map((v, l) => `${l ? "L" : "M"}${x(l).toFixed(1)},${y(v).toFixed(1)}`).join("");
+      el("path", { d, fill: "none", stroke: color, "stroke-width": 2.2, ...dash }, svg);
+      el("line", { x1: legendX, x2: legendX + 22, y1: 8, y2: 8, stroke: color, "stroke-width": 2.2, ...dash }, svg);
+      el("text", { x: legendX + 28, y: 12 }, svg).textContent = D.modules[m] + (m === state.pickModule ? " (your pick)" : "");
+      legendX += m === state.pickModule ? 140 : 70;
+    });
+    const rc2 = series[0];
+    el("circle", { cx: x(L - 1), cy: y(rc2[L - 1]), r: 5, fill: "#ffffff", stroke: ink, "stroke-width": 2 }, svg);
+    const pick = series[shown.indexOf(state.pickModule)];
+    el("rect", { x: x(pickLayer) - 5, y: y(pick[pickLayer]) - 5, width: 10, height: 10, fill: "#ffffff", stroke: ink, "stroke-width": 2 }, svg);
+    box.appendChild(svg);
   }
 
   document.querySelectorAll("#explorer .segmented button").forEach((button) => {
@@ -174,7 +214,7 @@
     const label = copyButton.querySelector(".copy-text");
     try {
       await navigator.clipboard.writeText($("bibtex-code").textContent);
-            label.textContent = "Copied";
+      label.textContent = "Copied";
     } catch (error) {
       label.textContent = "Select the text to copy";
     }

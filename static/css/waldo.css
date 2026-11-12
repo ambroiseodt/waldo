@@ -11,6 +11,7 @@
   --waldo-rc2: #6b6b69;
 }
 
+@media (min-width: 769px) { .title-line { white-space: nowrap; } }
 .publication-authors sup { font-size: 0.65em; }
 .affiliations .author-block { margin: 0 0.35rem; }
 .teaser .subtitle { margin-top: 1rem; line-height: 1.5; }
@@ -22,17 +23,15 @@
 .kw-rc2 { color: var(--waldo-rc2); font-weight: 600; }
 
 /* Sections and figures */
-.question { max-width: 46rem; margin: 0 auto; }
+/* One 736 px column for text, figures and the explorer */
+.page-column, .question { max-width: 46rem; margin-left: auto; margin-right: auto; }
 .question > * + * { margin-top: 1rem; }
 .question .title { margin-bottom: 0.25rem !important; }
 .content figure { margin: 1.5rem auto; text-align: center; }
 .content figure img { display: block; width: 100%; height: auto; margin: 0 auto; }
 .content figure figcaption { font-style: italic; font-size: 0.95rem; color: #4a4a4a; margin-top: 0.5rem; }
-.figure-narrow { max-width: 460px; }
-.figure-wide { max-width: 740px; }
 .figure-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
 .figure-pair figure { margin: 0; }
-.wide { max-width: 64rem; margin-left: auto; margin-right: auto; }
 
 .key-numbers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.25rem 0 !important; text-align: center; }
 .key-numbers dt { font-family: 'Google Sans', sans-serif; font-size: 2rem; font-weight: 700; line-height: 1.1; color: var(--waldo-ink); font-variant-numeric: tabular-nums; }
@@ -66,6 +65,8 @@
 .explorer-chart { position: relative; }
 .explorer-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .explorer-chart rect { cursor: pointer; }
+.explorer-depth svg { display: block; width: 100%; height: auto; overflow: visible; }
+.explorer-depth text { font-family: 'Noto Sans', sans-serif; fill: var(--waldo-muted); font-size: 12px; }
 .explorer-chart text { font-family: 'Noto Sans', sans-serif; fill: var(--waldo-ink); font-size: 12.5px; }
 .explorer-chart .tick { fill: var(--waldo-muted); }
 .explorer-tip { position: absolute; pointer-events: none; background: #363636; color: #fff; font-size: 0.82rem; padding: 0.3rem 0.55rem; border-radius: 4px; white-space: nowrap; transform: translate(-50%, calc(-100% - 8px)); display: none; z-index: 2; }
