@@ -7,7 +7,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Official implementation of the paper **[Probing Transformer Representations Layer by Layer, Module by Module](https://arxiv.org/abs/2611.11531)** ([project page](https://ambroiseodt.github.io/waldo/)). <br>
+Official implementation of the paper **[Probing Transformer Representations Layer by Layer, Module by Module](https://arxiv.org/abs/2611.11531)**. <br>
 **Goal**: Understand which transformer representations should be probed in foundation models. <br>
 **Findings**: The gain over standard probing depends jointly on the layer and module choices; for VFMs, these gains grow under distribution shift. <br>
 **Practical takeaways**: Simple fixed strategies without search recover much of the gains: the FFN activation of the last layer (Act@100) for VFMs, and the second normalization at 60% depth (LN2@60) for LLMs.
