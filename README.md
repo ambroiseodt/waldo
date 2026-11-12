@@ -4,8 +4,6 @@
 [![Paper](https://img.shields.io/badge/🤗%20HuggingFace-Paper-yellow)](https://huggingface.co/papers/2611.11531)
 [![Project Page](https://img.shields.io/badge/Project-Page-blue)](https://ambroiseodt.github.io/waldo/)
 [![Tests](https://github.com/ambroiseodt/waldo/actions/workflows/testing.yaml/badge.svg)](https://github.com/ambroiseodt/waldo/actions)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 Official implementation of the paper **[Probing Transformer Representations Layer by Layer, Module by Module](https://arxiv.org/abs/2611.11531)**. <br>
 **Goal**: Understand which transformer representations should be probed in foundation models. <br>
