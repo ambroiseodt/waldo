@@ -1,0 +1,90 @@
+/* Additions to the Academic Project Page Template, in the style of its Nerfies-era pages: figures on white, colored keywords. */
+:root {
+  --waldo-ink: #363636;
+  --waldo-muted: #7a7a7a;
+  --waldo-line: #dbdbdb;
+  --waldo-below: #ebe9ec;
+  --waldo-star: #c62828;
+  /* Module colors of the paper's figures, darkened for text */
+  --waldo-act: #3f7f96;
+  --waldo-ln2: #a3478f;
+  --waldo-rc2: #6b6b69;
+}
+
+.publication-authors sup { font-size: 0.65em; }
+.affiliations .author-block { margin: 0 0.35rem; }
+.teaser .subtitle { margin-top: 1rem; line-height: 1.5; }
+.teaser img { display: block; width: 100%; height: auto; }
+
+/* Colored keywords, as in the text of DUO */
+.kw-act { color: var(--waldo-act); font-weight: 600; }
+.kw-ln2 { color: var(--waldo-ln2); font-weight: 600; }
+.kw-rc2 { color: var(--waldo-rc2); font-weight: 600; }
+
+/* Sections and figures */
+.question { max-width: 46rem; margin: 0 auto; }
+.question > * + * { margin-top: 1rem; }
+.question .title { margin-bottom: 0.25rem !important; }
+.content figure { margin: 1.5rem auto; text-align: center; }
+.content figure img { display: block; width: 100%; height: auto; margin: 0 auto; }
+.content figure figcaption { font-style: italic; font-size: 0.95rem; color: #4a4a4a; margin-top: 0.5rem; }
+.figure-narrow { max-width: 460px; }
+.figure-wide { max-width: 740px; }
+.figure-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+.figure-pair figure { margin: 0; }
+.wide { max-width: 64rem; margin-left: auto; margin-right: auto; }
+
+.key-numbers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.25rem 0 !important; text-align: center; }
+.key-numbers dt { font-family: 'Google Sans', sans-serif; font-size: 2rem; font-weight: 700; line-height: 1.1; color: var(--waldo-ink); font-variant-numeric: tabular-nums; }
+.key-numbers dd { margin: 0.35rem 0 0 !important; font-size: 0.92rem; color: var(--waldo-muted); }
+
+.block-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: center; }
+.block-layout figure { margin: 0; }
+.module-list { display: grid; grid-template-columns: 3.4rem 1fr; gap: 0.1rem 0.8rem; margin: 0 !important; font-size: 0.97rem; }
+.module-list dt { font-weight: 600; }
+.module-list dd { margin: 0 !important; color: #4a4a4a; }
+
+.result-table { font-size: 0.95rem; font-variant-numeric: tabular-nums; width: 100%; }
+.content .result-table caption { caption-side: top; text-align: left; font-size: 0.88rem; color: var(--waldo-muted); padding-bottom: 0.4rem; }
+.content .result-table th, .content .result-table td { text-align: right; white-space: nowrap; padding: 0.3rem 0.5rem; border-color: #ededed; }
+.content .result-table th[scope="row"], .content .result-table thead th:first-child { text-align: left; font-weight: 400; }
+.content .result-table thead th { border-bottom-width: 1px; border-color: var(--waldo-line); }
+.result-table td.rule-act { color: var(--waldo-act); font-weight: 600; }
+.result-table td.rule-ln2 { color: var(--waldo-ln2); font-weight: 600; }
+.table-wrap { overflow-x: auto; }
+
+/* Explorer */
+.explorer > * + * { margin-top: 1rem; }
+.explorer-controls { display: flex; flex-wrap: wrap; gap: 0.8rem 1.1rem; align-items: end; }
+.explorer-field { display: grid; gap: 0.2rem; font-size: 0.8rem; color: var(--waldo-muted); }
+.explorer-field select { font: inherit; font-size: 0.95rem; color: var(--waldo-ink); background: #fff; border: 1px solid var(--waldo-line); border-radius: 4px; padding: 0.3rem 0.5rem; min-width: 9.5rem; }
+.explorer-field input[type="range"] { width: 12rem; accent-color: var(--waldo-ink); }
+.segmented { display: inline-flex; gap: 0.4rem; }
+.segmented button { font: inherit; font-size: 0.95rem; padding: 0.35rem 1rem; border: 1px solid var(--waldo-line); border-radius: 290486px; background: #fff; color: var(--waldo-ink); cursor: pointer; }
+.segmented button[aria-pressed="true"] { background: #363636; border-color: #363636; color: #fff; }
+.explorer :focus-visible { outline: 2px solid var(--waldo-ink); outline-offset: 2px; }
+.explorer-chart { position: relative; }
+.explorer-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.explorer-chart rect { cursor: pointer; }
+.explorer-chart text { font-family: 'Noto Sans', sans-serif; fill: var(--waldo-ink); font-size: 12.5px; }
+.explorer-chart .tick { fill: var(--waldo-muted); }
+.explorer-tip { position: absolute; pointer-events: none; background: #363636; color: #fff; font-size: 0.82rem; padding: 0.3rem 0.55rem; border-radius: 4px; white-space: nowrap; transform: translate(-50%, calc(-100% - 8px)); display: none; z-index: 2; }
+.readout { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin: 0; }
+.readout div { border-top: 2px solid var(--waldo-line); padding-top: 0.45rem; }
+.readout div.pick { border-top-color: var(--waldo-ink); }
+.readout dt { font-size: 0.85rem; color: var(--waldo-muted); }
+.readout dd { margin: 0.1rem 0 0; font-family: 'Google Sans', sans-serif; font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--waldo-ink); }
+.readout dd small { display: block; font-family: 'Noto Sans', sans-serif; font-size: 0.82rem; font-weight: 400; color: var(--waldo-muted); line-height: 1.4; }
+.explorer-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; align-items: center; font-size: 0.85rem; color: var(--waldo-muted); }
+.explorer-legend .swatch { width: 14px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 0.35rem; background: var(--waldo-below); }
+.explorer-legend .ramp { width: 110px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin: 0 0.35rem; }
+
+/* BibTeX copy button, placed like DUO's */
+.bibtex-box { position: relative; }
+.bibtex-box .copy-bibtex-btn { position: absolute; top: 0.6rem; right: 0.6rem; }
+
+@media (max-width: 768px) {
+  .publication-title { font-size: 2rem !important; }
+  .key-numbers, .block-layout, .figure-pair { grid-template-columns: 1fr; }
+  .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

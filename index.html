@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Probing Transformer Representations</title>
+  <meta name="description" content="Probing every layer and every module of 15 vision foundation models and 9 LLMs: standard probing is rarely the best choice, and two fixed rules recover much of the gain without search.">
+  <meta name="keywords" content="probing, representations, transformers, vision foundation models, large language models, linear probing, MTEB">
+  <meta name="author" content="Ambroise Odonnat, Théo Gnassounou, Laetitia Chapel, Romain Tavenard, Ievgen Redko">
+  <link rel="canonical" href="https://ambroiseodt.github.io/waldo/">
+
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Probing Transformer Representations Layer by Layer, Module by Module">
+  <meta property="og:description" content="144,288 probing evaluations across every layer and module of vision models and LLMs.">
+  <meta property="og:url" content="https://ambroiseodt.github.io/waldo/">
+  <meta property="og:image" content="https://ambroiseodt.github.io/waldo/static/images/waldo_poster.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Probing Transformer Representations Layer by Layer, Module by Module">
+  <meta name="twitter:image" content="https://ambroiseodt.github.io/waldo/static/images/waldo_poster.png">
+
+  <meta name="citation_title" content="Probing Transformer Representations Layer by Layer, Module by Module">
+  <meta name="citation_author" content="Odonnat, Ambroise">
+  <meta name="citation_author" content="Gnassounou, Théo">
+  <meta name="citation_author" content="Chapel, Laetitia">
+  <meta name="citation_author" content="Tavenard, Romain">
+  <meta name="citation_author" content="Redko, Ievgen">
+  <meta name="citation_publication_date" content="2026">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2611.11531">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+  <link rel="stylesheet" href="static/css/academicons.min.css">
+  <link rel="stylesheet" href="static/css/waldo.css">
+  <script defer src="static/js/fontawesome.all.min.js"></script>
+</head>
+<body>
+  <main id="main-content">
+  <section class="hero">
+    <div class="hero-body">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered">
+          <div class="column has-text-centered">
+            <h1 class="title is-1 publication-title">Probing Transformer Representations Layer by Layer, Module by Module</h1>
+            <div class="is-size-5 publication-authors">
+              <span class="author-block"><a href="https://ambroiseodt.github.io/" target="_blank">Ambroise Odonnat</a><sup>1</sup>,</span>
+              <span class="author-block"><a href="https://tgnassou.github.io/" target="_blank">Théo Gnassounou</a><sup>2</sup>,</span>
+              <span class="author-block"><a href="https://people.irisa.fr/Laetitia.Chapel/" target="_blank">Laetitia Chapel</a><sup>3,5</sup>,</span>
+              <span class="author-block"><a href="https://rtavenar.github.io/" target="_blank">Romain Tavenard</a><sup>4,5</sup>,</span>
+              <span class="author-block"><a href="https://ievred.github.io/" target="_blank">Ievgen Redko</a><sup>6</sup></span>
+            </div>
+            <div class="is-size-6 publication-authors affiliations">
+              <span class="author-block"><sup>1</sup>Noah's Ark Lab, Inria</span>
+              <span class="author-block"><sup>2</sup>EPFL</span>
+              <span class="author-block"><sup>3</sup>L'Institut Agro</span>
+              <span class="author-block"><sup>4</sup>Univ. Rennes 2</span>
+              <span class="author-block"><sup>5</sup>IRISA</span>
+              <span class="author-block"><sup>6</sup>Schneider Electric</span>
+            </div>
+            <div class="column has-text-centered">
+              <div class="publication-links">
+                <span class="link-block">
+                  <a href="https://arxiv.org/pdf/2611.11531" target="_blank" class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon"><i class="fas fa-file-pdf"></i></span><span>Paper</span>
+                  </a>
+                </span>
+                <span class="link-block">
+                  <a href="https://github.com/ambroiseodt/waldo" target="_blank" class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon"><i class="fab fa-github"></i></span><span>Code</span>
+                  </a>
+                </span>
+                <span class="link-block">
+                  <a href="https://huggingface.co/papers/2611.11531" target="_blank" class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon">🤗</span><span>Hugging Face</span>
+                  </a>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hero teaser">
+    <div class="container is-max-desktop">
+      <div class="hero-body">
+        <picture>
+          <source media="(prefers-reduced-motion: reduce)" srcset="static/images/waldo_poster.png">
+          <img src="static/images/waldo.gif" width="1200" height="675" alt="Two heatmaps of layer depth against the eight modules of a transformer block fill in cell by cell. Vision models concentrate on the FFN activation of the last layer, marked Act@100. LLMs concentrate on the second normalization around 60% depth, marked LN2@60. The usual probing location, the residual stream of the last layer, is rarely the best.">
+        </picture>
+        <h2 class="subtitle has-text-centered">
+          Probing a transformer usually means reading the residual stream of its last layer. Across 144,288 evaluations of 15 vision models and 9 LLMs, better representations sit <em>inside</em> the blocks. Two fixed rules, <span class="kw-act">Act@100</span> for vision and <span class="kw-ln2">LN2@60</span> for language, recover much of the gain without any search.
+        </h2>
+      </div>
+    </div>
+  </section>
+
+  <section class="section hero is-light">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-four-fifths">
+          <h2 class="title is-3">Abstract</h2>
+          <div class="content has-text-justified">
+            <p>Which representation should be probed in a transformer-based foundation model? Recent work shows that the standard practice of probing the final layer is often suboptimal, as intermediate layers can provide better features. Yet, representations are still largely studied along depth alone, treating each transformer block as an atomic unit. In this work, we analyze transformer representations <em>layer by layer, module by module</em>. Through more than 144,000 linear probing evaluations of vision foundation models (VFMs) and large language models (LLMs), we show that layer and module choices should be considered jointly: the best layer-module pair yields substantially larger gains over the final-layer residual stream than the best layer with the residual stream fixed. Moreover, module performance can vary substantially across layers, showing that useful representations cannot be characterized by depth alone. Building on these findings, we evaluate simple fixed probing strategies: the final-layer feedforward activation (Act@100) for vision and the second normalization layer at 60% depth (LN2@60) for language. These strategies improve over the probing baseline in a majority of evaluations and recover, on average, 42% and 86% of the gains from probing the best layer-module pair for vision and language, respectively. For VFMs, these gains increase with the transfer difficulty between pretraining and downstream data.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">What does standard probing read?</h2>
+        <div class="block-layout">
+          <figure><img src="static/images/transformer_block.png" width="800" height="449" alt="Diagram of a transformer block with the eight probed modules, for a standard FFN and a gated FFN."></figure>
+          <dl class="module-list">
+            <dt>LN1</dt><dd>first normalization</dd>
+            <dt>MHA</dt><dd>multi-head attention</dd>
+            <dt>RC1</dt><dd>residual stream after attention</dd>
+            <dt class="kw-ln2">LN2</dt><dd>second normalization</dd>
+            <dt>FC1</dt><dd>first linear layer of the FFN</dd>
+            <dt class="kw-act">Act</dt><dd>FFN activation</dd>
+            <dt>FC2</dt><dd>output of the FFN</dd>
+            <dt class="kw-rc2">RC2</dt><dd>residual stream at the block output</dd>
+          </dl>
+        </div>
+        <p>A transformer block exposes eight intermediate representations. Standard probing reads one of them, <span class="kw-rc2">RC2</span>, at the last layer: we call it <span class="kw-rc2">RC2@100</span>. We probe all eight at every layer, in a single forward pass, with linear probing on 18 image datasets for vision foundation models (VFMs) and on the 24 classification tasks of MTEB(Multilingual) for LLMs.</p>
+        <p>Each location is compared to standard probing. The <strong>oracle gain</strong> is the accuracy of the best layer-module pair minus that of <span class="kw-rc2">RC2@100</span>, in percentage points (pp). It is an upper bound: finding that pair needs an exhaustive search and test labels.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">How much does standard probing leave on the table?</h2>
+        <dl class="key-numbers">
+          <div><dt>260 / 270</dt><dd>VFM model-dataset pairs where another location beats standard probing</dd></div>
+          <div><dt>+2.2 pp</dt><dd>average oracle gain in VFMs, up to +10.5 pp</dd></div>
+          <div><dt>+2.9 pp</dt><dd>average oracle gain in LLMs, from +2.0 to +4.1 pp across the 9 models</dd></div>
+        </dl>
+        <p>The gain comes from choosing the layer and the module together. Searching over both beats searching over the layers of the residual stream or over the modules of the last layer, in both modalities. In LLMs, the residual stream is never part of the best pair.</p>
+        <figure class="figure-narrow"><img src="static/images/cdf_vision_cls.png" width="460" height="360" alt="Complementary cumulative distribution of the gain over standard probing across 270 VFM model-dataset pairs, for the best layer, the best module and the best layer-module pair. The joint curve lies above the others and reaches 10 pp."><figcaption>VFMs: share of the 270 model-dataset pairs with a gain above x, when choosing the best layer, the best module, or both.</figcaption></figure>
+        <figure class="figure-wide"><img src="static/images/model_family_language_mteb.png" width="740" height="310" alt="Bar chart of the gain over standard probing for the 9 LLMs, for the best layer, the best module and the best layer-module pair. The joint gain ranges from 2.0 to 4.1 pp."><figcaption>LLMs: gain over standard probing on MTEB(Multilingual), for the best layer, the best module, or both.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">Where are the better representations?</h2>
+        <p>For vision, mostly in the FFN activation of the last layers: <span class="kw-act">Act</span> is in the best pair for 64.8% of the model-dataset pairs, against 5.9% for the residual stream. For language, in the second normalization at intermediate depth: <span class="kw-ln2">LN2</span> is in the best pair for 8 of the 9 LLMs, at 48% to 78% of the depth.</p>
+        <p><strong>Try it yourself.</strong> Pick a model, then click any cell, or use the layer and module controls, to compare that location with standard probing, our fixed rule and the best location.</p>
+      </div>
+      <div class="explorer wide" id="explorer">
+        <div class="explorer-controls">
+          <div class="segmented" role="group" aria-label="Modality">
+            <button type="button" data-mode="vision" aria-pressed="true">Vision</button>
+            <button type="button" data-mode="language" aria-pressed="false">Language</button>
+          </div>
+          <label class="explorer-field" for="explorer-model">Model<select id="explorer-model"></select></label>
+          <label class="explorer-field" for="explorer-dataset" id="explorer-dataset-field">Dataset, easy to hard<select id="explorer-dataset"></select></label>
+          <label class="explorer-field" for="explorer-layer"><span id="explorer-layer-label">Layer</span><input type="range" id="explorer-layer" min="0" max="1" step="1" value="0"></label>
+          <label class="explorer-field" for="explorer-module">Module<select id="explorer-module"></select></label>
+        </div>
+        <div class="explorer-chart" id="explorer-chart"><div class="explorer-tip" id="explorer-tip" role="status"></div></div>
+        <dl class="readout" id="explorer-readout" aria-live="polite"></dl>
+        <div class="explorer-legend" id="explorer-legend"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">Can we get there without search?</h2>
+        <p>Yes, with one fixed location per modality. <span class="kw-act">Act@100</span>, the FFN activation of the last layer, improves over standard probing in 63.7% of the 270 VFM evaluations. <span class="kw-ln2">LN2@60</span>, the second normalization at 60% depth, improves on 21 of the 24 MTEB tasks and on all 9 LLMs.</p>
+        <figure class="figure-wide"><img src="static/images/fixed_rules.png" width="740" height="320" alt="Bar chart of the gain over standard probing per model. For VFMs (307M variants), Act@100 gains 2.3, 1.3, 0.4 and 0.7 pp against oracle gains of 4.4, 2.4, 1.7 and 1.8 pp for ViT, DINOv2, DINOv3 and AIMv2. For the 9 LLMs, LN2@60 gains 2.0 to 3.5 pp against oracle gains of 2.0 to 4.1 pp."><figcaption>Gain of the fixed rule (colored) against the oracle gain (gray), per model.</figcaption></figure>
+        <p>On average, <span class="kw-act">Act@100</span> recovers 41.9% of the oracle gain in VFMs and <span class="kw-ln2">LN2@60</span> recovers 86.0% in LLMs, more than the best layer of the residual stream in both cases. Probing the best layer of the same module recovers 78.1% and 99.8%.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">When does it matter most?</h2>
+        <p>When the downstream data departs from pretraining. In VFMs, the oracle gain grows with transfer difficulty, measured by the probing error of standard probing (Spearman ρ = 0.87). On the distribution shifts of WILDS and DomainNet, <span class="kw-act">Act@100</span> improves 25 of the 28 evaluations of the 307M variants, by +1.8 pp on average.</p>
+        <figure class="figure-narrow"><img src="static/images/transfer_difficulty_vision_cls.png" width="460" height="380" alt="Scatter plot of the oracle gain per dataset against the mean probing error of standard probing, with a rising trend line. Cifar10 has a small gain, Quickdraw a large one."><figcaption>VFMs: oracle gain per dataset against transfer difficulty.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="BibTeX">
+    <div class="container is-max-desktop content">
+      <h2 class="title">BibTeX</h2>
+      <div class="bibtex-box">
+        <button class="button is-small copy-bibtex-btn" type="button" title="Copy BibTeX to clipboard"><span class="copy-text">Copy</span></button>
+        <pre id="bibtex-code"><code>@misc{odonnat2026probing,
+    title={Probing Transformer Representations Layer by Layer, Module by Module},
+    author={Ambroise Odonnat and Theo Gnassounou and Laetitia Chapel and Romain Tavenard and Ievgen Redko},
+    year={2026},
+    eprint={2611.11531},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG},
+    url={https://arxiv.org/abs/2611.11531},
+}</code></pre>
+      </div>
+    </div>
+  </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="columns is-centered">
+        <div class="column is-8">
+          <div class="content">
+            <p>
+              This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
+              You are free to borrow the source code of this website, we just ask that you link back to this page in the footer. <br> This website is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative
+              Commons Attribution-ShareAlike 4.0 International License</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="static/data/explorer_data.js"></script>
+  <script src="static/js/waldo.js"></script>
+</body>
+</html>
