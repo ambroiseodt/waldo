@@ -22,7 +22,7 @@ Which representation should be probed in a transformer-based foundation model? R
 </p>
 
 ## Overview
-Our codebase was tailored to study transformer representations across layers and modules in vision foundation models (ViT, DINOv2, DINOv3, AIMv2) and LLMs (Gemma3, Llama3, Qwen3); we tried to make the code as modular as possible, so feel free to branch out or fork and play with it. It is structured as follows:
+Our codebase was tailored to study transformer representations across layers and modules in vision foundation models (ViT, DINOv2, DINOv3, AIMv2) and large language models (Gemma3, Llama3, Qwen3); we tried to make the code as modular as possible, so feel free to branch out or fork and play with it. It is structured as follows:
 
 ```
 🛠️ waldo
