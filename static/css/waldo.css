@@ -54,8 +54,8 @@
 .table-wrap { overflow-x: auto; }
 
 .equation { overflow-x: auto; padding: 0.25rem 0; }
-.equation math { font-size: 1.1em; }
-.content math { font-family: 'Noto Sans Math', 'Noto Sans', sans-serif; }
+.content .katex { font-size: 1.08em; }
+.equation .katex-display { margin: 0.6rem 0; }
 
 /* Explorer */
 .explorer > * + * { margin-top: 1rem; }
