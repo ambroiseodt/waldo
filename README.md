@@ -7,7 +7,7 @@
 
 Official implementation of the paper **[Probing Transformer Representations Layer by Layer, Module by Module](https://arxiv.org/abs/2611.11531)**. <br>
 **Goal**: Understand which transformer representations should be probed in foundation models. <br>
-**Findings**: The gain over standard probing depends jointly on the layer and module choices; for VFMs, these gains grow under distribution shift. <br>
+**Findings**: The gain over standard probing depends jointly on the layer and module choices; for VFMs, these gains grow with the distribution shift between pretraining and downstream data. <br>
 **Practical takeaways**: Simple fixed strategies without search recover much of the gains: the FFN activation of the last layer (Act@100) for VFMs, and the second normalization at 60% depth (LN2@60) for LLMs.
 
 <p align="center">
