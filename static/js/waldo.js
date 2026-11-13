@@ -90,7 +90,7 @@
     chart.querySelector("svg")?.remove();
     const svg = el("svg", {
       viewBox: `0 0 ${width} ${height}`, width, height, role: "img",
-      "aria-label": `Probing accuracy of ${state.model} at each layer and module. Cells above standard probing are purple.`,
+      "aria-label": `Probing accuracy of ${state.model} at each layer and module. Cells above the probing baseline are purple.`,
     });
     D.modules.forEach((name, m) => {
       el("text", { x: left - 8, y: cy(m) + 4, "text-anchor": "end", class: "mod" }, svg).textContent = name;
@@ -139,11 +139,11 @@
     const ruleValue = grid[ruleLayer][rule.module];
     $("explorer-readout").innerHTML = `
       <div class="pick"><dt>▢ Your pick: ${D.modules[state.pickModule]} (${MODULE_NAMES[state.pickModule]}) at ${depth(pickLayer)}% depth</dt><dd>${pct(pick)}<small>${pp(pick - base)}${share(pick)}</small></dd></div>
-      <div><dt>○ Standard probing, RC2@100</dt><dd>${pct(base)}<small>residual stream, last layer</small></dd></div>
+      <div><dt>○ Probing baseline, RC2@100</dt><dd>${pct(base)}<small>residual stream, last layer</small></dd></div>
       <div><dt>◇ ${rule.name}, fixed rule</dt><dd>${pct(ruleValue)}<small>${pp(ruleValue - base)}${share(ruleValue)}</small></dd></div>
       <div><dt>★ Best location, oracle</dt><dd>${pct(bestValue)}<small>${pp(oracle)}, ${D.modules[best[1]]} (${MODULE_NAMES[best[1]]}) at ${depth(best[0])}% depth</small></dd></div>`;
     $("explorer-legend").innerHTML = `
-      <span><span class="swatch"></span>not better than standard probing</span>
+      <span><span class="swatch"></span>not better than the probing baseline</span>
       <span>better: +0<span class="ramp" style="background:linear-gradient(90deg,${D.ramp.join(",")})"></span>${pp(oracle)}</span>
       <span>${state.mode === "vision" ? "Top-1 test accuracy of linear probing" : "Average accuracy over the 24 classification tasks of MTEB(Multilingual)"}</span>`;
   }

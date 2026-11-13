@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Probing Transformer Representations</title>
-  <meta name="description" content="Probing every layer and every module of 15 vision foundation models and 9 LLMs: standard probing is rarely the best choice, and two fixed rules recover much of the gain without search.">
+  <meta name="description" content="Probing every layer and every module of 15 vision foundation models and 9 LLMs: the probing baseline is rarely the best choice, and two fixed rules recover much of the gain without search.">
   <meta name="keywords" content="probing, representations, transformers, vision foundation models, large language models, linear probing, MTEB">
   <meta name="author" content="Ambroise Odonnat, Théo Gnassounou, Laetitia Chapel, Romain Tavenard, Ievgen Redko">
   <link rel="canonical" href="https://ambroiseodt.github.io/waldo/">
@@ -113,7 +113,7 @@
   <section class="section">
     <div class="container is-max-desktop">
       <div class="question content">
-        <h2 class="title is-3">What does standard probing read?</h2>
+        <h2 class="title is-3">What does the probing baseline read?</h2>
         <div class="block-layout">
           <figure><img src="static/images/transformer_block.png" width="800" height="449" alt="Diagram of a transformer block with the eight probed modules, for a standard FFN and a gated FFN."></figure>
           <dl class="module-list">
@@ -127,8 +127,8 @@
             <dt class="kw-rc2">RC2</dt><dd>residual stream at the block output</dd>
           </dl>
         </div>
-        <p>A transformer block exposes eight intermediate representations. Standard probing reads one of them, <span class="kw-rc2">RC2</span>, at the last layer: we call it <span class="kw-rc2">RC2@100</span>. We probe all eight at every layer, in a single forward pass, with linear probing on 18 image datasets for vision foundation models (VFMs) and on the 24 classification tasks of MTEB(Multilingual) for LLMs.</p>
-        <p>Each location is compared to standard probing. The <strong>oracle gain</strong> is the accuracy of the best layer-module pair minus that of <span class="kw-rc2">RC2@100</span>, in percentage points (pp). It is an upper bound: finding that pair needs an exhaustive search and test labels.</p>
+        <p>A transformer block exposes eight intermediate representations. Probing usually reads one of them, <span class="kw-rc2">RC2</span>, at the last layer (sometimes after an additional normalization layer). We take it as the probing baseline, <span class="kw-rc2">RC2@100</span>. We probe all eight at every layer, in a single forward pass, with linear probing on 18 image datasets for vision foundation models (VFMs) and on the 24 classification tasks of MTEB(Multilingual) for LLMs.</p>
+        <p>Each location is compared to the probing baseline. The <strong>oracle gain</strong> is the accuracy of the best layer-module pair minus that of <span class="kw-rc2">RC2@100</span>, in percentage points (pp). It is an upper bound: finding that pair needs an exhaustive search and test labels.</p>
       </div>
     </div>
   </section>
@@ -136,15 +136,15 @@
   <section class="section">
     <div class="container is-max-desktop">
       <div class="question content">
-        <h2 class="title is-3">How much does standard probing leave on the table?</h2>
+        <h2 class="title is-3">How much does the probing baseline leave on the table?</h2>
         <dl class="key-numbers">
-          <div><dt>260 / 270</dt><dd>VFM model-dataset pairs where another location beats standard probing</dd></div>
+          <div><dt>260 / 270</dt><dd>VFM model-dataset pairs where another location beats the probing baseline</dd></div>
           <div><dt>+2.2 pp</dt><dd>average oracle gain in VFMs, up to +10.5 pp</dd></div>
           <div><dt>+2.9 pp</dt><dd>average oracle gain in LLMs, from +2.0 to +4.1 pp across the 9 models</dd></div>
         </dl>
         <p>The gain comes from choosing the layer and the module together. Searching over both beats searching over the layers of the residual stream or over the modules of the last layer, in both modalities. In LLMs, the residual stream is never part of the best pair.</p>
-        <figure><img src="static/images/cdf_vision_cls.png" width="736" height="330" alt="Complementary cumulative distribution of the gain over standard probing across 270 VFM model-dataset pairs, for the best layer, the best module and the best layer-module pair. The joint curve lies above the others and reaches 10 pp."><figcaption>VFMs: share of the 270 model-dataset pairs with a gain above x, when choosing the best layer, the best module, or both.</figcaption></figure>
-        <figure><img src="static/images/model_family_language_mteb.png" width="736" height="310" alt="Bar chart of the gain over standard probing for the 9 LLMs, for the best layer, the best module and the best layer-module pair. The joint gain ranges from 2.0 to 4.1 pp."><figcaption>LLMs: gain over standard probing on MTEB(Multilingual), for the best layer, the best module, or both.</figcaption></figure>
+        <figure><img src="static/images/cdf_vision_cls.png" width="736" height="330" alt="Complementary cumulative distribution of the gain over the probing baseline across 270 VFM model-dataset pairs, for the best layer, the best module and the best layer-module pair. The joint curve lies above the others and reaches 10 pp."><figcaption>VFMs: share of the 270 model-dataset pairs with a gain above x, for the best layer, the best module, or both.</figcaption></figure>
+        <figure><img src="static/images/model_family_language_mteb.png" width="736" height="310" alt="Bar chart of the gain over the probing baseline for the 9 LLMs, for the best layer, the best module and the best layer-module pair. The joint gain ranges from 2.0 to 4.1 pp."><figcaption>LLMs: gain over the probing baseline on MTEB(Multilingual), for the best layer, the best module, or both.</figcaption></figure>
       </div>
     </div>
   </section>
@@ -154,7 +154,47 @@
       <div class="question content">
         <h2 class="title is-3">Where are the better representations?</h2>
         <p>For vision, mostly in the FFN activation of the last layers: <span class="kw-act">Act</span> is in the best pair for 64.8% of the model-dataset pairs, against 5.9% for the residual stream. For language, in the second normalization at intermediate depth: <span class="kw-ln2">LN2</span> is in the best pair for 8 of the 9 LLMs, at 48% to 78% of the depth.</p>
-        <p><strong>Try it yourself.</strong> Pick a model, then click any cell, or use the layer and module controls, to compare that location with standard probing, our fixed rule and the best location.</p>
+        <p>The heatmaps of the animation above show where the best pair lies across all models. You can explore each model and dataset at the end of this page.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">Can we get there without search?</h2>
+        <p>Yes, with one fixed location per modality. <span class="kw-act">Act@100</span>, the FFN activation of the last layer, improves over the probing baseline in 63.7% of the 270 VFM evaluations. <span class="kw-ln2">LN2@60</span>, the second normalization at 60% depth, improves on 21 of the 24 MTEB tasks and on all 9 LLMs.</p>
+        <figure><img src="static/images/fixed_rules.png" width="736" height="320" alt="Bar chart of the gain over the probing baseline per model. For VFMs (307M variants), Act@100 gains 2.3, 1.3, 0.4 and 0.7 pp against oracle gains of 4.4, 2.4, 1.7 and 1.8 pp for ViT, DINOv2, DINOv3 and AIMv2. For the 9 LLMs, LN2@60 gains 2.0 to 3.5 pp against oracle gains of 2.0 to 4.1 pp."><figcaption>Gain of the fixed rule (colored) against the oracle gain (gray), per model.</figcaption></figure>
+        <p>On average, <span class="kw-act">Act@100</span> recovers 42% of the oracle gain in VFMs and <span class="kw-ln2">LN2@60</span> recovers 86% in LLMs, more than the best layer of the residual stream in both cases. Probing the best layer of the same module recovers 78.1% and 99.8%.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">When does it matter most?</h2>
+        <p>The benefits of optimal probing locations increase with the distribution shift between pretraining and downstream data. In VFMs, the oracle gain grows with transfer difficulty, measured by the probing error of the baseline (Spearman ρ = 0.87). On the distribution shifts of WILDS and DomainNet, <span class="kw-act">Act@100</span> improves 25 of the 28 evaluations of the 307M variants, by +1.8 pp on average.</p>
+        <figure><img src="static/images/transfer_difficulty_vision_cls.png" width="736" height="350" alt="Scatter plot of the oracle gain per dataset against the mean probing error of the baseline, with a rising trend line. Cifar10 has a small gain, Quickdraw a large one."><figcaption>VFMs: oracle gain per dataset against transfer difficulty.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">What does it mean for future work?</h2>
+        <p>Transformer blocks are not monolithic: where a representation is read inside the block matters as much as how deep it sits. When transformers are used as frozen feature extractors, the module is a choice worth making alongside the layer, and the fixed rules give a cheap default, one extra hook in the same forward pass.</p>
+        <p>Our analysis focuses on linear probing for classification. Natural next steps are other downstream tasks and other modalities, such as tabular and time series foundation models. Knowing which internal representations are useful could also guide the design of aggregation mechanisms that combine intermediate representations, rather than treating all layers and modules uniformly.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">Explore the results yourself</h2>
+        <p>Pick a model, then click any cell, or use the module and layer controls, to compare that location with the probing baseline (○), the fixed rule (◇) and the best location (★).</p>
       </div>
       <div class="explorer page-column" id="explorer">
         <div class="explorer-controls">
@@ -174,27 +214,6 @@
         <div class="explorer-depth" id="explorer-depth"></div>
         <dl class="readout" id="explorer-readout" aria-live="polite"></dl>
         <div class="explorer-legend" id="explorer-legend"></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="container is-max-desktop">
-      <div class="question content">
-        <h2 class="title is-3">Can we get there without search?</h2>
-        <p>Yes, with one fixed location per modality. <span class="kw-act">Act@100</span>, the FFN activation of the last layer, improves over standard probing in 63.7% of the 270 VFM evaluations. <span class="kw-ln2">LN2@60</span>, the second normalization at 60% depth, improves on 21 of the 24 MTEB tasks and on all 9 LLMs.</p>
-        <figure><img src="static/images/fixed_rules.png" width="736" height="320" alt="Bar chart of the gain over standard probing per model. For VFMs (307M variants), Act@100 gains 2.3, 1.3, 0.4 and 0.7 pp against oracle gains of 4.4, 2.4, 1.7 and 1.8 pp for ViT, DINOv2, DINOv3 and AIMv2. For the 9 LLMs, LN2@60 gains 2.0 to 3.5 pp against oracle gains of 2.0 to 4.1 pp."><figcaption>Gain of the fixed rule (colored) against the oracle gain (gray), per model.</figcaption></figure>
-        <p>On average, <span class="kw-act">Act@100</span> recovers 41.9% of the oracle gain in VFMs and <span class="kw-ln2">LN2@60</span> recovers 86.0% in LLMs, more than the best layer of the residual stream in both cases. Probing the best layer of the same module recovers 78.1% and 99.8%.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="container is-max-desktop">
-      <div class="question content">
-        <h2 class="title is-3">When does it matter most?</h2>
-        <p>When the downstream data departs from pretraining. In VFMs, the oracle gain grows with transfer difficulty, measured by the probing error of standard probing (Spearman ρ = 0.87). On the distribution shifts of WILDS and DomainNet, <span class="kw-act">Act@100</span> improves 25 of the 28 evaluations of the 307M variants, by +1.8 pp on average.</p>
-        <figure><img src="static/images/transfer_difficulty_vision_cls.png" width="736" height="350" alt="Scatter plot of the oracle gain per dataset against the mean probing error of standard probing, with a rising trend line. Cifar10 has a small gain, Quickdraw a large one."><figcaption>VFMs: oracle gain per dataset against transfer difficulty.</figcaption></figure>
       </div>
     </div>
   </section>

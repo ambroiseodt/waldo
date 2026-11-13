@@ -58,6 +58,7 @@
 .explorer-pick { padding-top: 0.75rem; border-top: 1px solid #ededed; }
 .explorer-pick-label { font-weight: 600; color: var(--waldo-ink); align-self: center; min-width: 6.5rem; }
 .explorer-field { display: grid; gap: 0.2rem; font-size: 0.8rem; color: var(--waldo-muted); }
+.explorer-field[hidden] { display: none; }
 .explorer-field select { font: inherit; font-size: 0.95rem; color: var(--waldo-ink); background: #fff; border: 1px solid var(--waldo-line); border-radius: 4px; padding: 0.3rem 0.5rem; min-width: 9.5rem; }
 .explorer-field input[type="range"] { width: 12rem; accent-color: var(--waldo-ink); }
 .segmented { display: inline-flex; gap: 0.4rem; }
