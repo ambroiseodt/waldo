@@ -1,4 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#88609d"/>
-  <polygon points="16,5.5 18.9,12.6 26.5,13.2 20.7,18.1 22.5,25.5 16,21.5 9.5,25.5 11.3,18.1 5.5,13.2 13.1,12.6" fill="#d62728" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- A transformer block in the colors of the paper (Figure 2): LN1, MHA, LN2, FFN stacked bottom to top -->
+  <rect x="1.5" y="1.5" width="29" height="29" rx="6" fill="#ffffff" stroke="#363636" stroke-width="2.2"/>
+  <rect x="6" y="22.5" width="20" height="4.5" rx="1.5" fill="#d4909a"/>
+  <rect x="6" y="16.2" width="20" height="4.5" rx="1.5" fill="#4997d0"/>
+  <rect x="6" y="9.9" width="20" height="4.5" rx="1.5" fill="#b153a1"/>
+  <rect x="6" y="5" width="20" height="3.2" rx="1.2" fill="#5fa3bb"/>
 </svg>
