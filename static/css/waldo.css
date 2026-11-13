@@ -73,7 +73,8 @@
 .explorer-chart { position: relative; }
 .explorer-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .explorer-chart rect { cursor: pointer; }
-.explorer-depth svg { display: block; width: 100%; height: auto; overflow: visible; }
+.explorer-depth { padding-bottom: 0.5rem; }
+.explorer-depth svg { display: block; max-width: 100%; height: auto; margin: 0 auto; overflow: visible; }
 .explorer-depth text { font-family: 'Noto Sans', sans-serif; fill: var(--waldo-muted); font-size: 12px; }
 .explorer-chart text { font-family: 'Noto Sans', sans-serif; fill: var(--waldo-ink); font-size: 12.5px; }
 .explorer-chart .tick { fill: var(--waldo-muted); }

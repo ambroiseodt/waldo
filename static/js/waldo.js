@@ -152,6 +152,8 @@
   // Accuracy along depth: the residual stream, the module of the fixed rule and the picked module
   const MODULE_COLOR = { 5: "--waldo-act", 3: "--waldo-ln2", 7: "--waldo-rc2" };
   function renderDepth(grid, pickLayer, width, left, right) {
+    // Narrower than the grid, centered: 520 px at most
+    width = Math.min(width, 520);
     const box = $("explorer-depth");
     box.querySelector("svg")?.remove();
     const L = grid.length, M = D.modules.length, ruleModule = RULES[state.mode].module;
@@ -161,7 +163,7 @@
     const lo = Math.floor(Math.min(...values)), hi = Math.ceil(Math.max(...values));
     // On narrow screens the legend goes on its own line under the title
     const narrow = width < 560, legendY = narrow ? 30 : 8;
-    const top = narrow ? 46 : 26, h = 130, height = top + h + 16;
+    const top = narrow ? 46 : 26, h = 130, height = top + h + 34;
     const x = (l) => left + ((l + 0.5) / L) * (width - left - right);
     const y = (v) => top + h - ((v - lo) / (hi - lo || 1)) * h;
     const svg = el("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img",
@@ -171,6 +173,11 @@
       el("line", { x1: left, x2: width - right, y1: y(v), y2: y(v), stroke: "#ededed" }, svg);
       el("text", { x: left - 8, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = Math.round(v);
     });
+    // Own depth axis, since the view is narrower than the grid
+    [0, 50, 100].forEach((p) => {
+      el("text", { x: x(Math.round((p / 100) * (L - 1))), y: top + h + 16, "text-anchor": "middle" }, svg).textContent = p;
+    });
+    el("text", { x: left + (width - left - right) / 2, y: top + h + 32, "text-anchor": "middle" }, svg).textContent = "Layer depth (%)";
     const ink = token("--waldo-ink");
     let legendX = narrow ? left : left + 170;
     shown.forEach((m, i) => {
