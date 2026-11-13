@@ -29,6 +29,7 @@
 .question .title { margin-bottom: 0.25rem !important; }
 .content figure { margin: 1.5rem auto; text-align: center; }
 .content figure img { display: block; width: 100%; height: auto; margin: 0 auto; }
+.content figure.figure-narrow { max-width: 480px; }
 .content figure figcaption { font-style: italic; font-size: 0.95rem; color: #4a4a4a; margin-top: 0.5rem; }
 .figure-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
 .figure-pair figure { margin: 0; }
@@ -51,6 +52,10 @@
 .result-table td.rule-act { color: var(--waldo-act); font-weight: 600; }
 .result-table td.rule-ln2 { color: var(--waldo-ln2); font-weight: 600; }
 .table-wrap { overflow-x: auto; }
+
+.equation { overflow-x: auto; padding: 0.25rem 0; }
+.equation math { font-size: 1.1em; }
+.content math { font-family: 'Noto Sans Math', 'Noto Sans', sans-serif; }
 
 /* Explorer */
 .explorer > * + * { margin-top: 1rem; }
