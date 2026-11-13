@@ -183,16 +183,6 @@
   <section class="section">
     <div class="container is-max-desktop">
       <div class="question content">
-        <h2 class="title is-3">What does it mean for future work?</h2>
-        <p>Transformer blocks are not monolithic: where a representation is read inside the block matters as much as how deep it sits. When transformers are used as frozen feature extractors, the module is a choice worth making alongside the layer, and the fixed rules give a cheap default, one extra hook in the same forward pass.</p>
-        <p>Our analysis focuses on linear probing for classification. Natural next steps are other downstream tasks and other modalities, such as tabular and time series foundation models. Knowing which internal representations are useful could also guide the design of aggregation mechanisms that combine intermediate representations, rather than treating all layers and modules uniformly.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="container is-max-desktop">
-      <div class="question content">
         <h2 class="title is-3">Explore the results yourself</h2>
         <p>Pick a model, then click any cell, or use the module and layer controls, to compare that location with the probing baseline (○), the fixed rule (◇) and the best location (★).</p>
       </div>
@@ -214,6 +204,16 @@
         <div class="explorer-depth" id="explorer-depth"></div>
         <dl class="readout" id="explorer-readout" aria-live="polite"></dl>
         <div class="explorer-legend" id="explorer-legend"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="question content">
+        <h2 class="title is-3">Discussion</h2>
+        <p>Transformer blocks are not monolithic: where a representation is read inside the block matters as much as how deep it sits. When transformers are used as frozen feature extractors, the module is a choice worth making alongside the layer, and the fixed rules give a cheap default, one extra hook in the same forward pass.</p>
+        <p>Our analysis focuses on linear probing for classification. Natural next steps are other downstream tasks and other modalities, such as tabular and time series foundation models. Knowing which internal representations are useful could also guide the design of aggregation mechanisms that combine intermediate representations, rather than treating all layers and modules uniformly.</p>
       </div>
     </div>
   </section>
